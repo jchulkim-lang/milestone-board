@@ -14,6 +14,16 @@ function bytesFromB64url(s){ s = s.replace(/-/g,"+").replace(/_/g,"/"); while(s.
 async function hmacKey(secret){ return crypto.subtle.importKey("raw", enc.encode(secret), { name:"HMAC", hash:"SHA-256" }, false, ["sign","verify"]); }
 function json(o, s=200, h={}){ return new Response(JSON.stringify(o), { status:s, headers:{ "content-type":"application/json", ...h } }); }
 
+/* D1 표가 없으면 자동 생성 + 최초 행 보장 (schema.sql 미실행이어도 동작) */
+let DB_READY = false;
+async function ensureDb(env){
+  if(DB_READY) return;
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS app_state (id TEXT PRIMARY KEY, data TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL, updated_by TEXT)").run();
+  await env.DB.prepare("INSERT OR IGNORE INTO app_state (id,data,version,updated_at,updated_by) VALUES ('main','{\"tasks\":[],\"milestones\":[]}',0,datetime('now'),NULL)").run();
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS users (email TEXT PRIMARY KEY, name TEXT, last_seen TEXT)").run();
+  DB_READY = true;
+}
+
 async function createSessionToken(user, env){
   const payload = { email:user.email, name:user.name||"", exp:Math.floor(Date.now()/1000)+SESSION_TTL };
   const p = b64urlFromStr(JSON.stringify(payload));
@@ -64,6 +74,7 @@ async function handleApi(request, env, url){
   if(p === "/api/config" && request.method === "GET"){
     return json({ googleClientId: env.GOOGLE_CLIENT_ID || "", companyDomain: env.COMPANY_DOMAIN || "" });
   }
+  try{ await ensureDb(env); }catch(_){}   // 표 자동 생성/보장
   if(p === "/api/auth/google" && request.method === "POST"){
     try{
       const b = await request.json(); const idt = b.credential || b.id_token; if(!idt) return json({ error:"missing credential" }, 400);
