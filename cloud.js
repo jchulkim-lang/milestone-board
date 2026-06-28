@@ -6,6 +6,7 @@
  * ===================================================================== */
 (function(){
   let ROLE = "viewer";
+  let ACCESS_USERS = [], accessQuery = "", viewersOpen = false;
   const esc = s => (s||"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
   const canEdit = () => ROLE==="editor" || ROLE==="admin";
 
@@ -128,14 +129,17 @@
   function ensureAccessModal(){
     let m = document.getElementById("accessModal"); if(m) return m;
     m = document.createElement("div"); m.id="accessModal"; m.className="modal-bg";
-    m.innerHTML = `<div class="modal" style="width:480px"><h3>권한 관리 👥</h3>
-      <div class="msub">‘승인 대기🔔’를 ‘편집 승인’하면 그 사람이 편집 가능(editor)이 됩니다. 관리자(admin)는 Cloudflare 환경변수 ADMIN_EMAILS로 지정됩니다.</div>
-      <div id="accessList" class="ms-list-wrap" style="max-height:340px"></div>
+    m.innerHTML = `<div class="modal" style="width:500px"><h3>권한 관리 👥</h3>
+      <div class="msub">‘승인 대기🔔’를 ‘편집 승인’하면 편집 가능(editor)이 됩니다. 관리자(admin)는 환경변수 ADMIN_EMAILS로 지정됩니다.</div>
+      <input id="accessSearch" placeholder="이름·이메일 검색" style="width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 11px;font-size:13px;margin-bottom:8px">
+      <div id="accessResults" class="ms-list-wrap" style="max-height:360px"></div>
       <div class="modal-actions"><span></span><div class="right"><button class="btn" id="accessClose">닫기</button></div></div></div>`;
     document.body.appendChild(m);
     m.addEventListener("click", e=>{ if(e.target===m) m.classList.remove("show"); });
     m.querySelector("#accessClose").onclick = () => m.classList.remove("show");
-    m.querySelector("#accessList").addEventListener("click", async e=>{
+    m.querySelector("#accessSearch").addEventListener("input", e=>{ accessQuery=e.target.value; drawAccess(); });
+    m.querySelector("#accessResults").addEventListener("click", async e=>{
+      const tg=e.target.closest("#viewersToggle"); if(tg){ viewersOpen=!viewersOpen; drawAccess(); return; }
       const g = e.target.closest("[data-grant]"); if(!g) return; g.disabled=true;
       try{ await fetch("/api/grant",{method:"POST",credentials:"same-origin",headers:{"content-type":"application/json"},body:JSON.stringify({email:g.dataset.email, role:g.dataset.grant})}); }catch(_){}
       renderAccess();
@@ -143,25 +147,36 @@
     return m;
   }
   async function renderAccess(){
-    const el = document.getElementById("accessList"); el.innerHTML = "불러오는 중…";
+    const el = document.getElementById("accessResults"); el.innerHTML = "불러오는 중…";
     try{
       const r = await fetch("/api/access", { credentials:"same-origin" });
       if(!r.ok){ el.innerHTML = '<div class="dm-empty">권한이 없습니다.</div>'; return; }
-      const j = await r.json(); const us = j.users || [];
-      el.innerHTML = us.map(u=>{
-        const rl = u.role==="admin" ? "관리자" : (u.role==="editor" ? "편집 가능" : "읽기 전용");
-        const pend = u.requested ? ' · 🔔승인 대기' : '';
-        let btn = "";
-        if(u.role!=="admin"){
-          btn = (u.role==="editor")
-            ? `<button class="meta-btn" data-grant="viewer" data-email="${esc(u.email)}">읽기 전용으로</button>`
-            : `<button class="meta-btn set" data-grant="editor" data-email="${esc(u.email)}">편집 승인</button>`;
-        }
-        return `<div class="ms-item" style="cursor:default"><span class="ms-name">${esc(u.name||u.email)}</span><span class="ms-range">${esc(u.email)} · ${rl}${pend}</span>${btn}</div>`;
-      }).join("") || '<div class="dm-empty">사용자가 없습니다.</div>';
+      const j = await r.json(); ACCESS_USERS = j.users || []; drawAccess();
     }catch(_){ el.innerHTML = '<div class="dm-empty">불러오기 실패</div>'; }
   }
-  function openAccess(){ ensureAccessModal().classList.add("show"); renderAccess(); }
+  function drawAccess(){
+    const el = document.getElementById("accessResults"); if(!el) return;
+    const q = accessQuery.trim().toLowerCase();
+    const match = u => !q || (u.name||"").toLowerCase().includes(q) || (u.email||"").toLowerCase().includes(q);
+    const us = ACCESS_USERS.filter(match);
+    const pending = us.filter(u=>u.requested && u.role!=="editor" && u.role!=="admin");
+    const admins  = us.filter(u=>u.role==="admin");
+    const editors = us.filter(u=>u.role==="editor");
+    const viewers = us.filter(u=>u.role==="viewer" && !u.requested);
+    const row = (u,btn) => `<div class="ms-item" style="cursor:default"><span class="ms-name">${esc(u.name||u.email)}</span><span class="ms-range">${esc(u.email)}</span>${btn||""}</div>`;
+    const approve = u => `<button class="meta-btn set" data-grant="editor" data-email="${esc(u.email)}">편집 승인</button>`;
+    const revoke  = u => `<button class="meta-btn" data-grant="viewer" data-email="${esc(u.email)}">읽기 전용으로</button>`;
+    const head = t => `<div style="font-size:12px;font-weight:800;color:var(--muted);margin:12px 0 6px">${t}</div>`;
+    const empty = `<div class="dm-empty">없음</div>`;
+    let h = "";
+    h += head(`🔔 승인 대기 (${pending.length})`) + (pending.map(u=>row(u,approve(u))).join("") || empty);
+    h += head(`관리자 (${admins.length})`) + (admins.map(u=>row(u,"")).join("") || empty);
+    h += head(`편집 가능 (${editors.length})`) + (editors.map(u=>row(u,revoke(u))).join("") || empty);
+    h += `<div id="viewersToggle" style="font-size:12px;font-weight:800;color:var(--muted);margin:12px 0 6px;cursor:pointer">읽기 전용 (${viewers.length}) ${viewersOpen?"▾":"▸"}</div>`;
+    if(viewersOpen) h += (viewers.map(u=>row(u,approve(u))).join("") || empty);
+    el.innerHTML = h;
+  }
+  function openAccess(){ accessQuery=""; viewersOpen=false; ensureAccessModal().classList.add("show"); const si=document.getElementById("accessSearch"); if(si) si.value=""; renderAccess(); }
 
   (async function(){
     const me = await getMe();
