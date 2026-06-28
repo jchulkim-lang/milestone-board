@@ -20,10 +20,15 @@ async function ensureDb(env){
   if(DB_READY) return;
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS app_state (id TEXT PRIMARY KEY, data TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL, updated_by TEXT)").run();
   await env.DB.prepare("INSERT OR IGNORE INTO app_state (id,data,version,updated_at,updated_by) VALUES ('main','{\"tasks\":[],\"milestones\":[]}',0,datetime('now'),NULL)").run();
-  await env.DB.prepare("CREATE TABLE IF NOT EXISTS users (email TEXT PRIMARY KEY, name TEXT, last_seen TEXT)").run();
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS users (email TEXT PRIMARY KEY, name TEXT, last_seen TEXT, role TEXT DEFAULT 'viewer', requested INTEGER DEFAULT 0)").run();
+  try{ await env.DB.prepare("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'viewer'").run(); }catch(_){}
+  try{ await env.DB.prepare("ALTER TABLE users ADD COLUMN requested INTEGER DEFAULT 0").run(); }catch(_){}
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS history (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT NOT NULL, version INTEGER, saved_by TEXT, saved_at TEXT)").run();
   DB_READY = true;
 }
+function isAdminEmail(env, email){ const list=(env.ADMIN_EMAILS||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean); return list.includes((email||"").toLowerCase()); }
+async function effectiveRole(env, email){ if(isAdminEmail(env, email)) return "admin"; const r=await env.DB.prepare("SELECT role FROM users WHERE email=?").bind(email).first(); return (r && r.role) || "viewer"; }
+function canEdit(role){ return role==="editor" || role==="admin"; }
 
 async function createSessionToken(user, env){
   const payload = { email:user.email, name:user.name||"", exp:Math.floor(Date.now()/1000)+SESSION_TTL };
@@ -80,7 +85,10 @@ async function handleApi(request, env, url){
     try{
       const b = await request.json(); const idt = b.credential || b.id_token; if(!idt) return json({ error:"missing credential" }, 400);
       const user = await verifyGoogleIdToken(idt, env);
-      try{ await env.DB.prepare("INSERT INTO users (email,name,last_seen) VALUES (?,?,datetime('now')) ON CONFLICT(email) DO UPDATE SET name=excluded.name, last_seen=datetime('now')").bind(user.email, user.name||"").run(); }catch(_){}
+      try{
+        if(isAdminEmail(env, user.email)) await env.DB.prepare("INSERT INTO users (email,name,last_seen,role) VALUES (?,?,datetime('now'),'admin') ON CONFLICT(email) DO UPDATE SET name=excluded.name, last_seen=datetime('now'), role='admin'").bind(user.email, user.name||"").run();
+        else await env.DB.prepare("INSERT INTO users (email,name,last_seen) VALUES (?,?,datetime('now')) ON CONFLICT(email) DO UPDATE SET name=excluded.name, last_seen=datetime('now')").bind(user.email, user.name||"").run();
+      }catch(_){}
       const tok = await createSessionToken(user, env);
       return json({ ok:true, user:{ email:user.email, name:user.name } }, 200, { "Set-Cookie": sessionCookie(tok) });
     }catch(e){ return json({ error:"auth failed", detail:String(e && e.message || e) }, 401); }
@@ -90,8 +98,25 @@ async function handleApi(request, env, url){
   const user = await verifySession(request, env);
   if(!user) return json({ error:"unauthorized" }, 401);
 
-  if(p === "/api/me" && request.method === "GET") return json({ user });
+  if(p === "/api/me" && request.method === "GET"){ const role=await effectiveRole(env, user.email); return json({ user:{ email:user.email, name:user.name, role } }); }
   if(p === "/api/logout" && request.method === "POST") return json({ ok:true }, 200, { "Set-Cookie": clearCookie() });
+
+  // 편집 권한 요청 / 권한 관리(관리자)
+  if(p === "/api/request-edit" && request.method === "POST"){
+    await env.DB.prepare("INSERT INTO users (email,name,requested) VALUES (?,?,1) ON CONFLICT(email) DO UPDATE SET requested=1, name=excluded.name").bind(user.email, user.name||"").run();
+    return json({ ok:true });
+  }
+  if(p === "/api/access" && request.method === "GET"){
+    if((await effectiveRole(env, user.email)) !== "admin") return json({ error:"forbidden" }, 403);
+    const { results } = await env.DB.prepare("SELECT email,name,role,requested FROM users ORDER BY requested DESC, role DESC, name").all();
+    return json({ users: results || [], adminEmails: env.ADMIN_EMAILS || "" });
+  }
+  if(p === "/api/grant" && request.method === "POST"){
+    if((await effectiveRole(env, user.email)) !== "admin") return json({ error:"forbidden" }, 403);
+    const b = await request.json(); const role = (b.role === "editor") ? "editor" : "viewer";
+    await env.DB.prepare("INSERT INTO users (email,role,requested) VALUES (?,?,0) ON CONFLICT(email) DO UPDATE SET role=?, requested=0").bind(b.email, role, role).run();
+    return json({ ok:true });
+  }
 
   if(p === "/api/state" && request.method === "GET"){
     const row = await env.DB.prepare("SELECT data, version, updated_at, updated_by FROM app_state WHERE id='main'").first();
@@ -100,6 +125,7 @@ async function handleApi(request, env, url){
     return json({ data, version:row.version, updatedAt:row.updated_at, updatedBy:row.updated_by });
   }
   if(p === "/api/state" && request.method === "PUT"){
+    if(!canEdit(await effectiveRole(env, user.email))) return json({ error:"forbidden", reason:"edit-not-allowed" }, 403);
     const b = await request.json(); const payload = JSON.stringify(b.data ?? {});
     await env.DB.prepare("UPDATE app_state SET data=?, version=version+1, updated_at=datetime('now'), updated_by=? WHERE id='main'").bind(payload, user.email).run();
     const row = await env.DB.prepare("SELECT data, version FROM app_state WHERE id='main'").first();
@@ -125,6 +151,7 @@ async function handleApi(request, env, url){
     return json({ items: results || [] });
   }
   if(p === "/api/restore" && request.method === "POST"){
+    if(!canEdit(await effectiveRole(env, user.email))) return json({ error:"forbidden", reason:"edit-not-allowed" }, 403);
     const b = await request.json();
     const snap = await env.DB.prepare("SELECT data FROM history WHERE id=?").bind(b.id).first();
     if(!snap) return json({ error:"snapshot not found" }, 404);
