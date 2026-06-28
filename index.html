@@ -192,6 +192,10 @@
   .dm-owners{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:6px 8px;font-size:12px;}
   .dept-owner{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;}
   .asg-badge{font-size:10.5px;color:var(--muted);font-weight:600;flex:0 0 auto;white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis;}
+  .da-row{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-top:1px solid var(--grid);}
+  .da-dept{flex:0 0 64px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:5px;padding-top:3px;}
+  .da-dept i{width:9px;height:9px;border-radius:50%;flex:0 0 auto;}
+  .da-chips{flex:1;display:flex;flex-wrap:wrap;gap:6px;}
   .dm-add{display:flex;align-items:center;gap:8px;margin-top:12px;}
   .dm-add input[type=text]{flex:1;}
   .dl-lane{height:20px;position:relative;border-bottom:1px solid var(--line);}
@@ -257,18 +261,18 @@
     <div class="modal"><h3>새 Task 추가</h3><div class="msub">업무 단위와 소속 마일스톤을 정합니다.</div>
       <label>Task 이름</label><input id="taskInput" placeholder="예: 로그인 기능" />
       <label>마일스톤</label><select id="taskMs"></select>
-      <label>담당자 (여러 명 선택 가능 · 없으면 미정)</label><div class="pickgrid" id="taskAssignees"></div>
-      <div class="modal-actions"><span></span><div class="right"><button class="btn ghost" data-close>취소</button><button class="btn" id="taskAddOk">추가</button></div></div></div>
+      <div class="msub" style="margin:6px 0 0">다음 단계에서 부서를 지정하고, 부서별로 담당자를 배정합니다.</div>
+      <div class="modal-actions"><span></span><div class="right"><button class="btn ghost" data-close>취소</button><button class="btn" id="taskAddOk">다음: 부서 지정</button></div></div></div>
   </div>
   <div class="modal-bg" id="deptModal">
-    <div class="modal"><h3>부서 지정</h3><div class="msub" id="deptModalSub"></div>
-      <div class="pickgrid" id="deptPickGrid"></div>
-      <div class="modal-actions"><span style="font-size:11px;color:var(--muted)">선택하면 우측에 일정 막대가 생깁니다</span><div class="right"><button class="btn" data-close>완료</button></div></div></div>
+    <div class="modal"><h3>부서 지정 · 담당자 배정</h3><div class="msub" id="deptModalSub"></div>
+      <label>참여 부서</label><div class="pickgrid" id="deptPickGrid"></div>
+      <div id="deptAssignArea"></div>
+      <div class="modal-actions"><span style="font-size:11px;color:var(--muted)">부서를 켜면 그 부서의 담당자를 고를 수 있어요</span><div class="right"><button class="btn" data-close>완료</button></div></div></div>
   </div>
   <div class="modal-bg" id="linkModal">
     <div class="modal"><h3>Task 편집</h3><div class="msub" id="linkModalSub"></div>
       <label>Task 이름</label><input id="editName" placeholder="Task 이름" />
-      <label>담당자</label><div class="pickgrid" id="editAssignees"></div>
       <label>기획서 링크</label><input id="linkPlan" placeholder="https://..." />
       <label>Trello 링크</label><input id="linkTrello" placeholder="https://trello.com/..." />
       <div class="modal-actions"><span></span><div class="right"><button class="btn ghost" data-close>취소</button><button class="btn" id="linkSaveOk">저장</button></div></div></div>
@@ -278,6 +282,7 @@
       <label>시작일 (영업일로 자동 보정)</label><input type="date" id="schedStart" />
       <label>종료일</label><input type="date" id="schedEnd" />
       <div class="dur" id="schedDur"></div>
+      <label>담당자 (이 부서)</label><div class="pickgrid" id="schedAssignees"></div>
       <div class="modal-actions"><button class="linkrow" id="schedRemove">이 부서 제거</button>
         <div class="right"><button class="btn ghost" data-close>취소</button><button class="btn" id="schedSaveOk">저장</button></div></div></div>
   </div>
@@ -415,7 +420,7 @@ function migrate(){
   const firstMs=state.milestones[0].id;
   state.tasks.forEach(t=>{ if(!t.kickoff) t.kickoff = t.status && KICKOFFS.some(k=>k.k===t.status) ? t.status : "예정";
     if(!t.status || !TASK_STATUSES.some(s=>s.k===t.status)) t.status="대기";
-    if(!t.links) t.links={plan:"",trello:""}; if(!Array.isArray(t.assignees)) t.assignees=[]; if(!t.milestoneId || !findMs(t.milestoneId)) t.milestoneId=firstMs; if(t.open===undefined)t.open=false; });
+    if(!t.links) t.links={plan:"",trello:""}; if(t.depts) Object.values(t.depts).forEach(s=>{ if(s && !Array.isArray(s.assignees)) s.assignees=[]; }); if(!t.milestoneId || !findMs(t.milestoneId)) t.milestoneId=firstMs; if(t.open===undefined)t.open=false; });
 }
 function save(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); if(remote.active) remote.push(state); }
 function load(){ const raw=localStorage.getItem(LS_KEY); if(raw){ try{state=JSON.parse(raw);}catch(e){} } migrate(); buildTimeline(); }
@@ -520,8 +525,8 @@ function renderHead(){
 }
 
 function deptGridHtml(t){
-  return state.departments.map(d=>{ const on=t.depts[d.key]&&t.depts[d.key].on;
-    const ow=(d.owners&&d.owners.length)?' · 담당: '+escapeHtml(d.owners.join(', ')):'';
+  return state.departments.map(d=>{ const seg=t.depts[d.key]; const on=seg&&seg.on;
+    const ow=(on&&seg.assignees&&seg.assignees.length)?' · 담당: '+escapeHtml(seg.assignees.join(', ')):'';
     return `<span class="dept-slot ${on?'on':'off'}" title="${escapeHtml(d.key)}${on?' · 지정됨':' · 미지정'}${ow}"><i ${on?`style="background:${d.color}"`:''}></i></span>`; }).join("");
 }
 function taskHeadHtml(t){
@@ -529,7 +534,8 @@ function taskHeadHtml(t){
   const kf=kfOf(t.kickoff);
   const stOpts=TASK_STATUSES.map(s=>`<option ${s.k===t.status?'selected':''}>${s.k}</option>`).join("");
   const links=(t.links.plan?`<a class="lk" href="${escapeHtml(t.links.plan)}" target="_blank" rel="noopener" title="기획서">📄</a>`:"")+(t.links.trello?`<a class="lk" href="${escapeHtml(t.links.trello)}" target="_blank" rel="noopener" title="Trello">📋</a>`:"");
-  const asg=(t.assignees&&t.assignees.length)?`<span class="asg-badge" title="담당: ${escapeHtml(t.assignees.join(', '))}">👤 ${escapeHtml(t.assignees[0])}${t.assignees.length>1?' +'+(t.assignees.length-1):''}</span>`:'';
+  const aps=taskAssignees(t);
+  const asg=aps.length?`<span class="asg-badge" title="담당: ${escapeHtml(aps.join(', '))}">👤 ${escapeHtml(aps[0])}${aps.length>1?' +'+(aps.length-1):''}</span>`:'';
   return `<div class="task-head" data-toggleopen="${t.id}">
       <span class="drag-handle" data-drag="${t.id}" title="드래그하여 이동">⠿</span>
       <span class="caret">▶</span>
@@ -558,7 +564,8 @@ function renderLeft(){
         let inner="";
         if(t.open){
           const deptRows=activeDepts(t).map(d=>{ const seg=t.depts[d.key];
-            const ow=(d.owners&&d.owners.length)?`<span class="dept-owner" title="담당: ${escapeHtml(d.owners.join(', '))}">👤 ${escapeHtml(d.owners.join(', '))}</span>`:'';
+            const sa=(seg.assignees&&seg.assignees.length)?seg.assignees:[];
+            const ow=sa.length?`<span class="dept-owner" title="담당: ${escapeHtml(sa.join(', '))}">👤 ${escapeHtml(sa.join(', '))}</span>`:'<span class="dept-owner" style="opacity:.6">담당 미정</span>';
             return `<div class="dept-row"><span class="dept-chip on" style="background:${d.color}"><span class="swatch" style="background:#fff"></span>${d.key}</span>${ow}<span class="dept-dates">${fmt(dateOf(seg.start))} ~ ${fmt(dateOf(seg.end))} · ${seg.end-seg.start+1}영업일</span></div>`; }).join("");
           inner=`<div class="dept-list">${deptRows}</div>`;
         }
@@ -760,51 +767,55 @@ document.getElementById("deptAddNew").onclick=()=>{ const name=document.getEleme
   if(state.departments.some(d=>d.key===name)){ alert("이미 있는 부서명입니다."); return; }
   state.departments.push({key:name,color,owners:[]}); document.getElementById("newDeptName").value=""; save(); render(); renderDeptMgr(); };
 
-/* 담당자 선택 칩 (Task 생성/편집 공용) */
-function renderAssigneePicker(elId, selected){
-  const sel=new Set(selected||[]); const people=allPeople();
-  (selected||[]).forEach(n=>{ if(!people.includes(n)) people.push(n); });
-  document.getElementById(elId).innerHTML = people.length
-    ? people.map(n=>`<span class="dept-chip ${sel.has(n)?'on':''}" data-aname="${escapeHtml(n)}">${escapeHtml(n)}</span>`).join("")
-    : `<span class="dm-empty">등록된 담당자가 없습니다. ‘부서 관리’에서 먼저 추가하세요. (미정으로 생성됩니다)</span>`;
-}
-function collectAssignees(elId){ return [...document.querySelectorAll("#"+elId+" .dept-chip.on")].map(c=>c.dataset.aname); }
-["taskAssignees","editAssignees"].forEach(id=>{ document.getElementById(id).addEventListener("click", e=>{ const c=e.target.closest("[data-aname]"); if(c) c.classList.toggle("on"); }); });
+/* 부서별 담당자 헬퍼 */
+function taskAssignees(t){ const s=new Set(); activeDepts(t).forEach(d=>{ const seg=t.depts[d.key]; ((seg&&seg.assignees)||[]).forEach(n=>s.add(n)); }); return [...s]; }
+function deptAssigneeChips(t, key){ const dept=state.departments.find(d=>d.key===key); const roster=(dept&&dept.owners)||[]; const seg=t.depts[key]; const sel=new Set((seg&&seg.assignees)||[]);
+  if(!roster.length) return `<span class="dm-empty">이 부서에 등록된 인원이 없습니다 (부서 관리에서 추가).</span>`;
+  return roster.map(n=>`<span class="dept-chip ${sel.has(n)?'on':''}" data-aassign="${escapeHtml(key)}" data-aname="${escapeHtml(n)}">${escapeHtml(n)}</span>`).join(""); }
+function toggleDeptAssignee(t, key, name){ const seg=t.depts[key]; if(!seg) return; if(!Array.isArray(seg.assignees)) seg.assignees=[]; const i=seg.assignees.indexOf(name); if(i>=0) seg.assignees.splice(i,1); else seg.assignees.push(name); }
 
-function openTaskModal(){ taskInput.value=""; taskMs.innerHTML=state.milestones.map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join(""); renderAssigneePicker("taskAssignees", []); taskModal.classList.add("show"); taskInput.focus(); }
+function openTaskModal(){ taskInput.value=""; taskMs.innerHTML=state.milestones.map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join(""); taskModal.classList.add("show"); taskInput.focus(); }
 document.getElementById("taskAddOk").onclick=addTask;
 taskInput.addEventListener("keydown",e=>{ if(e.key==="Enter") addTask(); });
 function addTask(){ const name=taskInput.value.trim(); if(!name) return;
-  const tk={ id:uid(), name, milestoneId:taskMs.value||state.milestones[0].id, open:true, kickoff:"예정", status:"대기", links:{plan:"",trello:""}, assignees:collectAssignees("taskAssignees"), depts:{} };
+  const tk={ id:uid(), name, milestoneId:taskMs.value||state.milestones[0].id, open:true, kickoff:"예정", status:"대기", links:{plan:"",trello:""}, depts:{} };
   state.tasks.push(tk); closeModals(); save(); render(); openDeptModal(tk.id); }
 
 function openDeptModal(tid){ editing={tid}; const t=findTask(tid);
   document.getElementById("deptModalSub").textContent=t.name;
   document.getElementById("deptPickGrid").innerHTML=DEPARTMENTS.map(d=>{ const on=t.depts[d.key]&&t.depts[d.key].on;
     return `<span class="dept-chip ${on?'on':''}" style="${on?'background:'+d.color:''}" data-pick="${d.key}"><span class="swatch" style="background:${on?'#fff':d.color}"></span>${d.key}</span>`; }).join("");
+  document.getElementById("deptAssignArea").innerHTML = activeDepts(t).length
+    ? `<label style="margin-top:14px">부서별 담당자</label>`+activeDepts(t).map(d=>`<div class="da-row"><div class="da-dept"><i style="background:${d.color}"></i>${d.key}</div><div class="da-chips">${deptAssigneeChips(t,d.key)}</div></div>`).join("")
+    : "";
   deptModal.classList.add("show"); }
 document.getElementById("deptPickGrid").addEventListener("click",e=>{ const c=e.target.closest("[data-pick]"); if(!c) return;
   const t=findTask(editing.tid); const k=c.dataset.pick;
-  if(!t.depts[k]) t.depts[k]={on:false,start:0,end:0}; const seg=t.depts[k];
-  if(seg.on){ seg.on=false; } else { seg.on=true; const b=defaultSegment(); seg.start=b.start; seg.end=b.end; }
+  if(!t.depts[k]) t.depts[k]={on:false,start:0,end:0,assignees:[]}; const seg=t.depts[k];
+  if(seg.on){ seg.on=false; } else { seg.on=true; if(!Array.isArray(seg.assignees)) seg.assignees=[]; const b=defaultSegment(); seg.start=b.start; seg.end=b.end; }
   save(); openDeptModal(editing.tid); render(); });
+document.getElementById("deptAssignArea").addEventListener("click",e=>{ const c=e.target.closest("[data-aassign]"); if(!c) return;
+  const t=findTask(editing.tid); toggleDeptAssignee(t, c.dataset.aassign, c.dataset.aname); save(); openDeptModal(editing.tid); render(); });
 
 function openEditModal(tid){ editing={tid}; const t=findTask(tid);
-  document.getElementById("linkModalSub").textContent="이름·담당자·링크를 편집합니다.";
+  document.getElementById("linkModalSub").textContent="이름과 링크를 편집합니다. (담당자는 부서 막대를 클릭하거나 ‘부서 지정’에서)";
   document.getElementById("editName").value=t.name||"";
-  renderAssigneePicker("editAssignees", t.assignees||[]);
   document.getElementById("linkPlan").value=t.links.plan||""; document.getElementById("linkTrello").value=t.links.trello||"";
   linkModal.classList.add("show"); }
 document.getElementById("linkSaveOk").onclick=()=>{ const t=findTask(editing.tid);
   const nm=document.getElementById("editName").value.trim(); if(nm) t.name=nm;
-  t.assignees=collectAssignees("editAssignees");
   t.links.plan=document.getElementById("linkPlan").value.trim(); t.links.trello=document.getElementById("linkTrello").value.trim(); closeModals(); save(); render(); };
 
 function openSchedModal(tid,dep){ editing={tid,dep}; const t=findTask(tid); const seg=t.depts[dep];
-  document.getElementById("schedTitle").textContent=`${dep} 일정 수정`; document.getElementById("schedSub").textContent=t.name;
+  document.getElementById("schedTitle").textContent=`${dep} 일정·담당자`; document.getElementById("schedSub").textContent=t.name;
   const sIn=document.getElementById("schedStart"), eIn=document.getElementById("schedEnd");
   sIn.min=eIn.min=ymd(WORKDAYS[0]); sIn.max=eIn.max=ymd(WORKDAYS[N-1]);
-  sIn.value=ymd(dateOf(seg.start)); eIn.value=ymd(dateOf(seg.end)); updateSchedDur(); schedModal.classList.add("show"); }
+  sIn.value=ymd(dateOf(seg.start)); eIn.value=ymd(dateOf(seg.end));
+  document.getElementById("schedAssignees").innerHTML=deptAssigneeChips(t,dep);
+  updateSchedDur(); schedModal.classList.add("show"); }
+document.getElementById("schedAssignees").addEventListener("click",e=>{ const c=e.target.closest("[data-aassign]"); if(!c) return;
+  const t=findTask(editing.tid); toggleDeptAssignee(t, editing.dep, c.dataset.aname); save();
+  document.getElementById("schedAssignees").innerHTML=deptAssigneeChips(t, editing.dep); render(); });
 function updateSchedDur(){ const si=nearestWorkdayIndex(document.getElementById("schedStart").value); let ei=nearestWorkdayIndex(document.getElementById("schedEnd").value); if(ei<si) ei=si;
   document.getElementById("schedDur").textContent=`기간: ${ei-si+1} 영업일 (${fmt(dateOf(si))} ~ ${fmt(dateOf(ei))})`; }
 document.getElementById("schedStart").addEventListener("change",updateSchedDur);
