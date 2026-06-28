@@ -68,6 +68,10 @@
   .filter-pop{position:absolute;top:var(--head-h);left:10px;right:10px;z-index:30;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px;display:none;box-shadow:0 8px 24px rgba(0,0,0,.4);max-height:60vh;overflow:auto;}
   .filter-pop.show{display:block;}
   .filter-pop .fsec{margin-bottom:10px;}
+  .fa-dept{display:flex;align-items:flex-start;gap:7px;margin-top:7px;}
+  .fa-deptname{flex:0 0 52px;font-size:11px;font-weight:700;color:var(--muted);display:flex;align-items:center;gap:4px;padding-top:4px;}
+  .fa-deptname i{width:8px;height:8px;border-radius:50%;flex:0 0 auto;}
+  .fa-dept .fchips{flex:1;margin-top:0;}
   .fchips{display:flex;flex-wrap:wrap;gap:7px;margin-top:6px;}
   .fchip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted);cursor:pointer;user-select:none;}
   .fchip .dot{width:8px;height:8px;border-radius:50%;}
@@ -406,7 +410,7 @@ function nearestWorkdayIndex(ymdStr){ if(!ymdStr) return -1; const t=parseYmd(ym
 
 const uid=()=>Math.random().toString(36).slice(2,9);
 let state = { milestones:[{ id:"m1", name:"마일스톤 1", color:MS_PALETTE[0], start:"2026-06-01", end:"", resource:"", dev:"", qa:"" }], tasks:[] };
-let deptFilter=new Set(), statusFilter=new Set(), msFilter=new Set();
+let deptFilter=new Set(), statusFilter=new Set(), msFilter=new Set(), assigneeFilter=new Set();
 let filterOpen=false;
 let groupCollapsed=new Set();   // 접힌 상태 그룹
 let msSelId=null;               // 마일스톤 편집 대상
@@ -454,10 +458,17 @@ const remote = { active:false, client:null,
 /* ===== 렌더링 ===== */
 const escapeHtml=s=>(s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const activeDepts=t=>DEPARTMENTS.filter(d=>t.depts[d.key]&&t.depts[d.key].on);
+function taskHasUnassigned(t){ const ad=activeDepts(t); if(!ad.length) return true; return ad.some(d=>!((t.depts[d.key].assignees)||[]).length); }
 function passFilter(t){
   if(deptFilter.size && !activeDepts(t).some(d=>deptFilter.has(d.key))) return false;
   if(msFilter.size && !msFilter.has(t.milestoneId)) return false;
   if(statusFilter.size && !statusFilter.has(t.status)) return false;
+  if(assigneeFilter.size){
+    let m=false;
+    if(assigneeFilter.has("__unassigned") && taskHasUnassigned(t)) m=true;
+    if(!m && taskAssignees(t).some(n=>assigneeFilter.has(n))) m=true;
+    if(!m) return false;
+  }
   return true;
 }
 function groupsToRender(){
@@ -493,7 +504,12 @@ function renderFilter(){
     return `<span class="fchip ${on?'on':''}" style="${on?'background:'+s.color:''}" data-fs="${s.k}"><span class="dot" style="background:${on?'#fff':s.color}"></span>${s.k}</span>`; }).join("");
   const mstabs=`<span class="mstab ${allM?'on':''}" data-mstab="__all">전체</span>`+state.milestones.map(m=>{ const on=msFilter.size===1&&msFilter.has(m.id);
     return `<span class="mstab ${on?'on':''}" data-mstab="${m.id}" style="${on?'background:'+m.color+';border-color:transparent;color:#fff':''}"><i class="dot" style="background:${on?'#fff':m.color}"></i>${escapeHtml(m.name)}</span>`; }).join("");
-  const cnt=deptFilter.size+statusFilter.size;
+  const cnt=deptFilter.size+statusFilter.size+assigneeFilter.size;
+  const allA=assigneeFilter.size===0;
+  const aSec=`<div class="fsec"><span class="lh-label">담당자</span>
+       <div class="fchips"><span class="fchip all ${allA?'on':''}" data-fa="__all">전체</span><span class="fchip ${assigneeFilter.has('__unassigned')?'on':''}" data-fa="__unassigned">미정</span></div>
+       ${state.departments.filter(d=>(d.owners||[]).length).map(d=>`<div class="fa-dept"><span class="fa-deptname"><i style="background:${d.color}"></i>${escapeHtml(d.key)}</span><div class="fchips">${d.owners.map(n=>`<span class="fchip ${assigneeFilter.has(n)?'on':''}" data-fa="${escapeHtml(n)}">${escapeHtml(n)}</span>`).join("")}</div></div>`).join("")}
+     </div>`;
   document.getElementById("leftHead").innerHTML=
     `<div class="lh-row">
        <button class="btn sm" id="addTaskBtn">＋ Task</button>
@@ -505,6 +521,7 @@ function renderFilter(){
      <div class="filter-pop ${filterOpen?'show':''}" id="filterPop">
        <div class="fsec"><span class="lh-label">부서</span><div class="fchips"><span class="fchip all ${allD?'on':''}" data-fd="__all">전체</span>${dchips}</div></div>
        <div class="fsec"><span class="lh-label">진행 상태</span><div class="fchips"><span class="fchip all ${allS?'on':''}" data-fs="__all">전체</span>${schips}</div></div>
+       ${aSec}
      </div>`;
 }
 
@@ -631,9 +648,10 @@ leftHead.addEventListener("click", e=>{
   if(e.target.closest("#addTaskBtn")){ openTaskModal(); return; }
   if(e.target.closest("#filterBtn")){ filterOpen=!filterOpen; renderFilter(); return; }
   const tab=e.target.closest("[data-mstab]"); if(tab){ const k=tab.dataset.mstab; msFilter.clear(); if(k!=="__all") msFilter.add(k); render(); return; }
-  const fd=e.target.closest("[data-fd]"), fs=e.target.closest("[data-fs]");
+  const fd=e.target.closest("[data-fd]"), fs=e.target.closest("[data-fs]"), fa=e.target.closest("[data-fa]");
   if(fd){ const k=fd.dataset.fd; if(k==="__all")deptFilter.clear(); else deptFilter.has(k)?deptFilter.delete(k):deptFilter.add(k); render(); return; }
   if(fs){ const k=fs.dataset.fs; if(k==="__all")statusFilter.clear(); else statusFilter.has(k)?statusFilter.delete(k):statusFilter.add(k); render(); return; }
+  if(fa){ const k=fa.dataset.fa; if(k==="__all")assigneeFilter.clear(); else assigneeFilter.has(k)?assigneeFilter.delete(k):assigneeFilter.add(k); render(); return; }
 });
 document.addEventListener("click", e=>{ if(filterOpen && !e.target.closest("#filterPop") && !e.target.closest("#filterBtn")){ filterOpen=false; renderFilter(); } });
 
