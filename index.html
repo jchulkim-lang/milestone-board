@@ -179,7 +179,9 @@
   .footbar .grp.clickable:hover{background:var(--panel2);}
   .dm-row{display:flex;align-items:center;gap:10px;padding:7px 2px;border-bottom:1px solid var(--line);}
   .dm-row input[type=color]{width:30px;height:26px;padding:0;border:1px solid var(--line);border-radius:6px;background:none;cursor:pointer;}
-  .dm-name{flex:1;font-size:13px;font-weight:600;}
+  .dm-name{flex:0 0 56px;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .dm-owners{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:6px 8px;font-size:12px;}
+  .dept-owner{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;}
   .dm-add{display:flex;align-items:center;gap:8px;margin-top:12px;}
   .dm-add input[type=text]{flex:1;}
   .dl-lane{height:20px;position:relative;border-bottom:1px solid var(--line);}
@@ -387,6 +389,7 @@ const LS_KEY = "milestone_state_v6";
 function migrate(){
   if(!state.title) state.title = "본부 마일스톤 관리";
   if(!state.departments || !state.departments.length) state.departments = DEFAULT_DEPARTMENTS.map(d=>({...d}));
+  state.departments.forEach(d=>{ if(!Array.isArray(d.owners)) d.owners=[]; });
   DEPARTMENTS = state.departments;
   if(!state.milestones) state.milestones=[];
   if(state.activeId!==undefined && state.milestones.length && state.milestones[0].tasks){
@@ -466,7 +469,7 @@ function renderFilter(){
        <span class="lh-label" style="margin-left:4px">TASK · 부서 · 킥오프</span>
        <button class="filter-btn ${cnt?'active':''}" id="filterBtn" style="margin-left:auto">필터${cnt?' ('+cnt+')':''} ▾</button>
      </div>
-     <div class="lh-row dept-head-row"><span class="lh-label">부서 지정 →</span><span class="th-spacer"></span><span class="dept-grid">${state.departments.map(d=>`<span class="dept-slot on" title="${escapeHtml(d.key)}"><i style="background:${d.color}"></i></span>`).join("")}</span><span class="th-right-spacer"></span></div>
+     <div class="lh-row dept-head-row"><span class="lh-label">부서 지정 →</span><span class="th-spacer"></span><span class="dept-grid">${state.departments.map(d=>`<span class="dept-slot on" title="${escapeHtml(d.key)}${(d.owners&&d.owners.length)?' · 담당: '+escapeHtml(d.owners.join(', ')):''}"><i style="background:${d.color}"></i></span>`).join("")}</span><span class="th-right-spacer"></span></div>
      <div class="filter-pop ${filterOpen?'show':''}" id="filterPop">
        <div class="fsec"><span class="lh-label">부서</span><div class="fchips"><span class="fchip all ${allD?'on':''}" data-fd="__all">전체</span>${dchips}</div></div>
        <div class="fsec"><span class="lh-label">진행 상태</span><div class="fchips"><span class="fchip all ${allS?'on':''}" data-fs="__all">전체</span>${schips}</div></div>
@@ -506,7 +509,8 @@ function renderHead(){
 
 function deptGridHtml(t){
   return state.departments.map(d=>{ const on=t.depts[d.key]&&t.depts[d.key].on;
-    return `<span class="dept-slot ${on?'on':'off'}" title="${escapeHtml(d.key)}${on?' · 지정됨':' · 미지정'}"><i ${on?`style="background:${d.color}"`:''}></i></span>`; }).join("");
+    const ow=(d.owners&&d.owners.length)?' · 담당: '+escapeHtml(d.owners.join(', ')):'';
+    return `<span class="dept-slot ${on?'on':'off'}" title="${escapeHtml(d.key)}${on?' · 지정됨':' · 미지정'}${ow}"><i ${on?`style="background:${d.color}"`:''}></i></span>`; }).join("");
 }
 function taskHeadHtml(t){
   const ms=findMs(t.milestoneId);
@@ -541,7 +545,8 @@ function renderLeft(){
         let inner="";
         if(t.open){
           const deptRows=activeDepts(t).map(d=>{ const seg=t.depts[d.key];
-            return `<div class="dept-row"><span class="dept-chip on" style="background:${d.color}"><span class="swatch" style="background:#fff"></span>${d.key}</span><span class="dept-dates">${fmt(dateOf(seg.start))} ~ ${fmt(dateOf(seg.end))} · ${seg.end-seg.start+1}영업일</span></div>`; }).join("");
+            const ow=(d.owners&&d.owners.length)?`<span class="dept-owner" title="담당: ${escapeHtml(d.owners.join(', '))}">👤 ${escapeHtml(d.owners.join(', '))}</span>`:'';
+            return `<div class="dept-row"><span class="dept-chip on" style="background:${d.color}"><span class="swatch" style="background:#fff"></span>${d.key}</span>${ow}<span class="dept-dates">${fmt(dateOf(seg.start))} ~ ${fmt(dateOf(seg.end))} · ${seg.end-seg.start+1}영업일</span></div>`; }).join("");
           inner=`<div class="dept-list">${deptRows}</div>`;
         }
         const msOpts=state.milestones.map(m=>`<option value="${m.id}" ${m.id===t.milestoneId?'selected':''}>${escapeHtml(m.name)}</option>`).join("");
@@ -710,10 +715,11 @@ function renderDashboard(){
 function openDeptMgr(){ renderDeptMgr(); deptMgrModal.classList.add("show"); }
 function renderDeptMgr(){
   document.getElementById("deptMgrList").innerHTML = state.departments.map(d=>
-    `<div class="dm-row"><input type="color" value="${d.color}" data-deptcolor="${escapeHtml(d.key)}"><span class="dm-name">${escapeHtml(d.key)}</span><button class="linkrow" data-deptdel="${escapeHtml(d.key)}">삭제</button></div>`).join("");
+    `<div class="dm-row"><input type="color" value="${d.color}" data-deptcolor="${escapeHtml(d.key)}"><span class="dm-name">${escapeHtml(d.key)}</span><input class="dm-owners" type="text" data-deptowners="${escapeHtml(d.key)}" value="${escapeHtml((d.owners||[]).join(', '))}" placeholder="담당자 (쉼표로 구분)"><button class="linkrow" data-deptdel="${escapeHtml(d.key)}">삭제</button></div>`).join("");
 }
 document.getElementById("footbar").addEventListener("click", e=>{ if(e.target.closest("#deptLegendBtn")||e.target.closest("#deptLegendBtn2")) openDeptMgr(); });
 document.getElementById("deptMgrList").addEventListener("input", e=>{ const c=e.target.closest("[data-deptcolor]"); if(c){ const d=state.departments.find(x=>x.key===c.dataset.deptcolor); if(d){ d.color=c.value; save(); render(); } } });
+document.getElementById("deptMgrList").addEventListener("change", e=>{ const o=e.target.closest("[data-deptowners]"); if(o){ const d=state.departments.find(x=>x.key===o.dataset.deptowners); if(d){ d.owners=o.value.split(",").map(s=>s.trim()).filter(Boolean); save(); render(); } } });
 document.getElementById("deptMgrList").addEventListener("click", e=>{ const del=e.target.closest("[data-deptdel]"); if(!del) return;
   const key=del.dataset.deptdel;
   if(state.departments.length<=1){ alert("부서가 하나뿐이라 삭제할 수 없습니다."); return; }
@@ -725,7 +731,7 @@ document.getElementById("deptMgrList").addEventListener("click", e=>{ const del=
 document.getElementById("deptAddNew").onclick=()=>{ const name=document.getElementById("newDeptName").value.trim(); const color=document.getElementById("newDeptColor").value;
   if(!name){ alert("부서명을 입력하세요."); return; }
   if(state.departments.some(d=>d.key===name)){ alert("이미 있는 부서명입니다."); return; }
-  state.departments.push({key:name,color}); document.getElementById("newDeptName").value=""; save(); render(); renderDeptMgr(); };
+  state.departments.push({key:name,color,owners:[]}); document.getElementById("newDeptName").value=""; save(); render(); renderDeptMgr(); };
 
 function openTaskModal(){ taskInput.value=""; taskMs.innerHTML=state.milestones.map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join(""); taskModal.classList.add("show"); taskInput.focus(); }
 document.getElementById("taskAddOk").onclick=addTask;
