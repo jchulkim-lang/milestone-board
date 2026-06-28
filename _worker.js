@@ -109,7 +109,8 @@ async function handleApi(request, env, url){
   if(p === "/api/access" && request.method === "GET"){
     if((await effectiveRole(env, user.email)) !== "admin") return json({ error:"forbidden" }, 403);
     const { results } = await env.DB.prepare("SELECT email,name,role,requested FROM users ORDER BY requested DESC, role DESC, name").all();
-    return json({ users: results || [], adminEmails: env.ADMIN_EMAILS || "" });
+    const list = (results||[]).map(u=>({ email:u.email, name:u.name, requested:u.requested, role: isAdminEmail(env, u.email) ? "admin" : (u.role||"viewer") }));
+    return json({ users: list, adminEmails: env.ADMIN_EMAILS || "" });
   }
   if(p === "/api/grant" && request.method === "POST"){
     if((await effectiveRole(env, user.email)) !== "admin") return json({ error:"forbidden" }, 403);
