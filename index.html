@@ -73,6 +73,12 @@
   .fchip .dot{width:8px;height:8px;border-radius:50%;}
   .fchip.on{color:#fff;border-color:transparent;}
   .fchip.all.on{background:var(--accent);color:#fff;}
+  .ms-tabs{display:flex;gap:4px;flex-wrap:wrap;align-items:center;}
+  .mstab{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;padding:4px 11px;border-radius:8px 8px 0 0;border:1px solid var(--line);border-bottom:2px solid transparent;color:var(--muted);cursor:pointer;user-select:none;background:var(--panel2);}
+  .mstab:hover{color:var(--text);}
+  .mstab .dot{width:7px;height:7px;border-radius:50%;}
+  .mstab.on{color:#fff;border-color:transparent;}
+  .mstab.all.on,.mstab[data-mstab="__all"].on{background:var(--accent);color:#fff;}
 
   .right{flex:1;display:flex;flex-direction:column;overflow:hidden;}
   .right-head{height:var(--head-h);overflow:hidden;border-bottom:1px solid var(--line);position:relative;background:var(--panel);}
@@ -485,20 +491,20 @@ function renderFilter(){
     return `<span class="fchip ${on?'on':''}" style="${on?'background:'+d.color:''}" data-fd="${d.key}"><span class="dot" style="background:${on?'#fff':d.color}"></span>${d.key}</span>`; }).join("");
   const schips=TASK_STATUSES.map(s=>{ const on=statusFilter.has(s.k);
     return `<span class="fchip ${on?'on':''}" style="${on?'background:'+s.color:''}" data-fs="${s.k}"><span class="dot" style="background:${on?'#fff':s.color}"></span>${s.k}</span>`; }).join("");
-  const mchips=state.milestones.map(m=>{ const on=msFilter.has(m.id);
-    return `<span class="fchip ${on?'on':''}" style="${on?'background:'+m.color:''}" data-fm="${m.id}"><span class="dot" style="background:${on?'#fff':m.color}"></span>${escapeHtml(m.name)}</span>`; }).join("");
-  const cnt=deptFilter.size+statusFilter.size+msFilter.size;
+  const mstabs=`<span class="mstab ${allM?'on':''}" data-mstab="__all">전체</span>`+state.milestones.map(m=>{ const on=msFilter.size===1&&msFilter.has(m.id);
+    return `<span class="mstab ${on?'on':''}" data-mstab="${m.id}" style="${on?'background:'+m.color+';border-color:transparent;color:#fff':''}"><i class="dot" style="background:${on?'#fff':m.color}"></i>${escapeHtml(m.name)}</span>`; }).join("");
+  const cnt=deptFilter.size+statusFilter.size;
   document.getElementById("leftHead").innerHTML=
     `<div class="lh-row">
        <button class="btn sm" id="addTaskBtn">＋ Task</button>
        <span class="lh-label" style="margin-left:4px">TASK · 부서 · 킥오프</span>
        <button class="filter-btn ${cnt?'active':''}" id="filterBtn" style="margin-left:auto">필터${cnt?' ('+cnt+')':''} ▾</button>
      </div>
+     <div class="lh-row ms-tabs">${mstabs}</div>
      <div class="lh-row dept-head-row"><span class="lh-label">부서 지정 →</span><span class="th-spacer"></span><span class="dept-grid">${state.departments.map(d=>`<span class="dept-slot on" title="${escapeHtml(d.key)}${(d.owners&&d.owners.length)?' · 담당: '+escapeHtml(d.owners.join(', ')):''}"><i style="background:${d.color}"></i></span>`).join("")}</span><span class="th-right-spacer"></span></div>
      <div class="filter-pop ${filterOpen?'show':''}" id="filterPop">
        <div class="fsec"><span class="lh-label">부서</span><div class="fchips"><span class="fchip all ${allD?'on':''}" data-fd="__all">전체</span>${dchips}</div></div>
        <div class="fsec"><span class="lh-label">진행 상태</span><div class="fchips"><span class="fchip all ${allS?'on':''}" data-fs="__all">전체</span>${schips}</div></div>
-       <div class="fsec"><span class="lh-label">마일스톤</span><div class="fchips"><span class="fchip all ${allM?'on':''}" data-fm="__all">전체</span>${mchips}</div></div>
      </div>`;
 }
 
@@ -624,10 +630,10 @@ const leftBody=document.getElementById("leftBody"), leftHead=document.getElement
 leftHead.addEventListener("click", e=>{
   if(e.target.closest("#addTaskBtn")){ openTaskModal(); return; }
   if(e.target.closest("#filterBtn")){ filterOpen=!filterOpen; renderFilter(); return; }
-  const fd=e.target.closest("[data-fd]"), fs=e.target.closest("[data-fs]"), fm=e.target.closest("[data-fm]");
+  const tab=e.target.closest("[data-mstab]"); if(tab){ const k=tab.dataset.mstab; msFilter.clear(); if(k!=="__all") msFilter.add(k); render(); return; }
+  const fd=e.target.closest("[data-fd]"), fs=e.target.closest("[data-fs]");
   if(fd){ const k=fd.dataset.fd; if(k==="__all")deptFilter.clear(); else deptFilter.has(k)?deptFilter.delete(k):deptFilter.add(k); render(); return; }
   if(fs){ const k=fs.dataset.fs; if(k==="__all")statusFilter.clear(); else statusFilter.has(k)?statusFilter.delete(k):statusFilter.add(k); render(); return; }
-  if(fm){ const k=fm.dataset.fm; if(k==="__all")msFilter.clear(); else msFilter.has(k)?msFilter.delete(k):msFilter.add(k); render(); return; }
 });
 document.addEventListener("click", e=>{ if(filterOpen && !e.target.closest("#filterPop") && !e.target.closest("#filterBtn")){ filterOpen=false; renderFilter(); } });
 
