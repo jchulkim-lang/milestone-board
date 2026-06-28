@@ -177,11 +177,21 @@
   .legend-edit:hover{color:var(--text);background:var(--panel2);}
   .footbar .grp.clickable{cursor:pointer;border-radius:6px;padding:2px 4px;}
   .footbar .grp.clickable:hover{background:var(--panel2);}
-  .dm-row{display:flex;align-items:center;gap:10px;padding:7px 2px;border-bottom:1px solid var(--line);}
+  .dm-block{border-bottom:1px solid var(--line);padding:8px 2px;}
+  .dm-row{display:flex;align-items:center;gap:10px;padding:1px 2px;}
+  .dm-members{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:7px 0 0 40px;}
+  .dm-mlabel{font-size:11px;color:var(--muted);font-weight:700;margin-right:2px;}
+  .dm-empty{font-size:11px;color:var(--muted);}
+  .mchip{display:inline-flex;align-items:center;gap:3px;font-size:11.5px;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:2px 4px 2px 10px;}
+  .mchip b{cursor:pointer;color:var(--muted);font-weight:700;padding:0 3px;border-radius:50%;}
+  .mchip b:hover{color:#ff7a7a;}
+  .dm-addwrap{display:inline-flex;gap:5px;align-items:center;}
+  .dm-newmember{width:96px;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:5px 8px;font-size:12px;}
   .dm-row input[type=color]{width:30px;height:26px;padding:0;border:1px solid var(--line);border-radius:6px;background:none;cursor:pointer;}
   .dm-name{flex:0 0 56px;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .dm-owners{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:6px 8px;font-size:12px;}
   .dept-owner{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;}
+  .asg-badge{font-size:10.5px;color:var(--muted);font-weight:600;flex:0 0 auto;white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis;}
   .dm-add{display:flex;align-items:center;gap:8px;margin-top:12px;}
   .dm-add input[type=text]{flex:1;}
   .dl-lane{height:20px;position:relative;border-bottom:1px solid var(--line);}
@@ -247,6 +257,7 @@
     <div class="modal"><h3>새 Task 추가</h3><div class="msub">업무 단위와 소속 마일스톤을 정합니다.</div>
       <label>Task 이름</label><input id="taskInput" placeholder="예: 로그인 기능" />
       <label>마일스톤</label><select id="taskMs"></select>
+      <label>담당자 (여러 명 선택 가능 · 없으면 미정)</label><div class="pickgrid" id="taskAssignees"></div>
       <div class="modal-actions"><span></span><div class="right"><button class="btn ghost" data-close>취소</button><button class="btn" id="taskAddOk">추가</button></div></div></div>
   </div>
   <div class="modal-bg" id="deptModal">
@@ -257,6 +268,7 @@
   <div class="modal-bg" id="linkModal">
     <div class="modal"><h3>Task 편집</h3><div class="msub" id="linkModalSub"></div>
       <label>Task 이름</label><input id="editName" placeholder="Task 이름" />
+      <label>담당자</label><div class="pickgrid" id="editAssignees"></div>
       <label>기획서 링크</label><input id="linkPlan" placeholder="https://..." />
       <label>Trello 링크</label><input id="linkTrello" placeholder="https://trello.com/..." />
       <div class="modal-actions"><span></span><div class="right"><button class="btn ghost" data-close>취소</button><button class="btn" id="linkSaveOk">저장</button></div></div></div>
@@ -403,7 +415,7 @@ function migrate(){
   const firstMs=state.milestones[0].id;
   state.tasks.forEach(t=>{ if(!t.kickoff) t.kickoff = t.status && KICKOFFS.some(k=>k.k===t.status) ? t.status : "예정";
     if(!t.status || !TASK_STATUSES.some(s=>s.k===t.status)) t.status="대기";
-    if(!t.links) t.links={plan:"",trello:""}; if(!t.milestoneId || !findMs(t.milestoneId)) t.milestoneId=firstMs; if(t.open===undefined)t.open=false; });
+    if(!t.links) t.links={plan:"",trello:""}; if(!Array.isArray(t.assignees)) t.assignees=[]; if(!t.milestoneId || !findMs(t.milestoneId)) t.milestoneId=firstMs; if(t.open===undefined)t.open=false; });
 }
 function save(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); if(remote.active) remote.push(state); }
 function load(){ const raw=localStorage.getItem(LS_KEY); if(raw){ try{state=JSON.parse(raw);}catch(e){} } migrate(); buildTimeline(); }
@@ -517,12 +529,13 @@ function taskHeadHtml(t){
   const kf=kfOf(t.kickoff);
   const stOpts=TASK_STATUSES.map(s=>`<option ${s.k===t.status?'selected':''}>${s.k}</option>`).join("");
   const links=(t.links.plan?`<a class="lk" href="${escapeHtml(t.links.plan)}" target="_blank" rel="noopener" title="기획서">📄</a>`:"")+(t.links.trello?`<a class="lk" href="${escapeHtml(t.links.trello)}" target="_blank" rel="noopener" title="Trello">📋</a>`:"");
+  const asg=(t.assignees&&t.assignees.length)?`<span class="asg-badge" title="담당: ${escapeHtml(t.assignees.join(', '))}">👤 ${escapeHtml(t.assignees[0])}${t.assignees.length>1?' +'+(t.assignees.length-1):''}</span>`:'';
   return `<div class="task-head" data-toggleopen="${t.id}">
       <span class="drag-handle" data-drag="${t.id}" title="드래그하여 이동">⠿</span>
       <span class="caret">▶</span>
       <span class="ms-tag"><i class="bd" style="background:${ms.color}"></i>${escapeHtml(ms.name)}</span>
       <span class="task-name">${escapeHtml(t.name)}</span>
-      ${links}
+      ${links}${asg}
       <span class="th-spacer"></span>
       <span class="dept-grid">${deptGridHtml(t)}</span>
       <span class="th-right"><span class="kf-chip" data-kf="${t.id}" style="background:${kf.color}" title="킥오프: ${t.kickoff} (클릭하여 변경)">${kf.icon}</span>
@@ -712,15 +725,29 @@ function renderDashboard(){
 }
 
 /* ===== 부서 관리 ===== */
+function allPeople(){ const s=new Set(); state.departments.forEach(d=>(d.owners||[]).forEach(n=>s.add(n))); return [...s]; }
 function openDeptMgr(){ renderDeptMgr(); deptMgrModal.classList.add("show"); }
 function renderDeptMgr(){
-  document.getElementById("deptMgrList").innerHTML = state.departments.map(d=>
-    `<div class="dm-row"><input type="color" value="${d.color}" data-deptcolor="${escapeHtml(d.key)}"><span class="dm-name">${escapeHtml(d.key)}</span><input class="dm-owners" type="text" data-deptowners="${escapeHtml(d.key)}" value="${escapeHtml((d.owners||[]).join(', '))}" placeholder="담당자 (쉼표로 구분)"><button class="linkrow" data-deptdel="${escapeHtml(d.key)}">삭제</button></div>`).join("");
+  document.getElementById("deptMgrList").innerHTML = state.departments.map(d=>{
+    const chips=(d.owners||[]).map(n=>`<span class="mchip">${escapeHtml(n)}<b data-rmdept="${escapeHtml(d.key)}" data-rmname="${escapeHtml(n)}" title="제거">×</b></span>`).join("");
+    return `<div class="dm-block">
+      <div class="dm-row"><input type="color" value="${d.color}" data-deptcolor="${escapeHtml(d.key)}"><span class="dm-name">${escapeHtml(d.key)}</span><button class="linkrow" data-deptdel="${escapeHtml(d.key)}">부서 삭제</button></div>
+      <div class="dm-members"><span class="dm-mlabel">담당자</span>${chips||'<span class="dm-empty">없음</span>'}<span class="dm-addwrap"><input class="dm-newmember" data-newmember="${escapeHtml(d.key)}" placeholder="이름 입력"><button class="meta-btn" data-addmember="${escapeHtml(d.key)}">＋ 인원 추가</button></span></div>
+    </div>`; }).join("");
+}
+function addMemberFromBlock(blockEl, key){
+  const inp=blockEl.querySelector(".dm-newmember"); const name=(inp.value||"").trim(); if(!name) return;
+  const d=state.departments.find(x=>x.key===key); if(!d) return; if(!d.owners) d.owners=[];
+  if(!d.owners.includes(name)) d.owners.push(name);
+  inp.value=""; save(); render(); renderDeptMgr();
 }
 document.getElementById("footbar").addEventListener("click", e=>{ if(e.target.closest("#deptLegendBtn")||e.target.closest("#deptLegendBtn2")) openDeptMgr(); });
 document.getElementById("deptMgrList").addEventListener("input", e=>{ const c=e.target.closest("[data-deptcolor]"); if(c){ const d=state.departments.find(x=>x.key===c.dataset.deptcolor); if(d){ d.color=c.value; save(); render(); } } });
-document.getElementById("deptMgrList").addEventListener("change", e=>{ const o=e.target.closest("[data-deptowners]"); if(o){ const d=state.departments.find(x=>x.key===o.dataset.deptowners); if(d){ d.owners=o.value.split(",").map(s=>s.trim()).filter(Boolean); save(); render(); } } });
-document.getElementById("deptMgrList").addEventListener("click", e=>{ const del=e.target.closest("[data-deptdel]"); if(!del) return;
+document.getElementById("deptMgrList").addEventListener("keydown", e=>{ const inp=e.target.closest("[data-newmember]"); if(inp && e.key==="Enter"){ e.preventDefault(); addMemberFromBlock(inp.closest(".dm-block"), inp.dataset.newmember); } });
+document.getElementById("deptMgrList").addEventListener("click", e=>{
+  const add=e.target.closest("[data-addmember]"); if(add){ addMemberFromBlock(add.closest(".dm-block"), add.dataset.addmember); return; }
+  const rm=e.target.closest("[data-rmname]"); if(rm){ const d=state.departments.find(x=>x.key===rm.dataset.rmdept); if(d){ d.owners=(d.owners||[]).filter(n=>n!==rm.dataset.rmname); save(); render(); renderDeptMgr(); } return; }
+  const del=e.target.closest("[data-deptdel]"); if(!del) return;
   const key=del.dataset.deptdel;
   if(state.departments.length<=1){ alert("부서가 하나뿐이라 삭제할 수 없습니다."); return; }
   const used=state.tasks.filter(t=>t.depts[key]&&t.depts[key].on).length;
@@ -733,11 +760,22 @@ document.getElementById("deptAddNew").onclick=()=>{ const name=document.getEleme
   if(state.departments.some(d=>d.key===name)){ alert("이미 있는 부서명입니다."); return; }
   state.departments.push({key:name,color,owners:[]}); document.getElementById("newDeptName").value=""; save(); render(); renderDeptMgr(); };
 
-function openTaskModal(){ taskInput.value=""; taskMs.innerHTML=state.milestones.map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join(""); taskModal.classList.add("show"); taskInput.focus(); }
+/* 담당자 선택 칩 (Task 생성/편집 공용) */
+function renderAssigneePicker(elId, selected){
+  const sel=new Set(selected||[]); const people=allPeople();
+  (selected||[]).forEach(n=>{ if(!people.includes(n)) people.push(n); });
+  document.getElementById(elId).innerHTML = people.length
+    ? people.map(n=>`<span class="dept-chip ${sel.has(n)?'on':''}" data-aname="${escapeHtml(n)}">${escapeHtml(n)}</span>`).join("")
+    : `<span class="dm-empty">등록된 담당자가 없습니다. ‘부서 관리’에서 먼저 추가하세요. (미정으로 생성됩니다)</span>`;
+}
+function collectAssignees(elId){ return [...document.querySelectorAll("#"+elId+" .dept-chip.on")].map(c=>c.dataset.aname); }
+["taskAssignees","editAssignees"].forEach(id=>{ document.getElementById(id).addEventListener("click", e=>{ const c=e.target.closest("[data-aname]"); if(c) c.classList.toggle("on"); }); });
+
+function openTaskModal(){ taskInput.value=""; taskMs.innerHTML=state.milestones.map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join(""); renderAssigneePicker("taskAssignees", []); taskModal.classList.add("show"); taskInput.focus(); }
 document.getElementById("taskAddOk").onclick=addTask;
 taskInput.addEventListener("keydown",e=>{ if(e.key==="Enter") addTask(); });
 function addTask(){ const name=taskInput.value.trim(); if(!name) return;
-  const tk={ id:uid(), name, milestoneId:taskMs.value||state.milestones[0].id, open:true, kickoff:"예정", status:"대기", links:{plan:"",trello:""}, depts:{} };
+  const tk={ id:uid(), name, milestoneId:taskMs.value||state.milestones[0].id, open:true, kickoff:"예정", status:"대기", links:{plan:"",trello:""}, assignees:collectAssignees("taskAssignees"), depts:{} };
   state.tasks.push(tk); closeModals(); save(); render(); openDeptModal(tk.id); }
 
 function openDeptModal(tid){ editing={tid}; const t=findTask(tid);
@@ -752,12 +790,14 @@ document.getElementById("deptPickGrid").addEventListener("click",e=>{ const c=e.
   save(); openDeptModal(editing.tid); render(); });
 
 function openEditModal(tid){ editing={tid}; const t=findTask(tid);
-  document.getElementById("linkModalSub").textContent="이름과 링크를 편집합니다.";
+  document.getElementById("linkModalSub").textContent="이름·담당자·링크를 편집합니다.";
   document.getElementById("editName").value=t.name||"";
+  renderAssigneePicker("editAssignees", t.assignees||[]);
   document.getElementById("linkPlan").value=t.links.plan||""; document.getElementById("linkTrello").value=t.links.trello||"";
   linkModal.classList.add("show"); }
 document.getElementById("linkSaveOk").onclick=()=>{ const t=findTask(editing.tid);
   const nm=document.getElementById("editName").value.trim(); if(nm) t.name=nm;
+  t.assignees=collectAssignees("editAssignees");
   t.links.plan=document.getElementById("linkPlan").value.trim(); t.links.trello=document.getElementById("linkTrello").value.trim(); closeModals(); save(); render(); };
 
 function openSchedModal(tid,dep){ editing={tid,dep}; const t=findTask(tid); const seg=t.depts[dep];
