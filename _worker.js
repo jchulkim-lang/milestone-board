@@ -21,6 +21,7 @@ async function ensureDb(env){
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS app_state (id TEXT PRIMARY KEY, data TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL, updated_by TEXT)").run();
   await env.DB.prepare("INSERT OR IGNORE INTO app_state (id,data,version,updated_at,updated_by) VALUES ('main','{\"tasks\":[],\"milestones\":[]}',0,datetime('now'),NULL)").run();
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS users (email TEXT PRIMARY KEY, name TEXT, last_seen TEXT)").run();
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS history (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT NOT NULL, version INTEGER, saved_by TEXT, saved_at TEXT)").run();
   DB_READY = true;
 }
 
@@ -101,7 +102,37 @@ async function handleApi(request, env, url){
   if(p === "/api/state" && request.method === "PUT"){
     const b = await request.json(); const payload = JSON.stringify(b.data ?? {});
     await env.DB.prepare("UPDATE app_state SET data=?, version=version+1, updated_at=datetime('now'), updated_by=? WHERE id='main'").bind(payload, user.email).run();
+    const row = await env.DB.prepare("SELECT data, version FROM app_state WHERE id='main'").first();
+    // 히스토리 스냅샷 + 최근 50개만 보관
+    await env.DB.prepare("INSERT INTO history (data,version,saved_by,saved_at) VALUES (?,?,?,datetime('now'))").bind(row.data, row.version, user.email).run();
+    await env.DB.prepare("DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY id DESC LIMIT 50)").run();
+    return json({ ok:true, version: row ? row.version : 1 });
+  }
+
+  // 접속자(presence): 하트비트 + 현재 접속자
+  if(p === "/api/presence" && request.method === "POST"){
+    await env.DB.prepare("INSERT INTO users (email,name,last_seen) VALUES (?,?,datetime('now')) ON CONFLICT(email) DO UPDATE SET last_seen=datetime('now'), name=excluded.name").bind(user.email, user.name||"").run();
+    return json({ ok:true });
+  }
+  if(p === "/api/presence" && request.method === "GET"){
+    const { results } = await env.DB.prepare("SELECT email,name FROM users WHERE last_seen > datetime('now','-45 seconds') ORDER BY name").all();
+    return json({ users: results || [], count: (results||[]).length });
+  }
+
+  // 히스토리 / 롤백
+  if(p === "/api/history" && request.method === "GET"){
+    const { results } = await env.DB.prepare("SELECT id,version,saved_by,saved_at FROM history ORDER BY id DESC LIMIT 30").all();
+    return json({ items: results || [] });
+  }
+  if(p === "/api/restore" && request.method === "POST"){
+    const b = await request.json();
+    const snap = await env.DB.prepare("SELECT data FROM history WHERE id=?").bind(b.id).first();
+    if(!snap) return json({ error:"snapshot not found" }, 404);
+    const cur = await env.DB.prepare("SELECT data,version FROM app_state WHERE id='main'").first();
+    if(cur){ await env.DB.prepare("INSERT INTO history (data,version,saved_by,saved_at) VALUES (?,?,?,datetime('now'))").bind(cur.data, cur.version, user.email+" (되돌리기 직전)").run(); }
+    await env.DB.prepare("UPDATE app_state SET data=?, version=version+1, updated_at=datetime('now'), updated_by=? WHERE id='main'").bind(snap.data, user.email).run();
     const row = await env.DB.prepare("SELECT version FROM app_state WHERE id='main'").first();
+    await env.DB.prepare("DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY id DESC LIMIT 50)").run();
     return json({ ok:true, version: row ? row.version : 1 });
   }
 

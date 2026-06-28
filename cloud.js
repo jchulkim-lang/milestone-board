@@ -72,6 +72,29 @@
     };
     remote.pull(true);                    // 시작 시 공유 데이터 로드
     setInterval(() => remote.pull(false), 10000); // 10초마다 동기화
+    startPresence();                      // 접속자 표시
+  }
+
+  function setStatus(text, names){
+    const el = document.getElementById("syncStatus"); if(!el) return;
+    el.classList.add("live");
+    const span = el.querySelector("span"); if(span) span.textContent = text;
+    if(names) el.title = "접속 중: " + (names.join(", ") || "-");
+  }
+  function startPresence(){
+    setStatus("☁ 동기화 중");
+    const beat = () => fetch("/api/presence", { method:"POST", credentials:"same-origin" }).catch(()=>{});
+    const show = async () => {
+      try{
+        const r = await fetch("/api/presence", { credentials:"same-origin" });
+        if(!r.ok) return;
+        const j = await r.json();
+        setStatus(`☁ 접속 ${j.count}명`, (j.users||[]).map(u=>u.name || u.email));
+      }catch(_){}
+    };
+    beat(); show();
+    setInterval(beat, 15000);
+    setInterval(show, 15000);
   }
 
   (async function(){

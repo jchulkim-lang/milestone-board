@@ -122,7 +122,7 @@
   .dept-row{height:var(--row-h);display:flex;align-items:center;gap:8px;padding:0 12px 0 34px;border-top:1px solid var(--grid);}
   .dept-chip{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:999px;cursor:pointer;user-select:none;border:1px solid var(--line);color:var(--muted);background:transparent;}
   .dept-chip .swatch{width:9px;height:9px;border-radius:50%;}
-  .dept-chip.on{color:#fff;border-color:transparent;}
+  .dept-chip.on{color:#fff;border-color:transparent;background:var(--accent);}
   .dept-dates{flex:1;text-align:right;font-size:11px;color:var(--muted);}
   .meta-rows{display:none;}
   .task.open .meta-rows{display:block;}
@@ -235,8 +235,9 @@
     <button class="title-edit" id="titleEditBtn" title="제목 편집">✎</button>
     <span class="sub">영업일 기준 · 부서별 일정</span>
     <div class="ms-progress" id="msProgress"></div>
-    <span id="syncStatus" class="status-dot"><b></b><span>로컬 저장</span></span>
+    <span id="syncStatus" class="status-dot"><b></b><span>로컬 (이 브라우저에 저장)</span></span>
     <button class="btn ghost sm" id="dashBtn">📊 대시보드</button>
+    <button class="btn ghost sm" id="historyBtn">🕘 히스토리</button>
     <button class="btn ghost sm" id="themeBtn">☀ 라이트</button>
     <button class="btn ghost sm" id="msBtn">⚙ 마일스톤 설정</button>
     <button class="btn ghost sm" id="exportBtn">내보내기</button>
@@ -318,6 +319,12 @@
     <div class="modal" style="width:520px"><h3>대시보드 📊</h3>
       <div class="msub" style="display:flex;align-items:center;gap:8px">마일스톤 <select id="dashMs" style="width:auto;flex:1"></select></div>
       <div id="dashBody"></div>
+      <div class="modal-actions"><span></span><div class="right"><button class="btn" data-close>닫기</button></div></div></div>
+  </div>
+  <div class="modal-bg" id="historyModal">
+    <div class="modal" style="width:480px"><h3>변경 히스토리 🕘</h3>
+      <div class="msub">저장된 시점으로 되돌릴 수 있습니다. 되돌리면 현재 상태도 히스토리에 보관됩니다. (최근 50개 보관)</div>
+      <div id="historyList" class="ms-list-wrap" style="max-height:320px"></div>
       <div class="modal-actions"><span></span><div class="right"><button class="btn" data-close>닫기</button></div></div></div>
   </div>
   <input type="file" id="fileInput" accept="application/json" style="display:none">
@@ -685,10 +692,29 @@ function attachBarHandlers(){
 /* ===== 모달들 ===== */
 let editing=null;
 const taskModal=document.getElementById("taskModal"), taskInput=document.getElementById("taskInput"), taskMs=document.getElementById("taskMs");
-const deptModal=document.getElementById("deptModal"), linkModal=document.getElementById("linkModal"), schedModal=document.getElementById("schedModal"), msModal=document.getElementById("msModal"), deptMgrModal=document.getElementById("deptMgrModal"), titleModal=document.getElementById("titleModal"), dashModal=document.getElementById("dashModal");
-function closeModals(){ [taskModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,titleModal,dashModal].forEach(m=>m.classList.remove("show")); }
+const deptModal=document.getElementById("deptModal"), linkModal=document.getElementById("linkModal"), schedModal=document.getElementById("schedModal"), msModal=document.getElementById("msModal"), deptMgrModal=document.getElementById("deptMgrModal"), titleModal=document.getElementById("titleModal"), dashModal=document.getElementById("dashModal"), historyModal=document.getElementById("historyModal");
+function closeModals(){ [taskModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,titleModal,dashModal,historyModal].forEach(m=>m.classList.remove("show")); }
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=closeModals);
-[taskModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,titleModal,dashModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
+[taskModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,titleModal,dashModal,historyModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
+
+/* ===== 히스토리 / 롤백 (클라우드 전용) ===== */
+document.getElementById("historyBtn").onclick=openHistory;
+async function openHistory(){
+  const el=document.getElementById("historyList"); el.innerHTML="불러오는 중…"; historyModal.classList.add("show");
+  try{
+    const r=await fetch("/api/history",{credentials:"same-origin"});
+    if(!r.ok){ el.innerHTML='<div class="dm-empty">히스토리는 클라우드 배포 환경에서만 사용할 수 있습니다.</div>'; return; }
+    const j=await r.json(); const items=j.items||[];
+    if(!items.length){ el.innerHTML='<div class="dm-empty">아직 저장 기록이 없습니다.</div>'; return; }
+    el.innerHTML=items.map(it=>`<div class="ms-item" style="cursor:default"><span class="ms-name">v${it.version}</span><span class="ms-range">${escapeHtml(it.saved_by||'')} · ${escapeHtml((it.saved_at||'').replace('T',' ').slice(0,16))}</span><button class="meta-btn" data-restore="${it.id}">되돌리기</button></div>`).join("");
+  }catch(_){ el.innerHTML='<div class="dm-empty">히스토리를 불러오지 못했습니다.</div>'; }
+}
+document.getElementById("historyList").addEventListener("click", async e=>{
+  const b=e.target.closest("[data-restore]"); if(!b) return;
+  if(!confirm("이 시점으로 되돌릴까요? 현재 내용은 히스토리에 보관됩니다.")) return;
+  try{ const r=await fetch("/api/restore",{method:"POST",credentials:"same-origin",headers:{"content-type":"application/json"},body:JSON.stringify({id:Number(b.dataset.restore)})});
+    if(r.ok){ location.reload(); } else { alert("되돌리기 실패"); } }catch(_){ alert("네트워크 오류"); }
+});
 
 /* ===== 제목 편집 ===== */
 document.getElementById("titleEditBtn").onclick=()=>{ document.getElementById("titleInput").value=state.title||""; titleModal.classList.add("show"); document.getElementById("titleInput").focus(); };
@@ -771,7 +797,7 @@ document.getElementById("deptAddNew").onclick=()=>{ const name=document.getEleme
 function taskAssignees(t){ const s=new Set(); activeDepts(t).forEach(d=>{ const seg=t.depts[d.key]; ((seg&&seg.assignees)||[]).forEach(n=>s.add(n)); }); return [...s]; }
 function deptAssigneeChips(t, key){ const dept=state.departments.find(d=>d.key===key); const roster=(dept&&dept.owners)||[]; const seg=t.depts[key]; const sel=new Set((seg&&seg.assignees)||[]);
   if(!roster.length) return `<span class="dm-empty">이 부서에 등록된 인원이 없습니다 (부서 관리에서 추가).</span>`;
-  return roster.map(n=>`<span class="dept-chip ${sel.has(n)?'on':''}" data-aassign="${escapeHtml(key)}" data-aname="${escapeHtml(n)}">${escapeHtml(n)}</span>`).join(""); }
+  return roster.map(n=>`<span class="dept-chip ${sel.has(n)?'on':''}" data-aassign="${escapeHtml(key)}" data-aname="${escapeHtml(n)}">${sel.has(n)?'✓ ':''}${escapeHtml(n)}</span>`).join(""); }
 function toggleDeptAssignee(t, key, name){ const seg=t.depts[key]; if(!seg) return; if(!Array.isArray(seg.assignees)) seg.assignees=[]; const i=seg.assignees.indexOf(name); if(i>=0) seg.assignees.splice(i,1); else seg.assignees.push(name); }
 
 function openTaskModal(){ taskInput.value=""; taskMs.innerHTML=state.milestones.map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join(""); taskModal.classList.add("show"); taskInput.focus(); }
