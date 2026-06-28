@@ -459,7 +459,7 @@ function groupsToRender(){
     .map(s=>({ s, tasks: vis.filter(t=>t.status===s.k) }));
 }
 
-function renderTitle(){ const el=document.getElementById("appTitle"); if(el) el.textContent = state.title||"본부 마일스톤 관리"; }
+function renderTitle(){ const t=state.title||"본부 마일스톤 관리"; const el=document.getElementById("appTitle"); if(el) el.textContent=t; document.title=t; }
 function render(){ renderTitle(); renderMsProgress(); renderLegend(); renderFilter(); renderHead(); renderLeft(); renderBody(); }
 
 function renderMsProgress(){
