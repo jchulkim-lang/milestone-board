@@ -180,6 +180,7 @@
   .bar .handle.l{left:0;} .bar .handle.r{right:0;}
   .bar .lbl{pointer-events:none;padding:0 8px;text-shadow:0 1px 1px rgba(0,0,0,.35);overflow:hidden;text-overflow:ellipsis;flex:0 0 auto;}
   .bar .lbl-r{pointer-events:none;margin-left:auto;padding:0 11px 0 6px;font-size:10px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 1px rgba(0,0,0,.35);opacity:.95;}
+  .mbar-lbl{position:absolute;top:10px;height:calc(var(--row-h) - 12px);display:flex;align-items:center;justify-content:flex-end;padding:0 10px;color:#fff;font-size:10px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;text-shadow:0 1px 1px rgba(0,0,0,.4);z-index:3;}
   /* 막대 앞 킥오프 표시 */
   .kf{position:absolute;left:-7px;top:50%;transform:translateY(-50%);width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;border:2px solid var(--bg);z-index:5;box-shadow:0 1px 3px rgba(0,0,0,.5);}
 
@@ -512,8 +513,8 @@ function renderFilter(){
   const cnt=deptFilter.size+statusFilter.size+assigneeFilter.size;
   const allA=assigneeFilter.size===0;
   const aSec=`<div class="fsec"><span class="lh-label">담당자</span>
-       <div class="fchips"><span class="fchip all ${allA?'on':''}" data-fa="__all">전체</span><span class="fchip ${assigneeFilter.has('__unassigned')?'on':''}" data-fa="__unassigned">미정</span></div>
-       ${state.departments.filter(d=>(d.owners||[]).length).map(d=>`<div class="fa-dept"><span class="fa-deptname"><i style="background:${d.color}"></i>${escapeHtml(d.key)}</span><div class="fchips">${d.owners.map(n=>`<span class="fchip ${assigneeFilter.has(n)?'on':''}" data-fa="${escapeHtml(n)}">${escapeHtml(n)}</span>`).join("")}</div></div>`).join("")}
+       <div class="fchips"><span class="fchip all ${allA?'on':''}" data-fa="__all">${allA?'✓ ':''}전체</span><span class="fchip ${assigneeFilter.has('__unassigned')?'on':''}" data-fa="__unassigned">${assigneeFilter.has('__unassigned')?'✓ ':''}미정</span></div>
+       ${state.departments.filter(d=>(d.owners||[]).length).map(d=>`<div class="fa-dept"><span class="fa-deptname"><i style="background:${d.color}"></i>${escapeHtml(d.key)}</span><div class="fchips">${d.owners.map(n=>`<span class="fchip ${assigneeFilter.has(n)?'on':''}" data-fa="${escapeHtml(n)}">${assigneeFilter.has(n)?'✓ ':''}${escapeHtml(n)}</span>`).join("")}</div></div>`).join("")}
      </div>`;
   document.getElementById("leftHead").innerHTML=
     `<div class="lh-row">
@@ -633,12 +634,15 @@ function renderBody(){
             return `<div class="tl-dept-lane">${kfm}<div class="bar" data-bar="${t.id}:${d.key}" style="left:${seg.start*DAY_W}px;width:${(seg.end-seg.start+1)*DAY_W}px;background:${d.color}"><div class="handle l"></div><span class="lbl">${d.key} · ${seg.end-seg.start+1}일</span><span class="lbl-r">${(seg.assignees&&seg.assignees.length)?escapeHtml(seg.assignees.join(', ')):'미정'}</span><div class="handle r"></div></div></div>`; }).join("");
           rows+=`<div class="tl-task ${skip}"><div class="tl-task-head"></div>${lanes}<div class="tl-meta-lane"></div></div>`;
         } else {
-          let merged="";
+          let merged="", mn=Infinity, mx=-Infinity;
           active.slice().reverse().forEach(d=>{ const seg=t.depts[d.key];
             merged+=`<div class="bar mbar" data-mbar="${t.id}" style="left:${seg.start*DAY_W}px;width:${(seg.end-seg.start+1)*DAY_W}px;top:10px;background:${d.color}"></div>`; });
+          active.forEach(d=>{ const s=t.depts[d.key]; mn=Math.min(mn,s.start); mx=Math.max(mx,s.end); });
+          const aps=taskAssignees(t); const asgTxt=aps.length?aps.join(', '):'미정';
+          const asgLbl=isFinite(mn)?`<span class="mbar-lbl" data-mbar="${t.id}" style="left:${mn*DAY_W}px;width:${(mx-mn+1)*DAY_W}px" title="담당: ${escapeHtml(asgTxt)}">${escapeHtml(asgTxt)}</span>`:"";
           const planSeg = (t.depts["기획"]&&t.depts["기획"].on) ? t.depts["기획"] : null;
           const kfMark = planSeg ? `<span class="kf" data-mbar="${t.id}" style="left:${Math.max(0,planSeg.start*DAY_W-7)}px;top:23px;background:${kf.color}">${kf.icon}</span>` : "";
-          rows+=`<div class="tl-task ${skip}"><div class="tl-task-head">${merged}${kfMark}</div></div>`;
+          rows+=`<div class="tl-task ${skip}"><div class="tl-task-head">${merged}${asgLbl}${kfMark}</div></div>`;
         }
       });
     }
