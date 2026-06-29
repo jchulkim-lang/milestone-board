@@ -367,6 +367,15 @@
   .dm-name{ flex:0 0 auto; min-width:78px; overflow:visible; text-overflow:clip; }
   .dm-members{ padding-left:46px; }
   .dm-newmember{ width:120px; }
+
+  /* 부서 추가 행 — 색상은 버튼, 이름칸은 넓게 또렷하게 */
+  .dm-add{ flex-wrap:wrap; gap:8px; }
+  .color-pick{ display:inline-flex; align-items:center; gap:7px; font-size:12px; font-weight:600; padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:var(--panel2); color:var(--text); cursor:pointer; white-space:nowrap; }
+  .color-pick:hover{ border-color:var(--accent); }
+  .color-pick .color-dot{ width:15px; height:15px; border-radius:50%; border:1px solid rgba(255,255,255,.3); }
+  .dm-add #newDeptName{ flex:1 1 220px; min-width:200px; width:auto; background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:8px; padding:9px 12px; font-size:13.5px; }
+  .dm-add #newDeptName::placeholder{ color:var(--muted); }
+  .dm-add #newDeptTrack{ flex:0 0 auto; }
 </style>
 </head>
 <body>
@@ -451,7 +460,13 @@
   <div class="modal-bg" id="deptMgrModal">
     <div class="modal"><h3>부서 관리</h3><div class="msub">색상을 클릭해 바꾸거나 부서를 추가/삭제합니다.</div>
       <div id="deptMgrList"></div>
-      <div class="dm-add"><input type="color" id="newDeptColor" value="#8b5cf6"><input type="text" id="newDeptName" placeholder="새 부서명 (예: QA)"><select id="newDeptTrack" class="meta-sel" style="margin:0"><option value="개발">개발</option><option value="아트">아트</option><option value="개발·아트">개발·아트 공용</option></select><button class="meta-btn" id="deptAddNew">＋ 추가</button></div>
+      <div class="dm-add">
+        <button type="button" class="color-pick" id="newDeptColorBtn"><span class="color-dot" id="newDeptColorDot" style="background:#8b5cf6"></span>색상</button>
+        <input type="color" id="newDeptColor" value="#8b5cf6" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none">
+        <input type="text" id="newDeptName" placeholder="새 부서명 (예: QA)">
+        <select id="newDeptTrack" class="meta-sel" style="margin:0"><option value="개발">개발</option><option value="아트">아트</option><option value="개발·아트">개발·아트 공용</option></select>
+        <button class="meta-btn" id="deptAddNew">＋ 추가</button>
+      </div>
       <div class="modal-actions"><span></span><div class="right"><button class="btn" data-close>닫기</button></div></div></div>
   </div>
   <div class="modal-bg" id="titleModal">
@@ -1053,6 +1068,8 @@ document.getElementById("deptMgrList").addEventListener("click", e=>{
   state.departments=state.departments.filter(d=>d.key!==key);
   state.tasks.forEach(t=>{ delete t.depts[key]; });
   deptFilter.delete(key); save(); render(); renderDeptMgr(); });
+document.getElementById("newDeptColorBtn").onclick=()=>document.getElementById("newDeptColor").click();
+document.getElementById("newDeptColor").addEventListener("input",e=>{ document.getElementById("newDeptColorDot").style.background=e.target.value; });
 document.getElementById("deptAddNew").onclick=()=>{ const name=document.getElementById("newDeptName").value.trim(); const color=document.getElementById("newDeptColor").value;
   if(!name){ alert("부서명을 입력하세요."); return; }
   if(state.departments.some(d=>d.key===name)){ alert("이미 있는 부서명입니다."); return; }
