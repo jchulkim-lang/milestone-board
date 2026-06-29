@@ -51,7 +51,7 @@ async function dmKakao(env, st, text){
   if(env.KAKAO_WEBHOOK_URL){ try{ await fetch(env.KAKAO_WEBHOOK_URL, { method:"POST", headers:{ "content-type":"application/json" }, body: JSON.stringify({ text }) }); }catch(_){} }
 }
 // 저장 시 상태가 '진행 중'·'검토·이슈'·'완료'로 바뀐 Task를 모아 알림
-async function notifyStatusChanges(env, oldStr, newStr, who){
+async function notifyStatusChanges(env, oldStr, newStr, who, origin){
   if(!env.KAKAO_BOT_KEY && !env.KAKAO_WEBHOOK_URL) return;
   let o, n; try{ o=JSON.parse(oldStr||"{}"); n=JSON.parse(newStr||"{}"); }catch(_){ return; }
   const oldStatus={}; (o.tasks||[]).forEach(t=>{ oldStatus[t.id]=t.status; });
@@ -62,7 +62,8 @@ async function notifyStatusChanges(env, oldStr, newStr, who){
   (n.tasks||[]).forEach(t=>{
     const prev=oldStatus[t.id];
     if(prev!==undefined && prev!==t.status && WATCH.includes(t.status)){
-      lines.push(`${DOT[t.status]||"•"} [${msName[t.milestoneId]||"-"}] ${t.name} : ${prev} → ${t.status}`);
+      const link = origin ? `\n   🔗 ${origin}/?task=${encodeURIComponent(t.id)}` : "";
+      lines.push(`${DOT[t.status]||"•"} [${msName[t.milestoneId]||"-"}] ${t.name} : ${prev} → ${t.status}${link}`);
     }
   });
   if(lines.length) await dmKakao(env, n, `📌 상태 변경 (${who})\n` + lines.join("\n"));
@@ -168,7 +169,7 @@ async function handleApi(request, env, url, ctx){
     const b = await request.json(); const payload = JSON.stringify(b.data ?? {});
     const oldRow = await env.DB.prepare("SELECT data FROM app_state WHERE id='main'").first();
     await env.DB.prepare("UPDATE app_state SET data=?, version=version+1, updated_at=datetime('now'), updated_by=? WHERE id='main'").bind(payload, user.email).run();
-    if(ctx && ctx.waitUntil) ctx.waitUntil(notifyStatusChanges(env, oldRow && oldRow.data, payload, user.name || user.email));
+    if(ctx && ctx.waitUntil) ctx.waitUntil(notifyStatusChanges(env, oldRow && oldRow.data, payload, user.name || user.email, url.origin));
     const row = await env.DB.prepare("SELECT data, version FROM app_state WHERE id='main'").first();
     // 히스토리 스냅샷 + 최근 50개만 보관
     await env.DB.prepare("INSERT INTO history (data,version,saved_by,saved_at) VALUES (?,?,?,datetime('now'))").bind(row.data, row.version, user.email).run();

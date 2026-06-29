@@ -112,6 +112,8 @@
   .task{border-bottom:1px solid var(--line);}
   .task.skip .task-name{text-decoration:line-through;}
   .task.selected{box-shadow:inset 3px 0 0 var(--accent);background:rgba(99,102,241,.07);}
+  .task.flash{animation:taskFlash 1.6s ease-out 1;}
+  @keyframes taskFlash{0%{background:rgba(99,102,241,.38);}100%{background:rgba(99,102,241,.07);}}
   .task.dragover{box-shadow:inset 0 2px 0 var(--accent);}
   .task-head{height:var(--task-h);display:flex;align-items:center;gap:5px;padding:0 10px 0 8px;cursor:pointer;}
   .task-head:hover{background:var(--panel2);}
@@ -232,6 +234,7 @@
   .modal{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;width:380px;max-width:92vw;max-height:90vh;overflow:auto;}
   .modal h3{margin:0 0 4px;font-size:15px;}
   .modal .msub{font-size:12px;color:var(--muted);margin-bottom:16px;}
+  .notice-body{white-space:pre-wrap;word-break:break-word;font-size:14px;line-height:1.65;color:var(--text);max-height:55vh;overflow:auto;margin:4px 0 18px;}
   .modal label{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);font-weight:700;margin:12px 0 5px;}
   .modal label i{width:9px;height:9px;border-radius:50%;display:inline-block;}
   .modal input,.modal select{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;}
@@ -263,6 +266,7 @@
     <button class="btn ghost sm" id="dashBtn">📊 대시보드</button>
     <button class="btn ghost sm" id="historyBtn">🕘 히스토리</button>
     <button class="btn ghost sm" id="notifyBtn">🔔 알림 멤버</button>
+    <button class="btn ghost sm" id="noticeBtn">📢 공지</button>
     <button class="btn ghost sm" id="themeBtn">☀ 라이트</button>
     <button class="btn ghost sm" id="msBtn">⚙ 마일스톤 설정</button>
     <button class="btn ghost sm" id="exportBtn">내보내기</button>
@@ -359,6 +363,17 @@
       <div class="dm-add"><input type="email" id="newNotifyEmail" placeholder="이메일 (예: hong@vicgamestudios.com)"><button class="meta-btn" id="notifyAddBtn">＋ 추가</button></div>
       <div class="modal-actions"><span></span><div class="right"><button class="btn" data-close>닫기</button></div></div></div>
   </div>
+  <div class="modal-bg" id="noticePopup">
+    <div class="modal"><h3>📢 공지사항</h3>
+      <div id="noticeBody" class="notice-body"></div>
+      <div class="modal-actions"><button class="btn ghost" id="noticeSkipDay">오늘 하루 그만 보기</button><div class="right"><button class="btn" data-close>닫기</button></div></div></div>
+  </div>
+  <div class="modal-bg" id="noticeEditModal">
+    <div class="modal"><h3>📢 공지사항 편집</h3>
+      <div class="msub">여기 입력한 내용이 모든 사용자에게 진입 시 팝업으로 표시됩니다. 비워두면 팝업이 뜨지 않습니다. 줄바꿈은 그대로 표시됩니다.</div>
+      <textarea id="noticeText" rows="7" placeholder="공지 내용을 입력하세요" style="width:100%;box-sizing:border-box;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;line-height:1.6;resize:vertical;font-family:inherit;"></textarea>
+      <div class="modal-actions"><span></span><div class="right"><button class="btn ghost" data-close>취소</button><button class="btn" id="noticeSaveBtn">저장</button></div></div></div>
+  </div>
   <input type="file" id="fileInput" accept="application/json" style="display:none">
 
 <script>
@@ -445,6 +460,7 @@ const LS_KEY = "milestone_state_v6";
 function migrate(){
   if(!state.title) state.title = "본부 마일스톤 관리";
   if(!Array.isArray(state.notifyEmails)) state.notifyEmails = [];
+  if(!state.notice || typeof state.notice!=="object") state.notice = { text:"", updatedAt:"" };
   if(!state.departments || !state.departments.length) state.departments = DEFAULT_DEPARTMENTS.map(d=>({...d}));
   state.departments.forEach(d=>{ if(!Array.isArray(d.owners)) d.owners=[]; });
   DEPARTMENTS = state.departments;
@@ -767,10 +783,37 @@ function attachBarHandlers(){
 /* ===== 모달들 ===== */
 let editing=null;
 const taskModal=document.getElementById("taskModal"), taskInput=document.getElementById("taskInput"), taskMs=document.getElementById("taskMs");
-const deptModal=document.getElementById("deptModal"), linkModal=document.getElementById("linkModal"), schedModal=document.getElementById("schedModal"), msModal=document.getElementById("msModal"), deptMgrModal=document.getElementById("deptMgrModal"), titleModal=document.getElementById("titleModal"), dashModal=document.getElementById("dashModal"), historyModal=document.getElementById("historyModal"), notifyModal=document.getElementById("notifyModal");
-function closeModals(){ [taskModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,titleModal,dashModal,historyModal,notifyModal].forEach(m=>m.classList.remove("show")); }
+const deptModal=document.getElementById("deptModal"), linkModal=document.getElementById("linkModal"), schedModal=document.getElementById("schedModal"), msModal=document.getElementById("msModal"), deptMgrModal=document.getElementById("deptMgrModal"), titleModal=document.getElementById("titleModal"), dashModal=document.getElementById("dashModal"), historyModal=document.getElementById("historyModal"), notifyModal=document.getElementById("notifyModal"), noticePopup=document.getElementById("noticePopup"), noticeEditModal=document.getElementById("noticeEditModal");
+function closeModals(){ [taskModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.classList.remove("show")); }
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=closeModals);
-[taskModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,titleModal,dashModal,historyModal,notifyModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
+[taskModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
+
+/* ===== 공지사항 ===== */
+let noticeEvaluated=false;
+function noticeToday(){ const d=new Date(); return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate(); }
+function noticeToken(){ return noticeToday()+"::"+((state.notice&&state.notice.updatedAt)||""); }
+function openNoticeEdit(){ document.getElementById("noticeText").value=(state.notice&&state.notice.text)||""; noticeEditModal.classList.add("show"); }
+document.getElementById("noticeBtn").onclick=openNoticeEdit;
+document.getElementById("noticeSaveBtn").onclick=function(){
+  const v=(document.getElementById("noticeText").value||"").replace(/\s+$/,"");
+  if(!state.notice) state.notice={text:"",updatedAt:""};
+  state.notice.text=v; state.notice.updatedAt=new Date().toISOString();
+  save(); closeModals();
+  noticeEvaluated=false; evalNotice(); // 편집자에게 바로 미리보기
+};
+document.getElementById("noticeSkipDay").onclick=function(){ try{ localStorage.setItem("notice_skip", noticeToken()); }catch(_){} closeModals(); };
+function evalNotice(){
+  if(noticeEvaluated) return true;
+  const nt=state.notice && state.notice.text && state.notice.text.trim();
+  if(!nt) return false;               // 아직 상태 미도착 또는 공지 없음
+  noticeEvaluated=true;
+  let skip=""; try{ skip=localStorage.getItem("notice_skip")||""; }catch(_){}
+  if(skip===noticeToken()) return true; // 오늘 그만 보기 누른 상태
+  document.getElementById("noticeBody").textContent=state.notice.text;
+  noticePopup.classList.add("show");
+  return true;
+}
+function showNoticeWithRetry(){ let tries=0; (function a(){ if(evalNotice()) return; if(tries++<15) setTimeout(a,400); })(); }
 
 /* ===== 알림 멤버 관리 ===== */
 function openNotify(){ renderNotify(); notifyModal.classList.add("show"); }
@@ -1002,6 +1045,27 @@ const savedW=localStorage.getItem("ms_leftw"); if(savedW) document.documentEleme
 load(); render();
 const ni=nearestIndex(); if(ni>3) rightBody.scrollLeft=(ni-3)*DAY_W;
 remote.init();
+
+/* 알림 링크(?task=ID)로 들어오면 해당 Task를 펼치고 강조. 클라우드 동기화 지연 대비 재시도 */
+function focusTaskFromUrl(){
+  const id=new URLSearchParams(location.search).get("task"); if(!id) return;
+  let tries=0;
+  (function attempt(){
+    const t=findTask(id);
+    if(t){
+      deptFilter.clear(); statusFilter.clear(); msFilter.clear(); assigneeFilter.clear();
+      groupCollapsed.delete(t.status);
+      selectedId=t.id; t.open=true; render();
+      scrollToTask(t);
+      const el=document.querySelector('.task[data-task="'+(window.CSS&&CSS.escape?CSS.escape(id):id)+'"]');
+      if(el){ el.scrollIntoView({behavior:"smooth",block:"center"}); el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
+      return;
+    }
+    if(tries++<20) setTimeout(attempt,300); // 클라우드 상태 도착 대기
+  })();
+}
+focusTaskFromUrl();
+showNoticeWithRetry();
 </script>
 <!-- 클라우드(http/https) 배포 시에만 cloud.js 로드 — 로컬 파일(file://)에서는 자동 무시 -->
 <script>if(location.protocol==='http:'||location.protocol==='https:'){var _c=document.createElement('script');_c.src='cloud.js';document.body.appendChild(_c);}</script>
