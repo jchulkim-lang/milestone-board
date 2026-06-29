@@ -49,6 +49,11 @@
   .dbar-done{height:100%;border-radius:5px 0 0 5px;}
   .topbar .sub{font-size:12px;color:var(--muted);}
   .topbar .spacer{flex:1;}
+  .dday{display:flex;align-items:center;gap:7px;font-size:12px;white-space:nowrap;}
+  .dday-badge{font-weight:800;font-size:12px;letter-spacing:.3px;padding:3px 9px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);color:var(--text);}
+  .dday-badge.urgent{background:#ef4444;border-color:#ef4444;color:#fff;}
+  .dday-badge.over{background:#7f1d1d;border-color:#b91c1c;color:#fff;}
+  .dday-label{color:var(--muted);}
   .ms-progress{flex:1;display:flex;justify-content:center;align-items:center;gap:16px;font-size:12.5px;color:var(--muted);flex-wrap:wrap;overflow:hidden;}
   .msp{white-space:nowrap;}
   .msp b{font-weight:800;}
@@ -253,6 +258,7 @@
     <button class="title-edit" id="titleEditBtn" title="제목 편집">✎</button>
     <span class="sub">영업일 기준 · 부서별 일정</span>
     <div class="ms-progress" id="msProgress"></div>
+    <div class="dday" id="ddayBox"></div>
     <span id="syncStatus" class="status-dot"><b></b><span>로컬 (이 브라우저에 저장)</span></span>
     <button class="btn ghost sm" id="dashBtn">📊 대시보드</button>
     <button class="btn ghost sm" id="historyBtn">🕘 히스토리</button>
@@ -494,7 +500,34 @@ function groupsToRender(){
 }
 
 function renderTitle(){ const t=state.title||"본부 마일스톤 관리"; const el=document.getElementById("appTitle"); if(el) el.textContent=t; document.title=t; }
-function render(){ renderTitle(); renderMsProgress(); renderLegend(); renderFilter(); renderHead(); renderLeft(); renderBody(); }
+function render(){ renderTitle(); renderMsProgress(); renderDday(); renderLegend(); renderFilter(); renderHead(); renderLeft(); renderBody(); }
+
+// 상단: 가장 가까운 다가오는 마감(D-N) 표시. 지난 마감은 미완료 Task가 있으면 '초과'로 표시
+function renderDday(){
+  const box=document.getElementById("ddayBox"); if(!box) return;
+  const today=stripTime(new Date());
+  const DL=[["resource","리소스"],["dev","개발"],["qa","QA"],["end","종료"]];
+  let up=null, over=null;
+  state.milestones.forEach(m=>{
+    const incomplete=state.tasks.filter(t=>t.milestoneId===m.id && t.status!=="완료").length;
+    DL.forEach(([k,label])=>{
+      if(!m[k]) return;
+      const d=stripTime(parseYmd(m[k]));
+      const diff=Math.round((d-today)/86400000);
+      if(diff>=0){ if(up===null||diff<up.diff) up={diff,m,label,d}; }
+      else if(incomplete>0){ if(over===null||(-diff)<over.late) over={late:-diff,m,label,d,incomplete}; }
+    });
+  });
+  const md=d=>(d.getMonth()+1)+"/"+d.getDate();
+  if(up){
+    const tag=up.diff===0?"D-DAY":"D-"+up.diff;
+    box.innerHTML=`<span class="dday-badge${up.diff<=3?' urgent':''}">🚩 ${tag}</span>`+
+      `<span class="dday-label"><b style="color:${up.m.color}">${escapeHtml(up.m.name)}</b> ${up.label} 마감 · ${md(up.d)}</span>`;
+  } else if(over){
+    box.innerHTML=`<span class="dday-badge over">⚠ ${over.late}일 초과</span>`+
+      `<span class="dday-label"><b style="color:${over.m.color}">${escapeHtml(over.m.name)}</b> ${over.label} 마감 · 미완료 ${over.incomplete}건</span>`;
+  } else { box.innerHTML=""; }
+}
 
 function renderMsProgress(){
   document.getElementById("msProgress").innerHTML = state.milestones.map(m=>{

@@ -50,18 +50,19 @@ async function dmKakao(env, st, text){
   }
   if(env.KAKAO_WEBHOOK_URL){ try{ await fetch(env.KAKAO_WEBHOOK_URL, { method:"POST", headers:{ "content-type":"application/json" }, body: JSON.stringify({ text }) }); }catch(_){} }
 }
-// 저장 시 상태가 '검토·이슈' 또는 '완료'로 바뀐 Task를 모아 알림
+// 저장 시 상태가 '진행 중'·'검토·이슈'·'완료'로 바뀐 Task를 모아 알림
 async function notifyStatusChanges(env, oldStr, newStr, who){
   if(!env.KAKAO_BOT_KEY && !env.KAKAO_WEBHOOK_URL) return;
   let o, n; try{ o=JSON.parse(oldStr||"{}"); n=JSON.parse(newStr||"{}"); }catch(_){ return; }
   const oldStatus={}; (o.tasks||[]).forEach(t=>{ oldStatus[t.id]=t.status; });
   const msName={}; (n.milestones||[]).forEach(m=>{ msName[m.id]=m.name; });
-  const WATCH=["검토·이슈","완료"];
+  const WATCH=["진행 중","검토·이슈","완료"];
+  const DOT={"진행 중":"🔵","검토·이슈":"🟠","완료":"🟢"}; // 앱 상태 색과 매칭
   const lines=[];
   (n.tasks||[]).forEach(t=>{
     const prev=oldStatus[t.id];
     if(prev!==undefined && prev!==t.status && WATCH.includes(t.status)){
-      lines.push(`• [${msName[t.milestoneId]||"-"}] ${t.name} : ${prev} → ${t.status}`);
+      lines.push(`${DOT[t.status]||"•"} [${msName[t.milestoneId]||"-"}] ${t.name} : ${prev} → ${t.status}`);
     }
   });
   if(lines.length) await dmKakao(env, n, `📌 상태 변경 (${who})\n` + lines.join("\n"));
