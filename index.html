@@ -558,14 +558,27 @@ const KICKOFFS = [
   { k:"Skip", icon:"–", color:"#9aa3b2" },
 ];
 const kfOf = k => KICKOFFS.find(x=>x.k===k) || KICKOFFS[0];
-/* Task 진행 상태(관리자 지정) */
-const TASK_STATUSES = [
+/* Task 진행 상태(관리자 지정) — 개발/아트 분류별로 다름 */
+const TASK_STATUSES = [   // 개발
   { k:"대기", color:"#64748b" },
   { k:"진행 중", color:"#3b82f6" },
   { k:"검토·이슈", color:"#f59e0b" },
-  { k:"완료", color:"#10b981" },
+  { k:"완료", color:"#10b981", done:true },
 ];
-const tsOf = k => TASK_STATUSES.find(x=>x.k===k) || TASK_STATUSES[0];
+const ART_STATUSES = [    // 아트 (제작 파이프라인)
+  { k:"배경원화", color:"#22d3ee" },
+  { k:"캐릭터원화", color:"#f472b6" },
+  { k:"배경모델링", color:"#2dd4bf" },
+  { k:"캐릭터모델링", color:"#c084fc" },
+  { k:"애니메이션", color:"#fbbf24" },
+  { k:"가조립", color:"#fb923c" },
+  { k:"이펙트", color:"#a3e635" },
+  { k:"최종 조립 및 사운드", color:"#10b981", done:true },
+];
+const statusesFor = track => track==="아트" ? ART_STATUSES : TASK_STATUSES;
+const ALL_STATUSES = TASK_STATUSES.concat(ART_STATUSES);
+const tsOf = k => ALL_STATUSES.find(x=>x.k===k) || TASK_STATUSES[0];
+const isDone = t => { const s=statusesFor(t.track||"개발").find(x=>x.k===t.status); return !!(s&&s.done); };
 const TRACKS = ["개발","아트"];   // 마일스톤 내부 일감 분류(고정)
 const TRACK_COLORS = { "개발":"#3b82f6", "아트":"#ec4899" };   // 분류 구분 색
 const MARKERS = [
@@ -640,8 +653,9 @@ function migrate(){
   state.milestones.forEach((m,i)=>{ if(!m.id)m.id=uid(); if(!m.color)m.color=MS_PALETTE[i%MS_PALETTE.length]; if(m.dev===undefined)m.dev=""; if(!m.name)m.name="마일스톤"; if(!m.start)m.start="2026-06-01"; });
   const firstMs=state.milestones[0].id;
   state.tasks.forEach(t=>{ if(!t.kickoff) t.kickoff = t.status && KICKOFFS.some(k=>k.k===t.status) ? t.status : "예정";
-    if(!t.status || !TASK_STATUSES.some(s=>s.k===t.status)) t.status="대기";
-    if(!t.links) t.links={plan:"",trello:""}; if(t.depts) Object.values(t.depts).forEach(s=>{ if(s && !Array.isArray(s.assignees)) s.assignees=[]; }); if(!t.milestoneId || !findMs(t.milestoneId)) t.milestoneId=firstMs; if(t.open===undefined)t.open=false; if(!TRACKS.includes(t.track)) t.track="개발"; });
+    if(!TRACKS.includes(t.track)) t.track="개발";
+    const _ss=statusesFor(t.track); if(!t.status || !_ss.some(s=>s.k===t.status)) t.status=_ss[0].k;
+    if(!t.links) t.links={plan:"",trello:""}; if(t.depts) Object.values(t.depts).forEach(s=>{ if(s && !Array.isArray(s.assignees)) s.assignees=[]; }); if(!t.milestoneId || !findMs(t.milestoneId)) t.milestoneId=firstMs; if(t.open===undefined)t.open=false; });
 }
 function save(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); if(remote.active) remote.push(state); }
 function load(){ const raw=localStorage.getItem(LS_KEY); if(raw){ try{state=JSON.parse(raw);}catch(e){} } migrate(); buildTimeline(); }
@@ -677,7 +691,7 @@ function passFilter(t){
 }
 function groupsToRender(){
   const vis=state.tasks.filter(passFilter);
-  return TASK_STATUSES.filter(s=> statusFilter.size===0 || statusFilter.has(s.k))
+  return statusesFor(headTrack()).filter(s=> statusFilter.size===0 || statusFilter.has(s.k))
     .map(s=>({ s, tasks: vis.filter(t=>t.status===s.k) }));
 }
 
@@ -691,7 +705,7 @@ function renderDday(){
   const DL=[["resource","리소스"],["dev","개발"],["qa","QA"],["end","종료"]];
   let up=null, over=null;
   state.milestones.forEach(m=>{
-    const incomplete=state.tasks.filter(t=>t.milestoneId===m.id && t.status!=="완료").length;
+    const incomplete=state.tasks.filter(t=>t.milestoneId===m.id && !isDone(t)).length;
     DL.forEach(([k,label])=>{
       if(!m[k]) return;
       const d=stripTime(parseYmd(m[k]));
@@ -714,14 +728,14 @@ function renderDday(){
 function renderMsProgress(){
   document.getElementById("msProgress").innerHTML = state.milestones.map(m=>{
     const tot=state.tasks.filter(t=>t.milestoneId===m.id).length;
-    const done=state.tasks.filter(t=>t.milestoneId===m.id && t.status==="완료").length;
+    const done=state.tasks.filter(t=>t.milestoneId===m.id && isDone(t)).length;
     return `<span class="msp"><b style="color:${m.color}">${escapeHtml(m.name)}</b> : <span class="num">${done}/${tot}</span></span>`;
   }).join("");
 }
 
 function renderLegend(){
   const dep=depsFor(headTrack()).map(d=>`<span class="di"><i style="background:${d.color}"></i>${escapeHtml(d.key)}</span>`).join("");
-  const ts=TASK_STATUSES.map(s=>`<span class="di" style="color:${s.color}">● ${s.k}</span>`).join("");
+  const ts=statusesFor(headTrack()).map(s=>`<span class="di" style="color:${s.color}">● ${s.k}</span>`).join("");
   document.getElementById("footbar").innerHTML=
     `<button class="lbl legend-edit" id="deptLegendBtn" title="클릭하여 부서 색상 편집·추가">부서 ✎</button><div class="grp clickable" id="deptLegendBtn2">${dep}</div>`+
     `<div class="grp" style="margin-left:auto"><span class="lbl">상태</span>${ts}</div>`;
@@ -731,7 +745,7 @@ function renderFilter(){
   const allD=deptFilter.size===0, allS=statusFilter.size===0, allM=msFilter.size===0;
   const dchips=depsFor(headTrack()).map(d=>{ const on=deptFilter.has(d.key);
     return `<span class="fchip ${on?'on':''}" style="${on?'background:'+d.color:''}" data-fd="${d.key}"><span class="dot" style="background:${on?'#fff':d.color}"></span>${d.key}</span>`; }).join("");
-  const schips=TASK_STATUSES.map(s=>{ const on=statusFilter.has(s.k);
+  const schips=statusesFor(headTrack()).map(s=>{ const on=statusFilter.has(s.k);
     return `<span class="fchip ${on?'on':''}" style="${on?'background:'+s.color:''}" data-fs="${s.k}"><span class="dot" style="background:${on?'#fff':s.color}"></span>${s.k}</span>`; }).join("");
   const mstabs=`<span class="mstab ${allM?'on':''}" data-mstab="__all">전체</span>`+state.milestones.map(m=>{ const on=msFilter.size===1&&msFilter.has(m.id);
     return `<span class="mstab ${on?'on':''}" data-mstab="${m.id}" style="${on?'background:'+m.color+';border-color:transparent;color:#fff':''}"><i class="dot" style="background:${on?'#fff':m.color}"></i>${escapeHtml(m.name)}</span>`; }).join("");
@@ -796,7 +810,7 @@ function deptGridHtml(t){
 function taskHeadHtml(t){
   const ms=findMs(t.milestoneId);
   const kf=kfOf(t.kickoff);
-  const stOpts=TASK_STATUSES.map(s=>`<option ${s.k===t.status?'selected':''}>${s.k}</option>`).join("");
+  const stOpts=statusesFor(t.track||"개발").map(s=>`<option ${s.k===t.status?'selected':''}>${escapeHtml(s.k)}</option>`).join("");
   const links=(t.links.plan?`<a class="lk" href="${escapeHtml(t.links.plan)}" target="_blank" rel="noopener" title="기획서">📄</a>`:"")+(t.links.trello?`<a class="lk" href="${escapeHtml(t.links.trello)}" target="_blank" rel="noopener" title="Trello">📋</a>`:"");
   const aps=taskAssignees(t);
   const asg=aps.length?`<span class="asg-badge" title="담당: ${escapeHtml(aps.join(', '))}">👤 ${escapeHtml(aps[0])}${aps.length>1?' +'+(aps.length-1):''}</span>`:'';
@@ -883,7 +897,7 @@ leftHead.addEventListener("click", e=>{
   if(e.target.closest("#addTaskBtn")){ openTaskModal(); return; }
   if(e.target.closest("#filterBtn")){ filterOpen=!filterOpen; renderFilter(); return; }
   const tab=e.target.closest("[data-mstab]"); if(tab){ const k=tab.dataset.mstab; msFilter.clear(); if(k!=="__all") msFilter.add(k); render(); return; }
-  const trk=e.target.closest("[data-track]"); if(trk){ trackFilter=trk.dataset.track; deptFilter.clear(); assigneeFilter.clear(); render(); return; }
+  const trk=e.target.closest("[data-track]"); if(trk){ trackFilter=trk.dataset.track; deptFilter.clear(); assigneeFilter.clear(); statusFilter.clear(); groupCollapsed.clear(); render(); return; }
   const fd=e.target.closest("[data-fd]"), fs=e.target.closest("[data-fs]"), fa=e.target.closest("[data-fa]");
   if(fd){ const k=fd.dataset.fd; if(k==="__all")deptFilter.clear(); else deptFilter.has(k)?deptFilter.delete(k):deptFilter.add(k); render(); return; }
   if(fs){ const k=fs.dataset.fs; if(k==="__all")statusFilter.clear(); else statusFilter.has(k)?statusFilter.delete(k):statusFilter.add(k); render(); return; }
@@ -894,7 +908,7 @@ document.addEventListener("click", e=>{ if(filterOpen && !e.target.closest("#fil
 leftBody.addEventListener("change", e=>{
   const st=e.target.closest("[data-status]"); if(st){ findTask(st.dataset.status).status=st.value; save(); render(); return; }
   const sm=e.target.closest("[data-setms]"); if(sm){ findTask(sm.dataset.setms).milestoneId=sm.value; buildTimeline(); save(); render(); return; }
-  const str=e.target.closest("[data-settrack]"); if(str){ findTask(str.dataset.settrack).track=str.value; save(); render(); return; }
+  const str=e.target.closest("[data-settrack]"); if(str){ const tk=findTask(str.dataset.settrack); tk.track=str.value; const ss=statusesFor(tk.track); if(!ss.some(s=>s.k===tk.status)) tk.status=ss[0].k; save(); render(); return; }
 });
 leftBody.addEventListener("click", e=>{
   if(e.target.closest("a")) return;
@@ -1030,8 +1044,8 @@ function renderDashboard(){
   const sel=document.getElementById("dashMs").value;
   const scope = sel==="all" ? state.tasks : state.tasks.filter(t=>t.milestoneId===sel);
   const total=scope.length;
-  const stCount=TASK_STATUSES.map(s=>({s,n:scope.filter(t=>t.status===s.k).length}));
-  const done=scope.filter(t=>t.status==="완료").length;
+  const stCount=ALL_STATUSES.map(s=>({s,n:scope.filter(t=>t.status===s.k).length})).filter(x=>x.n>0);
+  const done=scope.filter(isDone).length;
   const pct=total?Math.round(done/total*100):0;
   const stack=stCount.map(x=>x.n?`<div class="seg" style="flex:${x.n};background:${x.s.color}" title="${x.s.k} ${x.n}"></div>`:"").join("")||`<div class="seg empty"></div>`;
   let html=`<div class="dash-sec"><div class="dash-h">진행 현황 — 완료 ${done} / 전체 ${total} (${pct}%)</div>
@@ -1039,14 +1053,14 @@ function renderDashboard(){
     <div class="dash-legend">${stCount.map(x=>`<span><i style="background:${x.s.color}"></i>${x.s.k} ${x.n}</span>`).join("")}</div></div>`;
   if(sel==="all" && state.milestones.length){
     let rows="";
-    state.milestones.forEach(m=>{ const ts=state.tasks.filter(t=>t.milestoneId===m.id); const tt=ts.length; const dn=ts.filter(t=>t.status==="완료").length; const p=tt?Math.round(dn/tt*100):0;
-      const seg=TASK_STATUSES.map(s=>{const n=ts.filter(t=>t.status===s.k).length;return n?`<div class="seg" style="flex:${n};background:${s.color}"></div>`:"";}).join("")||`<div class="seg empty"></div>`;
+    state.milestones.forEach(m=>{ const ts=state.tasks.filter(t=>t.milestoneId===m.id); const tt=ts.length; const dn=ts.filter(isDone).length; const p=tt?Math.round(dn/tt*100):0;
+      const seg=ALL_STATUSES.map(s=>{const n=ts.filter(t=>t.status===s.k).length;return n?`<div class="seg" style="flex:${n};background:${s.color}"></div>`:"";}).join("")||`<div class="seg empty"></div>`;
       rows+=`<div class="dash-row"><div class="dash-row-l"><i style="background:${m.color}"></i>${escapeHtml(m.name)}</div><div class="stack sm" style="flex:1">${seg}</div><div class="dash-row-r">${dn}/${tt} · ${p}%</div></div>`; });
     html+=`<div class="dash-sec"><div class="dash-h">마일스톤별 진행</div>${rows}</div>`;
   }
   const maxDept=Math.max(1,...state.departments.map(d=>scope.filter(t=>t.depts[d.key]&&t.depts[d.key].on).length));
   let drows="";
-  state.departments.forEach(d=>{ const ts=scope.filter(t=>t.depts[d.key]&&t.depts[d.key].on); const tt=ts.length; const dn=ts.filter(t=>t.status==="완료").length;
+  state.departments.forEach(d=>{ const ts=scope.filter(t=>t.depts[d.key]&&t.depts[d.key].on); const tt=ts.length; const dn=ts.filter(isDone).length;
     const w=Math.round(tt/maxDept*100); const dw=tt?Math.round(dn/tt*100):0;
     drows+=`<div class="dash-row"><div class="dash-row-l"><i style="background:${d.color}"></i>${escapeHtml(d.key)}</div>
       <div class="dbar"><div class="dbar-fill" style="width:${w}%;background:${d.color}33"><div class="dbar-done" style="width:${dw}%;background:${d.color}"></div></div></div>
@@ -1110,7 +1124,8 @@ document.getElementById("taskAddOk").onclick=addTask;
 taskInput.addEventListener("keydown",e=>{ if(e.key==="Enter") addTask(); });
 function addTask(){ const name=taskInput.value.trim(); if(!name) return;
   const trackSel=document.getElementById("taskTrack");
-  const tk={ id:uid(), name, milestoneId:taskMs.value||state.milestones[0].id, track:(trackSel&&TRACKS.includes(trackSel.value))?trackSel.value:"개발", open:true, kickoff:"예정", status:"대기", links:{plan:"",trello:""}, depts:{} };
+  const trk=(trackSel&&TRACKS.includes(trackSel.value))?trackSel.value:"개발";
+  const tk={ id:uid(), name, milestoneId:taskMs.value||state.milestones[0].id, track:trk, open:true, kickoff:"예정", status:statusesFor(trk)[0].k, links:{plan:"",trello:""}, depts:{} };
   state.tasks.push(tk); closeModals(); save(); render(); openDeptModal(tk.id); }
 
 function openDeptModal(tid){ editing={tid}; const t=findTask(tid);

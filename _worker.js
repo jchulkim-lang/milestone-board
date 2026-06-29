@@ -62,16 +62,18 @@ async function notifyStatusChanges(env, oldStr, newStr, who, origin){
   let o, n; try{ o=JSON.parse(oldStr||"{}"); n=JSON.parse(newStr||"{}"); }catch(_){ return; }
   const oldStatus={}; (o.tasks||[]).forEach(t=>{ oldStatus[t.id]=t.status; });
   const msName={}; (n.milestones||[]).forEach(m=>{ msName[m.id]=m.name; });
-  const WATCH=["진행 중","검토·이슈","완료"];
+  const WATCH=["진행 중","검토·이슈","완료"];   // 개발: 이 상태로 바뀔 때 알림
   const DOT={"진행 중":"🔵","검토·이슈":"🟠","완료":"🟢"}; // 앱 상태 색과 매칭
   const blocks=[{ type:"text", text:`📌 상태 변경 (${who})` }];
   const preview=[`📌 상태 변경 (${who})`];
   (n.tasks||[]).forEach(t=>{
     const prev=oldStatus[t.id];
-    if(prev!==undefined && prev!==t.status && WATCH.includes(t.status)){
+    // 개발은 WATCH 상태로 바뀔 때, 아트는 모든 단계 변경 시 알림
+    if(prev!==undefined && prev!==t.status && (WATCH.includes(t.status) || t.track==="아트")){
       const ms=msName[t.milestoneId]||"-";
       const plan=(t.links && t.links.plan)||"", trello=(t.links && t.links.trello)||"";
-      const segs=[{ text:`${DOT[t.status]||"•"} [${ms}] ${t.name} : ${prev} → ${t.status}\n📄 기획서 ` }];
+      const dot = DOT[t.status] || (t.track==="아트" ? "🟣" : "•");
+      const segs=[{ text:`${dot} [${ms}] ${t.name} : ${prev} → ${t.status}\n📄 기획서 ` }];
       segs.push(plan ? { text:"[LINK]", url:plan } : { text:"링크 없음" });
       segs.push({ text:`\n📋 Trello ` });
       segs.push(trello ? { text:"[LINK]", url:trello } : { text:"링크 없음" });
