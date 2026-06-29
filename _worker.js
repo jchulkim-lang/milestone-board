@@ -62,8 +62,13 @@ async function notifyStatusChanges(env, oldStr, newStr, who, origin){
   (n.tasks||[]).forEach(t=>{
     const prev=oldStatus[t.id];
     if(prev!==undefined && prev!==t.status && WATCH.includes(t.status)){
-      const link = origin ? `\n   🔗 ${origin}/?task=${encodeURIComponent(t.id)}` : "";
-      lines.push(`${DOT[t.status]||"•"} [${msName[t.milestoneId]||"-"}] ${t.name} : ${prev} → ${t.status}${link}`);
+      const link = origin ? `\n   🔗 바로가기 ${origin}/?task=${encodeURIComponent(t.id)}` : "";
+      const plan = (t.links && t.links.plan) ? t.links.plan : "링크 없음";
+      const trello = (t.links && t.links.trello) ? t.links.trello : "링크 없음";
+      lines.push(`${DOT[t.status]||"•"} [${msName[t.milestoneId]||"-"}] ${t.name} : ${prev} → ${t.status}`
+        + `\n   📄 기획서 ${plan}`
+        + `\n   📋 Trello ${trello}`
+        + link);
     }
   });
   if(lines.length) await dmKakao(env, n, `📌 상태 변경 (${who})\n` + lines.join("\n"));
