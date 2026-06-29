@@ -373,15 +373,16 @@
   .ctx-dday{ display:flex; align-items:center; gap:7px; font-size:12px; margin-left:auto; white-space:nowrap; }
 
   /* 파이프라인 스테퍼 */
-  .pipebar{ flex:0 0 auto; display:flex; align-items:stretch; padding:8px 10px; background:var(--panel); border-bottom:1px solid var(--line); overflow-x:auto; }
-  .pstep{ flex:1 1 0; min-width:74px; display:flex; flex-direction:column; align-items:center; gap:3px; padding:5px 4px; border-radius:9px; cursor:pointer; transition:background .13s ease; }
+  .pipebar{ flex:0 0 auto; display:flex; align-items:center; padding:5px 10px; background:var(--panel); border-bottom:1px solid var(--line); overflow-x:auto; }
+  .pstep{ flex:1 1 0; min-width:0; display:flex; flex-direction:row; align-items:center; justify-content:center; gap:6px; padding:5px 8px; border-radius:8px; cursor:pointer; transition:background .13s ease; }
   .pstep:hover{ background:var(--panel2); }
   .pstep.on{ background:var(--grad-soft); box-shadow:inset 0 0 0 1px var(--accent); }
-  .pstep .pd{ width:9px; height:9px; border-radius:50%; }
-  .pstep .pcnt{ font-size:15px; font-weight:800; line-height:1; }
-  .pstep .pnm{ font-size:10.5px; font-weight:700; color:var(--muted); white-space:nowrap; }
+  .pstep .pd{ width:8px; height:8px; border-radius:50%; flex:0 0 auto; }
+  .pstep .pnm{ font-size:11.5px; font-weight:700; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pstep .pcnt{ font-size:11px; font-weight:800; min-width:18px; text-align:center; background:var(--panel2); border-radius:99px; padding:1px 6px; flex:0 0 auto; }
   .pstep.on .pnm{ color:var(--text); }
-  .parrow{ display:flex; align-items:center; color:var(--line); font-size:15px; font-weight:700; flex:0 0 auto; }
+  .pstep.on .pcnt{ background:rgba(255,255,255,.18); }
+  .parrow{ display:flex; align-items:center; color:var(--line); font-size:13px; font-weight:700; flex:0 0 auto; }
 
   /* 하단 바 — 좌측 범례 + 우측 도구(관리자/편집 기능) */
   .foot-legend{ display:flex; align-items:center; gap:14px; flex:1; min-width:0; overflow:hidden; }
@@ -769,7 +770,7 @@ function renderPipeline(){
   const sts=statusesFor(headTrack());
   const scope=state.tasks.filter(t=> (msFilter.size===0||msFilter.has(t.milestoneId)) && (t.track||"개발")===headTrack());
   box.innerHTML=sts.map((s,i)=>{ const n=scope.filter(t=>t.status===s.k).length; const on=statusFilter.has(s.k);
-    return `<div class="pstep ${on?'on':''}" data-pstep="${escapeHtml(s.k)}"><span class="pd" style="background:${s.color}"></span><span class="pcnt">${n}</span><span class="pnm">${escapeHtml(s.k)}</span></div>`+(i<sts.length-1?`<span class="parrow">›</span>`:'');
+    return `<div class="pstep ${on?'on':''}" data-pstep="${escapeHtml(s.k)}"><span class="pd" style="background:${s.color}"></span><span class="pnm">${escapeHtml(s.k)}</span><span class="pcnt">${n}</span></div>`+(i<sts.length-1?`<span class="parrow">›</span>`:'');
   }).join("");
 }
 
