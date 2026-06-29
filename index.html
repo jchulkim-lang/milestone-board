@@ -343,12 +343,20 @@
   .seg-group .mstab, .seg-group .trtab{ border:0; border-radius:8px; padding:4px 12px; box-shadow:none; margin:0; font-weight:700; }
   .seg-group .mstab:not(.on), .seg-group .trtab:not(.on){ background:transparent; color:var(--muted); }
   .seg-group .mstab:not(.on):hover, .seg-group .trtab:not(.on):hover{ color:var(--text); background:rgba(125,140,170,.14); transform:none; }
-  .seg-group .trtab.on{ background:var(--grad); color:#fff; box-shadow:0 2px 8px rgba(99,102,241,.40); }
+  .seg-group .trtab.on{ color:#fff; }
   .seg-group .mstab.on{ color:#fff; box-shadow:0 2px 8px rgba(0,0,0,.28); }
+  /* 분류 탭 — 개발/아트 색 구분 */
+  .trdot{ width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:6px; vertical-align:middle; }
+  .seg-group .trtab.on[data-track="개발"]{ background:linear-gradient(135deg,#3b82f6,#6366f1); box-shadow:0 2px 9px rgba(59,130,246,.45); }
+  .seg-group .trtab.on[data-track="아트"]{ background:linear-gradient(135deg,#ec4899,#a855f7); box-shadow:0 2px 9px rgba(236,72,153,.45); }
+  .seg-group .trtab.on .trdot{ background:#fff !important; }
+  .seg-group .trtab:not(.on)[data-track="개발"]{ color:#7ea8f0; }
+  .seg-group .trtab:not(.on)[data-track="아트"]{ color:#f08fc2; }
 
-  /* 필터 담당자 — 아트 부서 표시 */
+  /* 필터 담당자 — 아트 부서 표시 + 부서명 칸 넓힘(잘림 방지) */
   .fa-trk{ font-size:9px; font-weight:800; color:#fff; background:linear-gradient(135deg,#a855f7,#ec4899); border-radius:999px; padding:1px 6px; margin-left:3px; vertical-align:middle; }
-  .fa-deptname{ flex-wrap:wrap; }
+  .fa-deptname{ flex:0 0 150px; white-space:nowrap; align-items:center; }
+  .filter-pop{ width:600px; }
 
   /* 부서 관리 — 분류 배지 */
   .dm-track{ font-size:10px; font-weight:800; color:var(--muted); background:var(--panel2); border:1px solid var(--line); border-radius:999px; padding:2px 8px; margin-left:8px; white-space:nowrap; }
@@ -551,6 +559,7 @@ const TASK_STATUSES = [
 ];
 const tsOf = k => TASK_STATUSES.find(x=>x.k===k) || TASK_STATUSES[0];
 const TRACKS = ["개발","아트"];   // 마일스톤 내부 일감 분류(고정)
+const TRACK_COLORS = { "개발":"#3b82f6", "아트":"#ec4899" };   // 분류 구분 색
 const MARKERS = [
   { k:"start", label:"시작", color:"#22c55e" },
   { k:"end", label:"종료", color:"#ef4444" },
@@ -592,7 +601,7 @@ function nearestWorkdayIndex(ymdStr){ if(!ymdStr) return -1; const t=parseYmd(ym
 const uid=()=>Math.random().toString(36).slice(2,9);
 let state = { milestones:[{ id:"m1", name:"마일스톤 1", color:MS_PALETTE[0], start:"2026-06-01", end:"", resource:"", dev:"", qa:"" }], tasks:[] };
 let deptFilter=new Set(), statusFilter=new Set(), msFilter=new Set(), assigneeFilter=new Set();
-let trackFilter="__all";   // 분류 탭(전체/개발/아트)
+let trackFilter="개발";   // 분류 탭(개발/아트) — '전체' 없음
 let filterOpen=false;
 let groupCollapsed=new Set();   // 접힌 상태 그룹
 let msSelId=null;               // 마일스톤 편집 대상
@@ -718,7 +727,7 @@ function renderFilter(){
     return `<span class="fchip ${on?'on':''}" style="${on?'background:'+s.color:''}" data-fs="${s.k}"><span class="dot" style="background:${on?'#fff':s.color}"></span>${s.k}</span>`; }).join("");
   const mstabs=`<span class="mstab ${allM?'on':''}" data-mstab="__all">전체</span>`+state.milestones.map(m=>{ const on=msFilter.size===1&&msFilter.has(m.id);
     return `<span class="mstab ${on?'on':''}" data-mstab="${m.id}" style="${on?'background:'+m.color+';border-color:transparent;color:#fff':''}"><i class="dot" style="background:${on?'#fff':m.color}"></i>${escapeHtml(m.name)}</span>`; }).join("");
-  const trackTabs=`<span class="trtab ${trackFilter==='__all'?'on':''}" data-track="__all">전체</span>`+TRACKS.map(tr=>`<span class="trtab ${trackFilter===tr?'on':''}" data-track="${tr}">${escapeHtml(tr)}</span>`).join("");
+  const trackTabs=TRACKS.map(tr=>`<span class="trtab ${trackFilter===tr?'on':''}" data-track="${tr}"><i class="trdot" style="background:${TRACK_COLORS[tr]||'#888'}"></i>${escapeHtml(tr)}</span>`).join("");
   const cnt=deptFilter.size+statusFilter.size+assigneeFilter.size;
   const allA=assigneeFilter.size===0;
   const aSec=`<div class="fsec"><span class="lh-label">담당자</span>
@@ -1216,6 +1225,7 @@ function focusTaskFromUrl(){
     const t=findTask(id);
     if(t){
       deptFilter.clear(); statusFilter.clear(); msFilter.clear(); assigneeFilter.clear();
+      if(TRACKS.includes(t.track)) trackFilter=t.track;   // 해당 분류 탭으로 전환
       groupCollapsed.delete(t.status);
       selectedId=t.id; t.open=true; render();
       scrollToTask(t);
