@@ -33,7 +33,8 @@ function canEdit(role){ return role==="editor" || role==="admin"; }
 /* ===== 카카오워크 알림 =====
  *  KAKAO_BOT_KEY(봇 App Key)가 있으면 등록된 멤버(state.notifyEmails)에게 개인 DM.
  *  없으면 KAKAO_WEBHOOK_URL(단톡방)으로 폴백. */
-async function dmKakao(env, st, text){
+async function dmKakao(env, st, text, blocks){
+  const blk = blocks || [{ type:"text", text, markdown:true }];
   const key = env.KAKAO_BOT_KEY;
   if(key){
     const emails = (st && st.notifyEmails) || [];
@@ -43,12 +44,17 @@ async function dmKakao(env, st, text){
         const uj = await ur.json(); const uid = uj && uj.user && uj.user.id; if(!uid) continue;
         const cr = await fetch("https://api.kakaowork.com/v1/conversations.open", { method:"POST", headers:{ Authorization:"Bearer " + key, "content-type":"application/json" }, body: JSON.stringify({ user_id: uid }) });
         const cj = await cr.json(); const cid = cj && cj.conversation && cj.conversation.id; if(!cid) continue;
-        await fetch("https://api.kakaowork.com/v1/messages.send", { method:"POST", headers:{ Authorization:"Bearer " + key, "content-type":"application/json" }, body: JSON.stringify({ conversation_id: cid, text, blocks:[{ type:"text", text, markdown:true }] }) });
+        await fetch("https://api.kakaowork.com/v1/messages.send", { method:"POST", headers:{ Authorization:"Bearer " + key, "content-type":"application/json" }, body: JSON.stringify({ conversation_id: cid, text, blocks: blk }) });
       }catch(_){}
     }
     return;
   }
-  if(env.KAKAO_WEBHOOK_URL){ try{ await fetch(env.KAKAO_WEBHOOK_URL, { method:"POST", headers:{ "content-type":"application/json" }, body: JSON.stringify({ text }) }); }catch(_){} }
+  if(env.KAKAO_WEBHOOK_URL){ try{ await fetch(env.KAKAO_WEBHOOK_URL, { method:"POST", headers:{ "content-type":"application/json" }, body: JSON.stringify({ text, blocks: blk }) }); }catch(_){} }
+}
+/* 세그먼트 배열 → 카카오워크 Text Block(inlines). url 있으면 link(짧은 라벨), 없으면 styled */
+function textBlock(segs){
+  return { type:"text", text: segs.map(s=>s.text).join(""),
+    inlines: segs.map(s=> s.url ? { type:"link", text:s.text, url:s.url } : { type:"styled", text:s.text }) };
 }
 // 저장 시 상태가 '진행 중'·'검토·이슈'·'완료'로 바뀐 Task를 모아 알림
 async function notifyStatusChanges(env, oldStr, newStr, who, origin){
@@ -58,20 +64,27 @@ async function notifyStatusChanges(env, oldStr, newStr, who, origin){
   const msName={}; (n.milestones||[]).forEach(m=>{ msName[m.id]=m.name; });
   const WATCH=["진행 중","검토·이슈","완료"];
   const DOT={"진행 중":"🔵","검토·이슈":"🟠","완료":"🟢"}; // 앱 상태 색과 매칭
-  const lines=[];
+  const blocks=[{ type:"text", text:`📌 상태 변경 (${who})` }];
+  const preview=[`📌 상태 변경 (${who})`];
   (n.tasks||[]).forEach(t=>{
     const prev=oldStatus[t.id];
     if(prev!==undefined && prev!==t.status && WATCH.includes(t.status)){
-      const link = origin ? `\n   🔗 바로가기 ${origin}/?task=${encodeURIComponent(t.id)}` : "";
-      const plan = (t.links && t.links.plan) ? t.links.plan : "링크 없음";
-      const trello = (t.links && t.links.trello) ? t.links.trello : "링크 없음";
-      lines.push(`${DOT[t.status]||"•"} [${msName[t.milestoneId]||"-"}] ${t.name} : ${prev} → ${t.status}`
-        + `\n   📄 기획서 ${plan}`
-        + `\n   📋 Trello ${trello}`
-        + link);
+      const ms=msName[t.milestoneId]||"-";
+      const plan=(t.links && t.links.plan)||"", trello=(t.links && t.links.trello)||"";
+      const segs=[{ text:`${DOT[t.status]||"•"} [${ms}] ${t.name} : ${prev} → ${t.status}\n📄 기획서 ` }];
+      segs.push(plan ? { text:"[LINK]", url:plan } : { text:"링크 없음" });
+      segs.push({ text:`\n📋 Trello ` });
+      segs.push(trello ? { text:"[LINK]", url:trello } : { text:"링크 없음" });
+      if(origin){ segs.push({ text:`\n🔗 ` }); segs.push({ text:"[바로가기]", url:`${origin}/?task=${encodeURIComponent(t.id)}` }); }
+      blocks.push(textBlock(segs));
+      blocks.push({ type:"divider" });
+      preview.push(segs.map(s=>s.text).join(""));
     }
   });
-  if(lines.length) await dmKakao(env, n, `📌 상태 변경 (${who})\n` + lines.join("\n"));
+  if(blocks.length>1){
+    if(blocks[blocks.length-1].type==="divider") blocks.pop(); // 마지막 구분선 제거
+    await dmKakao(env, n, preview.join("\n"), blocks);
+  }
 }
 
 async function createSessionToken(user, env){
