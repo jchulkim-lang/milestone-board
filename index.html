@@ -358,6 +358,10 @@
   .fa-deptname{ flex:0 0 150px; white-space:nowrap; align-items:center; }
   .filter-pop{ width:600px; }
 
+  /* 하단 바 — 좌측 범례 + 우측 도구(관리자/편집 기능) */
+  .foot-legend{ display:flex; align-items:center; gap:14px; flex:1; min-width:0; overflow:hidden; }
+  .foot-tools{ display:flex; align-items:center; gap:8px; flex:0 0 auto; margin-left:14px; }
+
   /* 부서 관리 — 분류 배지 */
   .dm-track{ font-size:10px; font-weight:800; color:var(--muted); background:var(--panel2); border:1px solid var(--line); border-radius:999px; padding:2px 8px; margin-left:8px; white-space:nowrap; }
 
@@ -400,12 +404,10 @@
     <span id="syncStatus" class="status-dot"><b></b><span>로컬 (이 브라우저에 저장)</span></span>
     <button class="btn ghost sm" id="dashBtn">📊 대시보드</button>
     <button class="btn ghost sm" id="historyBtn">🕘 히스토리</button>
-    <button class="btn ghost sm" id="notifyBtn">🔔 알림 멤버</button>
     <button class="btn ghost sm" id="noticeBtn">📢 공지</button>
     <button class="btn ghost sm" id="themeBtn">☀ 라이트</button>
-    <button class="btn ghost sm" id="msBtn">⚙ 마일스톤 설정</button>
-    <button class="btn ghost sm" id="exportBtn">내보내기</button>
-    <button class="btn ghost sm" id="importBtn">불러오기</button>
+    <button class="btn ghost sm" id="exportBtn" style="display:none">내보내기</button>
+    <button class="btn ghost sm" id="importBtn" style="display:none">불러오기</button>
   </div>
 
   <div class="wrap">
@@ -420,7 +422,13 @@
     </div>
   </div>
 
-  <div class="footbar" id="footbar"></div>
+  <div class="footbar">
+    <div id="footbar" class="foot-legend"></div>
+    <div class="foot-tools" id="footTools">
+      <button class="btn ghost sm" id="msBtn">⚙ 마일스톤 설정</button>
+      <button class="btn ghost sm" id="notifyBtn">🔔 알림 멤버</button>
+    </div>
+  </div>
 
   <div class="modal-bg" id="taskModal">
     <div class="modal"><h3>새 Task 추가</h3><div class="msub">업무 단위와 소속 마일스톤을 정합니다.</div>

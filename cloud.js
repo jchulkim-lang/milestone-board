@@ -110,7 +110,7 @@
        body.readonly .bar{pointer-events:none!important;}`;
     document.head.appendChild(s);
   }
-  function placeBtn(b){ const sync=document.getElementById("syncStatus"); if(sync&&sync.parentNode){ sync.parentNode.insertBefore(b, sync.nextSibling); } else document.querySelector(".topbar").appendChild(b); }
+  function placeBtn(b){ const tools=document.getElementById("footTools"); if(tools){ b.style.marginLeft="0"; tools.appendChild(b); return; } const sync=document.getElementById("syncStatus"); if(sync&&sync.parentNode){ sync.parentNode.insertBefore(b, sync.nextSibling); } else document.querySelector(".topbar").appendChild(b); }
   function injectRequestButton(){
     if(document.getElementById("requestEditBtn")) return;
     const b = document.createElement("button"); b.id="requestEditBtn"; b.className="btn ghost sm"; b.style.marginLeft="6px"; b.textContent="✋ 편집 권한 요청";
