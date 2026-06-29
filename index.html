@@ -347,7 +347,26 @@
   .seg-group .mstab.on{ color:#fff; box-shadow:0 2px 8px rgba(0,0,0,.28); }
 
   /* 부서 관리 — 분류 배지 */
-  .dm-track{ font-size:10px; font-weight:800; color:var(--muted); background:var(--panel2); border:1px solid var(--line); border-radius:999px; padding:2px 8px; margin-left:8px; }
+  .dm-track{ font-size:10px; font-weight:800; color:var(--muted); background:var(--panel2); border:1px solid var(--line); border-radius:999px; padding:2px 8px; margin-left:8px; white-space:nowrap; }
+
+  /* 팝업(모달) 폭 조정 — 내용량에 맞춤 */
+  .modal{ width:440px; }
+  #deptMgrModal .modal{ width:620px; }
+  #dashModal .modal{ width:640px; }
+  #deptModal .modal, #schedModal .modal, #msModal .modal, #notifyModal .modal,
+  #noticeEditModal .modal, #historyModal .modal{ width:540px; }
+  /* 공지 팝업 — 넓게 + 제목/내용 구분선 */
+  #noticePopup .modal{ width:680px; }
+  #noticePopup .modal h3{ padding-bottom:13px; border-bottom:1px solid var(--line); margin-bottom:16px; font-size:16px; }
+  #noticePopup .notice-body{ font-size:14.5px; line-height:1.75; max-height:60vh; }
+
+  /* 필터 팝업 — 좌측 패널 밖으로 넓게 펼침 */
+  .left{ overflow:visible; }
+  .filter-pop{ width:560px; right:auto; max-width:calc(100vw - 40px); max-height:72vh; border-radius:14px; box-shadow:0 18px 48px rgba(0,0,0,.5); }
+  /* 부서명이 잘리지 않도록 */
+  .dm-name{ flex:0 0 auto; min-width:78px; overflow:visible; text-overflow:clip; }
+  .dm-members{ padding-left:46px; }
+  .dm-newmember{ width:120px; }
 </style>
 </head>
 <body>
