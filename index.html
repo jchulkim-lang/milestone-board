@@ -346,6 +346,10 @@
   .seg-group .trtab.on{ background:var(--grad); color:#fff; box-shadow:0 2px 8px rgba(99,102,241,.40); }
   .seg-group .mstab.on{ color:#fff; box-shadow:0 2px 8px rgba(0,0,0,.28); }
 
+  /* 필터 담당자 — 아트 부서 표시 */
+  .fa-trk{ font-size:9px; font-weight:800; color:#fff; background:linear-gradient(135deg,#a855f7,#ec4899); border-radius:999px; padding:1px 6px; margin-left:3px; vertical-align:middle; }
+  .fa-deptname{ flex-wrap:wrap; }
+
   /* 부서 관리 — 분류 배지 */
   .dm-track{ font-size:10px; font-weight:800; color:var(--muted); background:var(--panel2); border:1px solid var(--line); border-radius:999px; padding:2px 8px; margin-left:8px; white-space:nowrap; }
 
@@ -719,7 +723,7 @@ function renderFilter(){
   const allA=assigneeFilter.size===0;
   const aSec=`<div class="fsec"><span class="lh-label">담당자</span>
        <div class="fchips"><span class="fchip all ${allA?'on':''}" data-fa="__all">${allA?'✓ ':''}전체</span><span class="fchip ${assigneeFilter.has('__unassigned')?'on':''}" data-fa="__unassigned">${assigneeFilter.has('__unassigned')?'✓ ':''}미정</span></div>
-       ${depsFor(headTrack()).filter(d=>(d.owners||[]).length).map(d=>`<div class="fa-dept"><span class="fa-deptname"><i style="background:${d.color}"></i>${escapeHtml(d.key)}</span><div class="fchips">${d.owners.map(n=>`<span class="fchip ${assigneeFilter.has(n)?'on':''}" data-fa="${escapeHtml(n)}">${assigneeFilter.has(n)?'✓ ':''}${escapeHtml(n)}</span>`).join("")}</div></div>`).join("")}
+       ${state.departments.filter(d=>(d.owners||[]).length).map(d=>`<div class="fa-dept"><span class="fa-deptname"><i style="background:${d.color}"></i>${escapeHtml(d.key)}${depTracks(d).includes("아트")&&!depTracks(d).includes("개발")?' <span class="fa-trk">아트</span>':''}</span><div class="fchips">${d.owners.map(n=>`<span class="fchip ${assigneeFilter.has(n)?'on':''}" data-fa="${escapeHtml(n)}">${assigneeFilter.has(n)?'✓ ':''}${escapeHtml(n)}</span>`).join("")}</div></div>`).join("")}
      </div>`;
   document.getElementById("leftHead").innerHTML=
     `<div class="lh-row">
