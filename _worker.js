@@ -30,6 +30,33 @@ function isAdminEmail(env, email){ const list=(env.ADMIN_EMAILS||"").split(",").
 async function effectiveRole(env, email){ if(isAdminEmail(env, email)) return "admin"; const r=await env.DB.prepare("SELECT role FROM users WHERE email=?").bind(email).first(); return (r && r.role) || "viewer"; }
 function canEdit(role){ return role==="editor" || role==="admin"; }
 
+/* ===== 카카오워크 알림 ===== */
+async function sendKakao(env, text){
+  if(!env.KAKAO_WEBHOOK_URL) return;
+  try{
+    await fetch(env.KAKAO_WEBHOOK_URL, { method:"POST", headers:{ "content-type":"application/json" },
+      body: JSON.stringify({ text }) });
+    // 만약 카카오워크가 위 형식을 안 받으면 아래 blocks 형식으로 바꾸세요:
+    // body: JSON.stringify({ text, blocks:[{ type:"text", text, markdown:true }] })
+  }catch(_){}
+}
+// 저장 시 상태가 '검토·이슈' 또는 '완료'로 바뀐 Task를 모아 알림
+async function notifyStatusChanges(env, oldStr, newStr, who){
+  if(!env.KAKAO_WEBHOOK_URL) return;
+  let o, n; try{ o=JSON.parse(oldStr||"{}"); n=JSON.parse(newStr||"{}"); }catch(_){ return; }
+  const oldStatus={}; (o.tasks||[]).forEach(t=>{ oldStatus[t.id]=t.status; });
+  const msName={}; (n.milestones||[]).forEach(m=>{ msName[m.id]=m.name; });
+  const WATCH=["검토·이슈","완료"];
+  const lines=[];
+  (n.tasks||[]).forEach(t=>{
+    const prev=oldStatus[t.id];
+    if(prev!==undefined && prev!==t.status && WATCH.includes(t.status)){
+      lines.push(`• [${msName[t.milestoneId]||"-"}] ${t.name} : ${prev} → ${t.status}`);
+    }
+  });
+  if(lines.length) await sendKakao(env, `📌 상태 변경 (${who})\n` + lines.join("\n"));
+}
+
 async function createSessionToken(user, env){
   const payload = { email:user.email, name:user.name||"", exp:Math.floor(Date.now()/1000)+SESSION_TTL };
   const p = b64urlFromStr(JSON.stringify(payload));
@@ -74,7 +101,7 @@ async function verifyGoogleIdToken(idToken, env){
   return { email:payload.email, name:payload.name };
 }
 
-async function handleApi(request, env, url){
+async function handleApi(request, env, url, ctx){
   const p = url.pathname;
 
   if(p === "/api/config" && request.method === "GET"){
@@ -128,7 +155,9 @@ async function handleApi(request, env, url){
   if(p === "/api/state" && request.method === "PUT"){
     if(!canEdit(await effectiveRole(env, user.email))) return json({ error:"forbidden", reason:"edit-not-allowed" }, 403);
     const b = await request.json(); const payload = JSON.stringify(b.data ?? {});
+    const oldRow = await env.DB.prepare("SELECT data FROM app_state WHERE id='main'").first();
     await env.DB.prepare("UPDATE app_state SET data=?, version=version+1, updated_at=datetime('now'), updated_by=? WHERE id='main'").bind(payload, user.email).run();
+    if(ctx && ctx.waitUntil) ctx.waitUntil(notifyStatusChanges(env, oldRow && oldRow.data, payload, user.name || user.email));
     const row = await env.DB.prepare("SELECT data, version FROM app_state WHERE id='main'").first();
     // 히스토리 스냅샷 + 최근 50개만 보관
     await env.DB.prepare("INSERT INTO history (data,version,saved_by,saved_at) VALUES (?,?,?,datetime('now'))").bind(row.data, row.version, user.email).run();
@@ -168,9 +197,9 @@ async function handleApi(request, env, url){
 }
 
 export default {
-  async fetch(request, env){
+  async fetch(request, env, ctx){
     const url = new URL(request.url);
-    if(url.pathname.startsWith("/api/")) return handleApi(request, env, url);
+    if(url.pathname.startsWith("/api/")) return handleApi(request, env, url, ctx);
     return env.ASSETS.fetch(request); // 정적 파일(index.html, cloud.js 등)
   }
 };
