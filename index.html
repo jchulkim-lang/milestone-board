@@ -13,7 +13,7 @@
   :root{
     --bg:#0e1014; --panel:#161922; --panel2:#1d2129; --line:#272c36; --grid:#1b1f27;
     --text:#e7eaf0; --muted:#8b93a3; --accent:#6366f1;
-    --day-w:34px; --row-h:40px; --task-h:46px; --meta-h:40px; --group-h:34px; --left-w:370px; --head-h:126px;
+    --day-w:34px; --row-h:40px; --task-h:46px; --meta-h:40px; --group-h:34px; --left-w:370px; --head-h:104px;
     --rowhead:#1a1e27; --rowhead-h:#1f2430; --mon:#2b313c; --scroll:#2f3441;
   }
   body.light{
@@ -358,6 +358,31 @@
   .fa-deptname{ flex:0 0 150px; white-space:nowrap; align-items:center; }
   .filter-pop{ width:600px; }
 
+  /* 세로 flex 레이아웃 — 컨텍스트 바·파이프라인을 보드 위에 */
+  body{ display:flex; flex-direction:column; }
+  .wrap{ flex:1; min-height:0; height:auto; }
+
+  /* 컨텍스트 바 */
+  .ctxbar{ flex:0 0 auto; display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:9px 16px; background:var(--panel); border-bottom:1px solid var(--line); }
+  .ctx-ms{ background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:9px; padding:7px 10px; font-size:13px; font-weight:700; cursor:pointer; }
+  .ctx-prog{ display:flex; align-items:center; gap:9px; margin-left:8px; }
+  .ctx-track{ width:170px; height:9px; border-radius:99px; background:var(--panel2); overflow:hidden; }
+  .ctx-fill{ display:block; height:100%; background:var(--grad); border-radius:99px; transition:width .3s ease; }
+  .ctx-num{ font-size:12.5px; font-weight:800; }
+  .ctx-num span{ color:var(--muted); font-weight:600; }
+  .ctx-dday{ display:flex; align-items:center; gap:7px; font-size:12px; margin-left:auto; white-space:nowrap; }
+
+  /* 파이프라인 스테퍼 */
+  .pipebar{ flex:0 0 auto; display:flex; align-items:stretch; padding:8px 10px; background:var(--panel); border-bottom:1px solid var(--line); overflow-x:auto; }
+  .pstep{ flex:1 1 0; min-width:74px; display:flex; flex-direction:column; align-items:center; gap:3px; padding:5px 4px; border-radius:9px; cursor:pointer; transition:background .13s ease; }
+  .pstep:hover{ background:var(--panel2); }
+  .pstep.on{ background:var(--grad-soft); box-shadow:inset 0 0 0 1px var(--accent); }
+  .pstep .pd{ width:9px; height:9px; border-radius:50%; }
+  .pstep .pcnt{ font-size:15px; font-weight:800; line-height:1; }
+  .pstep .pnm{ font-size:10.5px; font-weight:700; color:var(--muted); white-space:nowrap; }
+  .pstep.on .pnm{ color:var(--text); }
+  .parrow{ display:flex; align-items:center; color:var(--line); font-size:15px; font-weight:700; flex:0 0 auto; }
+
   /* 하단 바 — 좌측 범례 + 우측 도구(관리자/편집 기능) */
   .foot-legend{ display:flex; align-items:center; gap:14px; flex:1; min-width:0; overflow:hidden; }
   .foot-tools{ display:flex; align-items:center; gap:8px; flex:0 0 auto; margin-left:14px; }
@@ -399,8 +424,7 @@
     <h1 id="appTitle">본부 마일스톤 관리</h1>
     <button class="title-edit" id="titleEditBtn" title="제목 편집">✎</button>
     <span class="sub">영업일 기준 · 부서별 일정</span>
-    <div class="ms-progress" id="msProgress"></div>
-    <div class="dday" id="ddayBox"></div>
+    <span class="spacer" style="flex:1"></span>
     <span id="syncStatus" class="status-dot"><b></b><span>로컬 (이 브라우저에 저장)</span></span>
     <button class="btn ghost sm" id="dashBtn">📊 대시보드</button>
     <button class="btn ghost sm" id="historyBtn">🕘 히스토리</button>
@@ -409,6 +433,9 @@
     <button class="btn ghost sm" id="exportBtn" style="display:none">내보내기</button>
     <button class="btn ghost sm" id="importBtn" style="display:none">불러오기</button>
   </div>
+
+  <div class="ctxbar" id="contextBar"></div>
+  <div class="pipebar" id="pipeline"></div>
 
   <div class="wrap">
     <div class="left scrollbar">
@@ -696,15 +723,15 @@ function groupsToRender(){
 }
 
 function renderTitle(){ const t=state.title||"본부 마일스톤 관리"; const el=document.getElementById("appTitle"); if(el) el.textContent=t; document.title=t; }
-function render(){ renderTitle(); renderMsProgress(); renderDday(); renderLegend(); renderFilter(); renderHead(); renderLeft(); renderBody(); }
+function render(){ renderTitle(); renderContext(); renderPipeline(); renderLegend(); renderFilter(); renderHead(); renderLeft(); renderBody(); }
 
-// 상단: 가장 가까운 다가오는 마감(D-N) 표시. 지난 마감은 미완료 Task가 있으면 '초과'로 표시
-function renderDday(){
-  const box=document.getElementById("ddayBox"); if(!box) return;
+// 다가오는 마감(D-N). msFilter가 있으면 그 마일스톤만, 없으면 전체
+function ddayHtml(){
   const today=stripTime(new Date());
   const DL=[["resource","리소스"],["dev","개발"],["qa","QA"],["end","종료"]];
+  const ms=state.milestones.filter(m=> msFilter.size===0 || msFilter.has(m.id));
   let up=null, over=null;
-  state.milestones.forEach(m=>{
+  ms.forEach(m=>{
     const incomplete=state.tasks.filter(t=>t.milestoneId===m.id && !isDone(t)).length;
     DL.forEach(([k,label])=>{
       if(!m[k]) return;
@@ -715,21 +742,34 @@ function renderDday(){
     });
   });
   const md=d=>(d.getMonth()+1)+"/"+d.getDate();
-  if(up){
-    const tag=up.diff===0?"D-DAY":"D-"+up.diff;
-    box.innerHTML=`<span class="dday-badge${up.diff<=3?' urgent':''}">🚩 ${tag}</span>`+
-      `<span class="dday-label"><b style="color:${up.m.color}">${escapeHtml(up.m.name)}</b> ${up.label} 마감 · ${md(up.d)}</span>`;
-  } else if(over){
-    box.innerHTML=`<span class="dday-badge over">⚠ ${over.late}일 초과</span>`+
-      `<span class="dday-label"><b style="color:${over.m.color}">${escapeHtml(over.m.name)}</b> ${over.label} 마감 · 미완료 ${over.incomplete}건</span>`;
-  } else { box.innerHTML=""; }
+  if(up){ const tag=up.diff===0?"D-DAY":"D-"+up.diff;
+    return `<span class="dday-badge${up.diff<=3?' urgent':''}">🚩 ${tag}</span><span class="dday-label"><b style="color:${up.m.color}">${escapeHtml(up.m.name)}</b> ${up.label} 마감 · ${md(up.d)}</span>`; }
+  if(over){ return `<span class="dday-badge over">⚠ ${over.late}일 초과</span><span class="dday-label"><b style="color:${over.m.color}">${escapeHtml(over.m.name)}</b> ${over.label} 마감 · 미완료 ${over.incomplete}건</span>`; }
+  return "";
 }
 
-function renderMsProgress(){
-  document.getElementById("msProgress").innerHTML = state.milestones.map(m=>{
-    const tot=state.tasks.filter(t=>t.milestoneId===m.id).length;
-    const done=state.tasks.filter(t=>t.milestoneId===m.id && isDone(t)).length;
-    return `<span class="msp"><b style="color:${m.color}">${escapeHtml(m.name)}</b> : <span class="num">${done}/${tot}</span></span>`;
+// 한 줄 컨텍스트 바: 마일스톤 + 분류 + 진행률 + 마감
+function renderContext(){
+  const box=document.getElementById("contextBar"); if(!box) return;
+  const curMs = msFilter.size===1 ? [...msFilter][0] : "__all";
+  const msOpts = `<option value="__all">전체 마일스톤</option>`+state.milestones.map(m=>`<option value="${m.id}" ${m.id===curMs?'selected':''}>${escapeHtml(m.name)}</option>`).join("");
+  const trackTabs=TRACKS.map(tr=>`<span class="trtab ${trackFilter===tr?'on':''}" data-track="${tr}"><i class="trdot" style="background:${TRACK_COLORS[tr]||'#888'}"></i>${escapeHtml(tr)}</span>`).join("");
+  const scope=state.tasks.filter(t=> (msFilter.size===0||msFilter.has(t.milestoneId)) && (t.track||"개발")===headTrack());
+  const tot=scope.length, done=scope.filter(isDone).length, pct=tot?Math.round(done/tot*100):0;
+  box.innerHTML=
+    `<span class="lh-label">마일스톤</span><select class="ctx-ms" id="ctxMs">${msOpts}</select>`+
+    `<span class="lh-label" style="margin-left:6px">분류</span><div class="seg-group">${trackTabs}</div>`+
+    `<div class="ctx-prog"><span class="lh-label">진행</span><span class="ctx-track"><span class="ctx-fill" style="width:${pct}%"></span></span><span class="ctx-num">${pct}% <span>(${done}/${tot})</span></span></div>`+
+    `<div class="ctx-dday">${ddayHtml()}</div>`;
+}
+
+// 상태 파이프라인 스테퍼 (클릭 시 해당 상태만 필터)
+function renderPipeline(){
+  const box=document.getElementById("pipeline"); if(!box) return;
+  const sts=statusesFor(headTrack());
+  const scope=state.tasks.filter(t=> (msFilter.size===0||msFilter.has(t.milestoneId)) && (t.track||"개발")===headTrack());
+  box.innerHTML=sts.map((s,i)=>{ const n=scope.filter(t=>t.status===s.k).length; const on=statusFilter.has(s.k);
+    return `<div class="pstep ${on?'on':''}" data-pstep="${escapeHtml(s.k)}"><span class="pd" style="background:${s.color}"></span><span class="pcnt">${n}</span><span class="pnm">${escapeHtml(s.k)}</span></div>`+(i<sts.length-1?`<span class="parrow">›</span>`:'');
   }).join("");
 }
 
@@ -762,8 +802,6 @@ function renderFilter(){
        <span class="lh-label" style="margin-left:4px">TASK · 부서 · 킥오프</span>
        <button class="filter-btn ${cnt?'active':''}" id="filterBtn" style="margin-left:auto">필터${cnt?' ('+cnt+')':''} ▾</button>
      </div>
-     <div class="lh-row seg-row"><span class="lh-label seg-label">마일스톤</span><div class="seg-group">${mstabs}</div></div>
-     <div class="lh-row seg-row"><span class="lh-label seg-label">분류</span><div class="seg-group">${trackTabs}</div></div>
      <div class="lh-row dept-head-row"><span class="lh-label">부서 지정 →</span><span class="th-spacer"></span><span class="dept-grid">${depsFor(headTrack()).map(d=>`<span class="dept-slot on" title="${escapeHtml(d.key)}${(d.owners&&d.owners.length)?' · 담당: '+escapeHtml(d.owners.join(', ')):''}"><i style="background:${d.color}"></i></span>`).join("")}</span><span class="th-right-spacer"></span></div>
      <div class="filter-pop ${filterOpen?'show':''}" id="filterPop">
        <div class="fsec"><span class="lh-label">부서</span><div class="fchips"><span class="fchip all ${allD?'on':''}" data-fd="__all">전체</span>${dchips}</div></div>
@@ -904,6 +942,12 @@ leftHead.addEventListener("click", e=>{
   if(fa){ const k=fa.dataset.fa; if(k==="__all")assigneeFilter.clear(); else assigneeFilter.has(k)?assigneeFilter.delete(k):assigneeFilter.add(k); render(); return; }
 });
 document.addEventListener("click", e=>{ if(filterOpen && !e.target.closest("#filterPop") && !e.target.closest("#filterBtn")){ filterOpen=false; renderFilter(); } });
+
+/* ===== 컨텍스트 바 / 파이프라인 상호작용 ===== */
+const contextBar=document.getElementById("contextBar"), pipelineEl=document.getElementById("pipeline");
+contextBar.addEventListener("change", e=>{ const s=e.target.closest("#ctxMs"); if(s){ msFilter.clear(); if(s.value!=="__all") msFilter.add(s.value); render(); } });
+contextBar.addEventListener("click", e=>{ const trk=e.target.closest("[data-track]"); if(trk){ trackFilter=trk.dataset.track; deptFilter.clear(); assigneeFilter.clear(); statusFilter.clear(); groupCollapsed.clear(); render(); } });
+pipelineEl.addEventListener("click", e=>{ const st=e.target.closest("[data-pstep]"); if(st){ const k=st.dataset.pstep; statusFilter.has(k)?statusFilter.delete(k):statusFilter.add(k); render(); } });
 
 leftBody.addEventListener("change", e=>{
   const st=e.target.closest("[data-status]"); if(st){ findTask(st.dataset.status).status=st.value; save(); render(); return; }
