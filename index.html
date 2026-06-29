@@ -254,6 +254,85 @@
   .ms-range{font-size:11px;color:var(--muted);flex:1;}
   .ms-swatch{width:11px;height:11px;border-radius:3px;}
 </style>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style id="modern-skin">
+  /* ===== 모던·생동감 스킨 (시각 전용 오버라이드 — 기능/레이아웃 변수 미변경) ===== */
+  :root{
+    --bg:#0a0d15; --panel:#141a28; --panel2:#1c2333; --line:#2a3346; --grid:#171d2b;
+    --text:#eef1f8; --muted:#97a2ba; --accent:#6366f1; --accent2:#a855f7;
+    --rowhead:#161c2a; --rowhead-h:#1e2638; --mon:#313b4e; --scroll:#3a445a;
+    --grad:linear-gradient(135deg,#6366f1 0%,#8b5cf6 55%,#a855f7 100%);
+    --grad-soft:linear-gradient(135deg,rgba(99,102,241,.20),rgba(168,85,247,.18));
+    --glow:0 6px 18px rgba(99,102,241,.32);
+  }
+  body.light{
+    --bg:#eef1f8; --panel:#ffffff; --panel2:#f2f5fa; --line:#e2e7f0; --grid:#eef1f6;
+    --text:#1a2030; --muted:#5f6878; --accent:#6366f1; --accent2:#9333ea;
+    --rowhead:#f2f5fa; --rowhead-h:#e9eef6; --mon:#d3dae7; --scroll:#c5cdda;
+    --grad-soft:linear-gradient(135deg,rgba(99,102,241,.12),rgba(168,85,247,.10));
+    --glow:0 6px 18px rgba(99,102,241,.20);
+  }
+  html,body{ font-family:'Pretendard Variable','Pretendard',-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',sans-serif; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
+  body{ background:
+      radial-gradient(1100px 560px at 10% -12%, rgba(99,102,241,.16), transparent 60%),
+      radial-gradient(1000px 560px at 102% -4%, rgba(168,85,247,.13), transparent 55%),
+      var(--bg); background-attachment:fixed; }
+  body.light{ background:
+      radial-gradient(1100px 560px at 10% -12%, rgba(99,102,241,.09), transparent 60%),
+      radial-gradient(1000px 560px at 102% -4%, rgba(168,85,247,.07), transparent 55%),
+      var(--bg); background-attachment:fixed; }
+
+  /* 상단바 */
+  .topbar{ background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0)), var(--panel);
+    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+    box-shadow:0 1px 0 rgba(255,255,255,.04), 0 8px 22px rgba(0,0,0,.22); }
+  .topbar h1{ font-weight:800; letter-spacing:-.3px; }
+
+  /* 버튼 */
+  .btn,.btn.ghost,.filter-btn,.fchip,.mstab,.dept-chip,.meta-btn,.kf-chip,.task-head,.group-head,.divider,.dday-badge{ transition:transform .13s ease, box-shadow .13s ease, filter .13s ease, background .13s ease, border-color .13s ease, color .13s ease; }
+  .btn{ background:var(--grad); border-radius:9px; box-shadow:var(--glow); }
+  .btn:hover{ filter:brightness(1.06); transform:translateY(-1px); box-shadow:0 9px 24px rgba(99,102,241,.42); }
+  .btn:active{ transform:translateY(0); }
+  .btn.ghost{ background:var(--panel2); color:var(--text); border:1px solid var(--line); box-shadow:none; }
+  .btn.ghost:hover{ border-color:var(--accent); transform:translateY(-1px); box-shadow:0 5px 16px rgba(0,0,0,.28); filter:none; }
+
+  /* 칩·탭·필터 활성 강조 */
+  .fchip.all.on,.mstab.all.on,.mstab[data-mstab="__all"].on,.dept-chip.on{ background:var(--grad); border-color:transparent; box-shadow:var(--glow); }
+  .filter-btn.active{ border-color:transparent; background:var(--grad-soft); color:var(--text); box-shadow:var(--glow); }
+  .fchip:hover,.mstab:hover,.meta-btn:hover{ transform:translateY(-1px); }
+  .meta-btn:hover{ box-shadow:0 4px 12px rgba(0,0,0,.22); }
+
+  /* 일정 막대 — 더 선명하게 + 부드러운 그림자 */
+  .bar{ filter:saturate(1.02) brightness(1.02); border-radius:7px; box-shadow:0 2px 7px rgba(0,0,0,.32); }
+  .bar:hover{ filter:brightness(1.12) saturate(1.06); box-shadow:0 5px 14px rgba(0,0,0,.42); }
+  .kf-chip:hover{ transform:scale(1.08); }
+
+  /* 선택/플래시 */
+  .task.selected{ background:var(--grad-soft); box-shadow:inset 3px 0 0 0 var(--accent); }
+  .group-dot{ box-shadow:0 0 0 3px rgba(255,255,255,.05); }
+
+  /* 오늘 컬럼 강조 */
+  .day-cell.today{ background:linear-gradient(180deg, rgba(99,102,241,.26), rgba(99,102,241,.10)); color:#c7c9ff; }
+
+  /* D-Day */
+  .dday-badge{ border-radius:999px; }
+  .dday-badge.urgent{ background:linear-gradient(135deg,#fb7185,#ef4444); border-color:transparent; box-shadow:0 5px 16px rgba(244,63,94,.40); }
+  .dday-badge.over{ background:linear-gradient(135deg,#b91c1c,#7f1d1d); border-color:#b91c1c; }
+
+  /* 구분선 */
+  .divider:hover,.divider.drag{ background:var(--grad); }
+
+  /* 모달 */
+  .modal-bg{ background:rgba(8,10,16,.62); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
+  .modal{ border-radius:18px; box-shadow:0 26px 64px rgba(0,0,0,.5); }
+  .modal h3{ font-weight:800; letter-spacing:-.2px; }
+  .modal input:focus,.modal select:focus,.modal textarea:focus,#noticeText:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(99,102,241,.25); }
+
+  /* 스크롤바 */
+  .scrollbar::-webkit-scrollbar-thumb{ background:var(--scroll); border-radius:8px; }
+  .scrollbar::-webkit-scrollbar-thumb:hover{ background:var(--accent); }
+</style>
 </head>
 <body>
   <div class="topbar">
