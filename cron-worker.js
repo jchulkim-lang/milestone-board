@@ -52,12 +52,24 @@ async function checkDeadlines(env){
   if(over.length) parts.push("🚨 마감 초과(지연)\n" + over.join("\n"));
   if(!parts.length) return; // 알릴 게 없으면 보내지 않음
 
-  await sendKakao(env, "📅 마일스톤 마감 알림\n\n" + parts.join("\n\n"));
+  await dmKakao(env, st, "📅 마일스톤 마감 알림\n\n" + parts.join("\n\n"));
 }
 
-async function sendKakao(env, text){
-  try{
-    await fetch(env.KAKAO_WEBHOOK_URL, { method:"POST", headers:{ "content-type":"application/json" }, body: JSON.stringify({ text }) });
-    // 형식이 안 맞으면: body: JSON.stringify({ text, blocks:[{ type:"text", text, markdown:true }] })
-  }catch(_){}
+/* KAKAO_BOT_KEY 있으면 등록 멤버(state.notifyEmails)에게 DM, 없으면 KAKAO_WEBHOOK_URL 단톡방 */
+async function dmKakao(env, st, text){
+  const key = env.KAKAO_BOT_KEY;
+  if(key){
+    const emails = (st && st.notifyEmails) || [];
+    for(const email of emails){
+      try{
+        const ur = await fetch("https://api.kakaowork.com/v1/users.find_by_email?email=" + encodeURIComponent(email), { headers:{ Authorization:"Bearer " + key } });
+        const uj = await ur.json(); const uid = uj && uj.user && uj.user.id; if(!uid) continue;
+        const cr = await fetch("https://api.kakaowork.com/v1/conversations.open", { method:"POST", headers:{ Authorization:"Bearer " + key, "content-type":"application/json" }, body: JSON.stringify({ user_id: uid }) });
+        const cj = await cr.json(); const cid = cj && cj.conversation && cj.conversation.id; if(!cid) continue;
+        await fetch("https://api.kakaowork.com/v1/messages.send", { method:"POST", headers:{ Authorization:"Bearer " + key, "content-type":"application/json" }, body: JSON.stringify({ conversation_id: cid, text, blocks:[{ type:"text", text, markdown:true }] }) });
+      }catch(_){}
+    }
+    return;
+  }
+  if(env.KAKAO_WEBHOOK_URL){ try{ await fetch(env.KAKAO_WEBHOOK_URL, { method:"POST", headers:{ "content-type":"application/json" }, body: JSON.stringify({ text }) }); }catch(_){} }
 }

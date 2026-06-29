@@ -215,7 +215,7 @@
   .da-dept i{width:9px;height:9px;border-radius:50%;flex:0 0 auto;}
   .da-chips{flex:1;display:flex;flex-wrap:wrap;gap:6px;}
   .dm-add{display:flex;align-items:center;gap:8px;margin-top:12px;}
-  .dm-add input[type=text]{flex:1;}
+  .dm-add input[type=text],.dm-add input[type=email]{flex:1;}
   .dl-lane{height:20px;position:relative;border-bottom:1px solid var(--line);}
   .dl-mark{position:absolute;top:2px;height:16px;display:inline-flex;align-items:center;gap:3px;font-size:9.5px;font-weight:700;color:var(--muted);white-space:nowrap;padding:0 4px 0 2px;}
   .dl-mark i{width:7px;height:7px;border-radius:50%;flex:0 0 auto;}
@@ -256,6 +256,7 @@
     <span id="syncStatus" class="status-dot"><b></b><span>로컬 (이 브라우저에 저장)</span></span>
     <button class="btn ghost sm" id="dashBtn">📊 대시보드</button>
     <button class="btn ghost sm" id="historyBtn">🕘 히스토리</button>
+    <button class="btn ghost sm" id="notifyBtn">🔔 알림 멤버</button>
     <button class="btn ghost sm" id="themeBtn">☀ 라이트</button>
     <button class="btn ghost sm" id="msBtn">⚙ 마일스톤 설정</button>
     <button class="btn ghost sm" id="exportBtn">내보내기</button>
@@ -345,6 +346,13 @@
       <div id="historyList" class="ms-list-wrap" style="max-height:320px"></div>
       <div class="modal-actions"><span></span><div class="right"><button class="btn" data-close>닫기</button></div></div></div>
   </div>
+  <div class="modal-bg" id="notifyModal">
+    <div class="modal"><h3>🔔 알림 받을 멤버</h3>
+      <div class="msub">여기 등록된 사람에게 카카오워크 DM으로 알림이 갑니다(마감 임박·초과, 상태 변경). 카카오워크 이메일(보통 회사 이메일)로 등록하세요.</div>
+      <div id="notifyList" class="dm-members" style="padding-left:0"></div>
+      <div class="dm-add"><input type="email" id="newNotifyEmail" placeholder="이메일 (예: hong@vicgamestudios.com)"><button class="meta-btn" id="notifyAddBtn">＋ 추가</button></div>
+      <div class="modal-actions"><span></span><div class="right"><button class="btn" data-close>닫기</button></div></div></div>
+  </div>
   <input type="file" id="fileInput" accept="application/json" style="display:none">
 
 <script>
@@ -430,6 +438,7 @@ function findTask(id){ return state.tasks.find(t=>t.id===id); }
 const LS_KEY = "milestone_state_v6";
 function migrate(){
   if(!state.title) state.title = "본부 마일스톤 관리";
+  if(!Array.isArray(state.notifyEmails)) state.notifyEmails = [];
   if(!state.departments || !state.departments.length) state.departments = DEFAULT_DEPARTMENTS.map(d=>({...d}));
   state.departments.forEach(d=>{ if(!Array.isArray(d.owners)) d.owners=[]; });
   DEPARTMENTS = state.departments;
@@ -725,10 +734,19 @@ function attachBarHandlers(){
 /* ===== 모달들 ===== */
 let editing=null;
 const taskModal=document.getElementById("taskModal"), taskInput=document.getElementById("taskInput"), taskMs=document.getElementById("taskMs");
-const deptModal=document.getElementById("deptModal"), linkModal=document.getElementById("linkModal"), schedModal=document.getElementById("schedModal"), msModal=document.getElementById("msModal"), deptMgrModal=document.getElementById("deptMgrModal"), titleModal=document.getElementById("titleModal"), dashModal=document.getElementById("dashModal"), historyModal=document.getElementById("historyModal");
-function closeModals(){ [taskModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,titleModal,dashModal,historyModal].forEach(m=>m.classList.remove("show")); }
+const deptModal=document.getElementById("deptModal"), linkModal=document.getElementById("linkModal"), schedModal=document.getElementById("schedModal"), msModal=document.getElementById("msModal"), deptMgrModal=document.getElementById("deptMgrModal"), titleModal=document.getElementById("titleModal"), dashModal=document.getElementById("dashModal"), historyModal=document.getElementById("historyModal"), notifyModal=document.getElementById("notifyModal");
+function closeModals(){ [taskModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,titleModal,dashModal,historyModal,notifyModal].forEach(m=>m.classList.remove("show")); }
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=closeModals);
-[taskModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,titleModal,dashModal,historyModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
+[taskModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,titleModal,dashModal,historyModal,notifyModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
+
+/* ===== 알림 멤버 관리 ===== */
+function openNotify(){ renderNotify(); notifyModal.classList.add("show"); }
+function renderNotify(){ document.getElementById("notifyList").innerHTML = (state.notifyEmails&&state.notifyEmails.length) ? state.notifyEmails.map(e=>`<span class="mchip">${escapeHtml(e)}<b data-rmnotify="${escapeHtml(e)}" title="제거">×</b></span>`).join("") : '<span class="dm-empty">아직 등록된 멤버가 없습니다.</span>'; }
+document.getElementById("notifyBtn").onclick=openNotify;
+function addNotifyEmail(){ const inp=document.getElementById("newNotifyEmail"); const v=(inp.value||"").trim(); if(!v) return; if(!/.+@.+\..+/.test(v)){ alert("올바른 이메일 형식이 아닙니다."); return; } if(!state.notifyEmails) state.notifyEmails=[]; if(!state.notifyEmails.includes(v)) state.notifyEmails.push(v); inp.value=""; save(); renderNotify(); }
+document.getElementById("notifyAddBtn").onclick=addNotifyEmail;
+document.getElementById("newNotifyEmail").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); addNotifyEmail(); } });
+document.getElementById("notifyList").addEventListener("click",e=>{ const rm=e.target.closest("[data-rmnotify]"); if(rm){ state.notifyEmails=(state.notifyEmails||[]).filter(x=>x!==rm.dataset.rmnotify); save(); renderNotify(); } });
 
 /* ===== 히스토리 / 롤백 (클라우드 전용) ===== */
 document.getElementById("historyBtn").onclick=openHistory;

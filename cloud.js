@@ -105,7 +105,7 @@
     if(document.getElementById("ro-style")) return;
     const s = document.createElement("style"); s.id = "ro-style";
     s.textContent =
-      `body.readonly #addTaskBtn,body.readonly #msBtn,body.readonly #importBtn,body.readonly #titleEditBtn,body.readonly #historyBtn{display:none!important;}
+      `body.readonly #addTaskBtn,body.readonly #msBtn,body.readonly #importBtn,body.readonly #titleEditBtn,body.readonly #historyBtn,body.readonly #notifyBtn{display:none!important;}
        body.readonly .kf-chip,body.readonly .st-sel,body.readonly .task-del,body.readonly .drag-handle,body.readonly .meta-row,body.readonly .legend-edit,body.readonly .grp.clickable{pointer-events:none!important;opacity:.5;}
        body.readonly .bar{pointer-events:none!important;}`;
     document.head.appendChild(s);

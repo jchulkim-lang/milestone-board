@@ -30,19 +30,29 @@ function isAdminEmail(env, email){ const list=(env.ADMIN_EMAILS||"").split(",").
 async function effectiveRole(env, email){ if(isAdminEmail(env, email)) return "admin"; const r=await env.DB.prepare("SELECT role FROM users WHERE email=?").bind(email).first(); return (r && r.role) || "viewer"; }
 function canEdit(role){ return role==="editor" || role==="admin"; }
 
-/* ===== 카카오워크 알림 ===== */
-async function sendKakao(env, text){
-  if(!env.KAKAO_WEBHOOK_URL) return;
-  try{
-    await fetch(env.KAKAO_WEBHOOK_URL, { method:"POST", headers:{ "content-type":"application/json" },
-      body: JSON.stringify({ text }) });
-    // 만약 카카오워크가 위 형식을 안 받으면 아래 blocks 형식으로 바꾸세요:
-    // body: JSON.stringify({ text, blocks:[{ type:"text", text, markdown:true }] })
-  }catch(_){}
+/* ===== 카카오워크 알림 =====
+ *  KAKAO_BOT_KEY(봇 App Key)가 있으면 등록된 멤버(state.notifyEmails)에게 개인 DM.
+ *  없으면 KAKAO_WEBHOOK_URL(단톡방)으로 폴백. */
+async function dmKakao(env, st, text){
+  const key = env.KAKAO_BOT_KEY;
+  if(key){
+    const emails = (st && st.notifyEmails) || [];
+    for(const email of emails){
+      try{
+        const ur = await fetch("https://api.kakaowork.com/v1/users.find_by_email?email=" + encodeURIComponent(email), { headers:{ Authorization:"Bearer " + key } });
+        const uj = await ur.json(); const uid = uj && uj.user && uj.user.id; if(!uid) continue;
+        const cr = await fetch("https://api.kakaowork.com/v1/conversations.open", { method:"POST", headers:{ Authorization:"Bearer " + key, "content-type":"application/json" }, body: JSON.stringify({ user_id: uid }) });
+        const cj = await cr.json(); const cid = cj && cj.conversation && cj.conversation.id; if(!cid) continue;
+        await fetch("https://api.kakaowork.com/v1/messages.send", { method:"POST", headers:{ Authorization:"Bearer " + key, "content-type":"application/json" }, body: JSON.stringify({ conversation_id: cid, text, blocks:[{ type:"text", text, markdown:true }] }) });
+      }catch(_){}
+    }
+    return;
+  }
+  if(env.KAKAO_WEBHOOK_URL){ try{ await fetch(env.KAKAO_WEBHOOK_URL, { method:"POST", headers:{ "content-type":"application/json" }, body: JSON.stringify({ text }) }); }catch(_){} }
 }
 // 저장 시 상태가 '검토·이슈' 또는 '완료'로 바뀐 Task를 모아 알림
 async function notifyStatusChanges(env, oldStr, newStr, who){
-  if(!env.KAKAO_WEBHOOK_URL) return;
+  if(!env.KAKAO_BOT_KEY && !env.KAKAO_WEBHOOK_URL) return;
   let o, n; try{ o=JSON.parse(oldStr||"{}"); n=JSON.parse(newStr||"{}"); }catch(_){ return; }
   const oldStatus={}; (o.tasks||[]).forEach(t=>{ oldStatus[t.id]=t.status; });
   const msName={}; (n.milestones||[]).forEach(m=>{ msName[m.id]=m.name; });
@@ -54,7 +64,7 @@ async function notifyStatusChanges(env, oldStr, newStr, who){
       lines.push(`• [${msName[t.milestoneId]||"-"}] ${t.name} : ${prev} → ${t.status}`);
     }
   });
-  if(lines.length) await sendKakao(env, `📌 상태 변경 (${who})\n` + lines.join("\n"));
+  if(lines.length) await dmKakao(env, n, `📌 상태 변경 (${who})\n` + lines.join("\n"));
 }
 
 async function createSessionToken(user, env){
