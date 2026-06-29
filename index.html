@@ -13,7 +13,7 @@
   :root{
     --bg:#0e1014; --panel:#161922; --panel2:#1d2129; --line:#272c36; --grid:#1b1f27;
     --text:#e7eaf0; --muted:#8b93a3; --accent:#6366f1;
-    --day-w:34px; --row-h:40px; --task-h:46px; --meta-h:40px; --group-h:34px; --left-w:370px; --head-h:100px;
+    --day-w:34px; --row-h:40px; --task-h:46px; --meta-h:40px; --group-h:34px; --left-w:370px; --head-h:126px;
     --rowhead:#1a1e27; --rowhead-h:#1f2430; --mon:#2b313c; --scroll:#2f3441;
   }
   body.light{
@@ -332,6 +332,12 @@
   /* 스크롤바 */
   .scrollbar::-webkit-scrollbar-thumb{ background:var(--scroll); border-radius:8px; }
   .scrollbar::-webkit-scrollbar-thumb:hover{ background:var(--accent); }
+
+  /* 분류(개발/아트) 탭 */
+  .track-tabs{ gap:5px; }
+  .trtab{ display:inline-flex; align-items:center; font-size:11.5px; font-weight:700; padding:3px 12px; border-radius:999px; border:1px solid var(--line); color:var(--muted); cursor:pointer; user-select:none; background:var(--panel2); transition:transform .13s ease, box-shadow .13s ease, background .13s ease, border-color .13s ease, color .13s ease; }
+  .trtab:hover{ color:var(--text); transform:translateY(-1px); }
+  .trtab.on{ background:var(--grad); color:#fff; border-color:transparent; box-shadow:var(--glow); }
 </style>
 </head>
 <body>
@@ -370,6 +376,7 @@
     <div class="modal"><h3>새 Task 추가</h3><div class="msub">업무 단위와 소속 마일스톤을 정합니다.</div>
       <label>Task 이름</label><input id="taskInput" placeholder="예: 로그인 기능" />
       <label>마일스톤</label><select id="taskMs"></select>
+      <label>분류</label><select id="taskTrack"><option value="개발">개발</option><option value="아트">아트</option></select>
       <div class="msub" style="margin:6px 0 0">다음 단계에서 부서를 지정하고, 부서별로 담당자를 배정합니다.</div>
       <div class="modal-actions"><span></span><div class="right"><button class="btn ghost" data-close>취소</button><button class="btn" id="taskAddOk">다음: 부서 지정</button></div></div></div>
   </div>
@@ -485,6 +492,7 @@ const TASK_STATUSES = [
   { k:"완료", color:"#10b981" },
 ];
 const tsOf = k => TASK_STATUSES.find(x=>x.k===k) || TASK_STATUSES[0];
+const TRACKS = ["개발","아트"];   // 마일스톤 내부 일감 분류(고정)
 const MARKERS = [
   { k:"start", label:"시작", color:"#22c55e" },
   { k:"end", label:"종료", color:"#ef4444" },
@@ -526,6 +534,7 @@ function nearestWorkdayIndex(ymdStr){ if(!ymdStr) return -1; const t=parseYmd(ym
 const uid=()=>Math.random().toString(36).slice(2,9);
 let state = { milestones:[{ id:"m1", name:"마일스톤 1", color:MS_PALETTE[0], start:"2026-06-01", end:"", resource:"", dev:"", qa:"" }], tasks:[] };
 let deptFilter=new Set(), statusFilter=new Set(), msFilter=new Set(), assigneeFilter=new Set();
+let trackFilter="__all";   // 분류 탭(전체/개발/아트)
 let filterOpen=false;
 let groupCollapsed=new Set();   // 접힌 상태 그룹
 let msSelId=null;               // 마일스톤 편집 대상
@@ -555,7 +564,7 @@ function migrate(){
   const firstMs=state.milestones[0].id;
   state.tasks.forEach(t=>{ if(!t.kickoff) t.kickoff = t.status && KICKOFFS.some(k=>k.k===t.status) ? t.status : "예정";
     if(!t.status || !TASK_STATUSES.some(s=>s.k===t.status)) t.status="대기";
-    if(!t.links) t.links={plan:"",trello:""}; if(t.depts) Object.values(t.depts).forEach(s=>{ if(s && !Array.isArray(s.assignees)) s.assignees=[]; }); if(!t.milestoneId || !findMs(t.milestoneId)) t.milestoneId=firstMs; if(t.open===undefined)t.open=false; });
+    if(!t.links) t.links={plan:"",trello:""}; if(t.depts) Object.values(t.depts).forEach(s=>{ if(s && !Array.isArray(s.assignees)) s.assignees=[]; }); if(!t.milestoneId || !findMs(t.milestoneId)) t.milestoneId=firstMs; if(t.open===undefined)t.open=false; if(!TRACKS.includes(t.track)) t.track="개발"; });
 }
 function save(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); if(remote.active) remote.push(state); }
 function load(){ const raw=localStorage.getItem(LS_KEY); if(raw){ try{state=JSON.parse(raw);}catch(e){} } migrate(); buildTimeline(); }
@@ -579,6 +588,7 @@ function taskHasUnassigned(t){ const ad=activeDepts(t); if(!ad.length) return tr
 function passFilter(t){
   if(deptFilter.size && !activeDepts(t).some(d=>deptFilter.has(d.key))) return false;
   if(msFilter.size && !msFilter.has(t.milestoneId)) return false;
+  if(trackFilter!=="__all" && t.track!==trackFilter) return false;
   if(statusFilter.size && !statusFilter.has(t.status)) return false;
   if(assigneeFilter.size){
     let m=false;
@@ -648,6 +658,7 @@ function renderFilter(){
     return `<span class="fchip ${on?'on':''}" style="${on?'background:'+s.color:''}" data-fs="${s.k}"><span class="dot" style="background:${on?'#fff':s.color}"></span>${s.k}</span>`; }).join("");
   const mstabs=`<span class="mstab ${allM?'on':''}" data-mstab="__all">전체</span>`+state.milestones.map(m=>{ const on=msFilter.size===1&&msFilter.has(m.id);
     return `<span class="mstab ${on?'on':''}" data-mstab="${m.id}" style="${on?'background:'+m.color+';border-color:transparent;color:#fff':''}"><i class="dot" style="background:${on?'#fff':m.color}"></i>${escapeHtml(m.name)}</span>`; }).join("");
+  const trackTabs=`<span class="trtab ${trackFilter==='__all'?'on':''}" data-track="__all">전체</span>`+TRACKS.map(tr=>`<span class="trtab ${trackFilter===tr?'on':''}" data-track="${tr}">${escapeHtml(tr)}</span>`).join("");
   const cnt=deptFilter.size+statusFilter.size+assigneeFilter.size;
   const allA=assigneeFilter.size===0;
   const aSec=`<div class="fsec"><span class="lh-label">담당자</span>
@@ -661,6 +672,7 @@ function renderFilter(){
        <button class="filter-btn ${cnt?'active':''}" id="filterBtn" style="margin-left:auto">필터${cnt?' ('+cnt+')':''} ▾</button>
      </div>
      <div class="lh-row ms-tabs">${mstabs}</div>
+     <div class="lh-row ms-tabs track-tabs"><span class="lh-label" style="margin-right:2px">분류</span>${trackTabs}</div>
      <div class="lh-row dept-head-row"><span class="lh-label">부서 지정 →</span><span class="th-spacer"></span><span class="dept-grid">${state.departments.map(d=>`<span class="dept-slot on" title="${escapeHtml(d.key)}${(d.owners&&d.owners.length)?' · 담당: '+escapeHtml(d.owners.join(', ')):''}"><i style="background:${d.color}"></i></span>`).join("")}</span><span class="th-right-spacer"></span></div>
      <div class="filter-pop ${filterOpen?'show':''}" id="filterPop">
        <div class="fsec"><span class="lh-label">부서</span><div class="fchips"><span class="fchip all ${allD?'on':''}" data-fd="__all">전체</span>${dchips}</div></div>
@@ -747,7 +759,8 @@ function renderLeft(){
         const msOpts=state.milestones.map(m=>`<option value="${m.id}" ${m.id===t.milestoneId?'selected':''}>${escapeHtml(m.name)}</option>`).join("");
         const planBtn=t.links.plan?`<a class="meta-btn set" href="${escapeHtml(t.links.plan)}" target="_blank" rel="noopener" title="기획서 열기">📄 기획서</a>`:`<button class="meta-btn dim" data-openedit="${t.id}" title="기획서 링크 추가">📄 기획서 +</button>`;
         const trelloBtn=t.links.trello?`<a class="meta-btn set" href="${escapeHtml(t.links.trello)}" target="_blank" rel="noopener" title="Trello 열기">📋 Trello</a>`:`<button class="meta-btn dim" data-openedit="${t.id}" title="Trello 링크 추가">📋 Trello +</button>`;
-        const meta=`<div class="meta-rows"><div class="meta-row"><button class="meta-btn" data-openpicker="${t.id}">＋ 부서</button><button class="meta-btn" data-openedit="${t.id}">✏️ 편집</button>${planBtn}${trelloBtn}<select class="meta-sel" data-setms="${t.id}">${msOpts}</select></div></div>`;
+        const trOpts=TRACKS.map(tr=>`<option value="${tr}" ${tr===t.track?'selected':''}>${tr}</option>`).join("");
+        const meta=`<div class="meta-rows"><div class="meta-row"><button class="meta-btn" data-openpicker="${t.id}">＋ 부서</button><button class="meta-btn" data-openedit="${t.id}">✏️ 편집</button>${planBtn}${trelloBtn}<select class="meta-sel" data-settrack="${t.id}" title="분류">${trOpts}</select><select class="meta-sel" data-setms="${t.id}" title="마일스톤">${msOpts}</select></div></div>`;
         html+=`<div class="task ${t.open?'open':''} ${t.kickoff==='Skip'?'skip':''} ${t.id===selectedId?'selected':''}" data-task="${t.id}" draggable="true">${taskHeadHtml(t)}${inner}${meta}</div>`;
       });
     }
@@ -793,6 +806,7 @@ leftHead.addEventListener("click", e=>{
   if(e.target.closest("#addTaskBtn")){ openTaskModal(); return; }
   if(e.target.closest("#filterBtn")){ filterOpen=!filterOpen; renderFilter(); return; }
   const tab=e.target.closest("[data-mstab]"); if(tab){ const k=tab.dataset.mstab; msFilter.clear(); if(k!=="__all") msFilter.add(k); render(); return; }
+  const trk=e.target.closest("[data-track]"); if(trk){ trackFilter=trk.dataset.track; render(); return; }
   const fd=e.target.closest("[data-fd]"), fs=e.target.closest("[data-fs]"), fa=e.target.closest("[data-fa]");
   if(fd){ const k=fd.dataset.fd; if(k==="__all")deptFilter.clear(); else deptFilter.has(k)?deptFilter.delete(k):deptFilter.add(k); render(); return; }
   if(fs){ const k=fs.dataset.fs; if(k==="__all")statusFilter.clear(); else statusFilter.has(k)?statusFilter.delete(k):statusFilter.add(k); render(); return; }
@@ -803,10 +817,11 @@ document.addEventListener("click", e=>{ if(filterOpen && !e.target.closest("#fil
 leftBody.addEventListener("change", e=>{
   const st=e.target.closest("[data-status]"); if(st){ findTask(st.dataset.status).status=st.value; save(); render(); return; }
   const sm=e.target.closest("[data-setms]"); if(sm){ findTask(sm.dataset.setms).milestoneId=sm.value; buildTimeline(); save(); render(); return; }
+  const str=e.target.closest("[data-settrack]"); if(str){ findTask(str.dataset.settrack).track=str.value; save(); render(); return; }
 });
 leftBody.addEventListener("click", e=>{
   if(e.target.closest("a")) return;
-  if(e.target.closest("[data-status]")||e.target.closest("[data-setms]")) return;
+  if(e.target.closest("[data-status]")||e.target.closest("[data-setms]")||e.target.closest("[data-settrack]")) return;
   const grp=e.target.closest("[data-group]"); if(grp){ const k=grp.dataset.group; groupCollapsed.has(k)?groupCollapsed.delete(k):groupCollapsed.add(k); render(); return; }
   const kf=e.target.closest("[data-kf]"); if(kf){ e.stopPropagation(); const t=findTask(kf.dataset.kf); const i=KICKOFFS.findIndex(x=>x.k===t.kickoff); t.kickoff=KICKOFFS[(i+1)%KICKOFFS.length].k; save(); render(); return; }
   const del=e.target.closest("[data-del]"); if(del){ e.stopPropagation(); const id=del.dataset.del; if(confirm("이 Task를 삭제할까요?")){ state.tasks=state.tasks.filter(t=>t.id!==id); save(); render(); } return; }
@@ -1006,11 +1021,12 @@ function deptAssigneeChips(t, key){ const dept=state.departments.find(d=>d.key==
   return roster.map(n=>`<span class="dept-chip ${sel.has(n)?'on':''}" data-aassign="${escapeHtml(key)}" data-aname="${escapeHtml(n)}">${sel.has(n)?'✓ ':''}${escapeHtml(n)}</span>`).join(""); }
 function toggleDeptAssignee(t, key, name){ const seg=t.depts[key]; if(!seg) return; if(!Array.isArray(seg.assignees)) seg.assignees=[]; const i=seg.assignees.indexOf(name); if(i>=0) seg.assignees.splice(i,1); else seg.assignees.push(name); }
 
-function openTaskModal(){ taskInput.value=""; taskMs.innerHTML=state.milestones.map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join(""); taskModal.classList.add("show"); taskInput.focus(); }
+function openTaskModal(){ taskInput.value=""; taskMs.innerHTML=state.milestones.map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join(""); const tt=document.getElementById("taskTrack"); if(tt) tt.value=TRACKS.includes(trackFilter)?trackFilter:"개발"; if(msFilter.size===1) taskMs.value=[...msFilter][0]; taskModal.classList.add("show"); taskInput.focus(); }
 document.getElementById("taskAddOk").onclick=addTask;
 taskInput.addEventListener("keydown",e=>{ if(e.key==="Enter") addTask(); });
 function addTask(){ const name=taskInput.value.trim(); if(!name) return;
-  const tk={ id:uid(), name, milestoneId:taskMs.value||state.milestones[0].id, open:true, kickoff:"예정", status:"대기", links:{plan:"",trello:""}, depts:{} };
+  const trackSel=document.getElementById("taskTrack");
+  const tk={ id:uid(), name, milestoneId:taskMs.value||state.milestones[0].id, track:(trackSel&&TRACKS.includes(trackSel.value))?trackSel.value:"개발", open:true, kickoff:"예정", status:"대기", links:{plan:"",trello:""}, depts:{} };
   state.tasks.push(tk); closeModals(); save(); render(); openDeptModal(tk.id); }
 
 function openDeptModal(tid){ editing={tid}; const t=findTask(tid);
