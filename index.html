@@ -399,6 +399,12 @@
   .foot-legend{ display:flex; align-items:center; gap:14px; flex:1; min-width:0; overflow:hidden; }
   .foot-tools{ display:flex; align-items:center; gap:8px; flex:0 0 auto; margin-left:14px; }
 
+  /* 담당자 소속(기획 부서) */
+  .mchip-sel{ font-size:10.5px; border:1px solid var(--line); border-radius:6px; background:var(--panel); color:var(--text); padding:1px 2px; margin:0 2px; max-width:96px; cursor:pointer; }
+  .mchip.sub{ background:var(--grad-soft); border-color:transparent; padding-left:10px; }
+  .dm-sub .dm-mlabel{ color:var(--accent); }
+  .dm-newsub{ width:128px; background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:6px; padding:5px 8px; font-size:12px; }
+
   /* 부서 관리 — 분류 배지 */
   .dm-track{ font-size:10px; font-weight:800; color:var(--muted); background:var(--panel2); border:1px solid var(--line); border-radius:999px; padding:2px 8px; margin-left:8px; white-space:nowrap; }
 
@@ -693,7 +699,7 @@ function migrate(){
   if(!Array.isArray(state.notifyEmails)) state.notifyEmails = [];
   if(!state.notice || typeof state.notice!=="object") state.notice = { text:"", updatedAt:"" };
   if(!state.departments || !state.departments.length) state.departments = DEFAULT_DEPARTMENTS.concat(ART_DEPARTMENTS).map(d=>({...d}));
-  state.departments.forEach(d=>{ if(!Array.isArray(d.owners)) d.owners=[]; if(!Array.isArray(d.tracks)||!d.tracks.length) d.tracks = (d.key==="기획")?["개발","아트"]:["개발"]; });
+  state.departments.forEach(d=>{ if(!Array.isArray(d.owners)) d.owners=[]; if(!Array.isArray(d.tracks)||!d.tracks.length) d.tracks = (d.key==="기획")?["개발","아트"]:["개발"]; if(!Array.isArray(d.subgroups)) d.subgroups=[]; if(!d.memberGroup||typeof d.memberGroup!=="object") d.memberGroup={}; });
   // 아트 전용 부서 1회 시드(기존 데이터에 추가)
   if(!state.artSeeded){ ART_DEPARTMENTS.forEach(ad=>{ if(!state.departments.some(d=>d.key===ad.key)) state.departments.push({...ad, owners:[]}); }); state.artSeeded=true; }
   DEPARTMENTS = state.departments;
@@ -828,7 +834,17 @@ function renderFilter(){
   const allA=assigneeFilter.size===0;
   const aSec=`<div class="fsec"><span class="lh-label">담당자</span>
        <div class="fchips"><span class="fchip all ${allA?'on':''}" data-fa="__all">${allA?'✓ ':''}전체</span><span class="fchip ${assigneeFilter.has('__unassigned')?'on':''}" data-fa="__unassigned">${assigneeFilter.has('__unassigned')?'✓ ':''}미정</span></div>
-       ${state.departments.filter(d=>(d.owners||[]).length).map(d=>`<div class="fa-dept"><span class="fa-deptname"><i style="background:${d.color}"></i>${escapeHtml(d.key)}${depTracks(d).includes("아트")&&!depTracks(d).includes("개발")?' <span class="fa-trk">아트</span>':''}</span><div class="fchips">${d.owners.map(n=>`<span class="fchip ${assigneeFilter.has(n)?'on':''}" data-fa="${escapeHtml(n)}">${assigneeFilter.has(n)?'✓ ':''}${escapeHtml(n)}</span>`).join("")}</div></div>`).join("")}
+       ${state.departments.filter(d=>(d.owners||[]).length).map(d=>{
+          const trkTag = (depTracks(d).includes("아트")&&!depTracks(d).includes("개발")) ? ' <span class="fa-trk">아트</span>' : '';
+          const chip = n => `<span class="fchip ${assigneeFilter.has(n)?'on':''}" data-fa="${escapeHtml(n)}">${assigneeFilter.has(n)?'✓ ':''}${escapeHtml(n)}</span>`;
+          const row = (label, mem) => mem.length ? `<div class="fa-dept"><span class="fa-deptname"><i style="background:${d.color}"></i>${escapeHtml(label)}${trkTag}</span><div class="fchips">${mem.map(chip).join("")}</div></div>` : '';
+          const subs=d.subgroups||[], mg=d.memberGroup||{};
+          if(subs.length){
+            const grouped=subs.map(g=>row(`${d.key} · ${g}`, d.owners.filter(n=>mg[n]===g))).join("");
+            return grouped + row(`${d.key} · 기타`, d.owners.filter(n=>!subs.includes(mg[n])));
+          }
+          return row(d.key, d.owners);
+       }).join("")}
      </div>`;
   document.getElementById("leftHead").innerHTML=
     `<div class="lh-row">
@@ -1188,10 +1204,15 @@ function renderDeptMgr(){
   const order={"개발":0,"개발·아트":1,"아트":2};
   const sorted=[...state.departments].sort((a,b)=>(order[depTracks(a).join("·")]??1)-(order[depTracks(b).join("·")]??1));
   document.getElementById("deptMgrList").innerHTML = sorted.map(d=>{
-    const chips=(d.owners||[]).map(n=>`<span class="mchip">${escapeHtml(n)}<b data-rmdept="${escapeHtml(d.key)}" data-rmname="${escapeHtml(n)}" title="제거">×</b></span>`).join("");
+    const hasSub = (d.key==="기획");   // 소속 구분은 기획 부서만
+    const subs = d.subgroups||[]; const mg = d.memberGroup||{};
+    const subSel = n => hasSub ? `<select class="mchip-sel" data-mgroup="${escapeHtml(d.key)}|${escapeHtml(n)}"><option value="">소속</option>${subs.map(g=>`<option ${mg[n]===g?'selected':''}>${escapeHtml(g)}</option>`).join("")}</select>` : "";
+    const chips=(d.owners||[]).map(n=>`<span class="mchip">${escapeHtml(n)}${subSel(n)}<b data-rmdept="${escapeHtml(d.key)}" data-rmname="${escapeHtml(n)}" title="제거">×</b></span>`).join("");
     const tb=depTracks(d).join("·");
+    const subRow = hasSub ? `<div class="dm-members dm-sub"><span class="dm-mlabel">소속</span>${subs.map(g=>`<span class="mchip sub">${escapeHtml(g)}<b data-rmsub="${escapeHtml(d.key)}|${escapeHtml(g)}" title="소속 삭제">×</b></span>`).join("")||'<span class="dm-empty">없음</span>'}<span class="dm-addwrap"><input class="dm-newsub" data-newsub="${escapeHtml(d.key)}" placeholder="소속 추가 (예: 시스템)"><button class="meta-btn" data-addsub="${escapeHtml(d.key)}">＋ 소속</button></span></div>` : "";
     return `<div class="dm-block">
       <div class="dm-row"><input type="color" value="${d.color}" data-deptcolor="${escapeHtml(d.key)}"><span class="dm-name">${escapeHtml(d.key)}</span><span class="dm-track">${tb}</span><button class="linkrow" data-deptdel="${escapeHtml(d.key)}">부서 삭제</button></div>
+      ${subRow}
       <div class="dm-members"><span class="dm-mlabel">담당자</span>${chips||'<span class="dm-empty">없음</span>'}<span class="dm-addwrap"><input class="dm-newmember" data-newmember="${escapeHtml(d.key)}" placeholder="이름 입력"><button class="meta-btn" data-addmember="${escapeHtml(d.key)}">＋ 인원 추가</button></span></div>
     </div>`; }).join("");
 }
@@ -1203,10 +1224,17 @@ function addMemberFromBlock(blockEl, key){
 }
 document.getElementById("footbar").addEventListener("click", e=>{ if(e.target.closest("#catLegendBtn")){ openCatMgr(); return; } if(e.target.closest("#deptLegendBtn")||e.target.closest("#deptLegendBtn2")) openDeptMgr(); });
 document.getElementById("deptMgrList").addEventListener("input", e=>{ const c=e.target.closest("[data-deptcolor]"); if(c){ const d=state.departments.find(x=>x.key===c.dataset.deptcolor); if(d){ d.color=c.value; save(); render(); } } });
-document.getElementById("deptMgrList").addEventListener("keydown", e=>{ const inp=e.target.closest("[data-newmember]"); if(inp && e.key==="Enter"){ e.preventDefault(); addMemberFromBlock(inp.closest(".dm-block"), inp.dataset.newmember); } });
+function addSubFromBlock(key){ const inp=document.querySelector(`[data-newsub="${CSS.escape(key)}"]`); if(!inp) return; const g=(inp.value||"").trim(); if(!g) return; const d=state.departments.find(x=>x.key===key); if(!d) return; if(!Array.isArray(d.subgroups))d.subgroups=[]; if(!d.subgroups.includes(g)) d.subgroups.push(g); inp.value=""; save(); renderDeptMgr(); render(); }
+document.getElementById("deptMgrList").addEventListener("keydown", e=>{
+  const inp=e.target.closest("[data-newmember]"); if(inp && e.key==="Enter"){ e.preventDefault(); addMemberFromBlock(inp.closest(".dm-block"), inp.dataset.newmember); return; }
+  const si=e.target.closest("[data-newsub]"); if(si && e.key==="Enter"){ e.preventDefault(); addSubFromBlock(si.dataset.newsub); }
+});
+document.getElementById("deptMgrList").addEventListener("change", e=>{ const sel=e.target.closest("[data-mgroup]"); if(sel){ const [k,n]=sel.dataset.mgroup.split("|"); const d=state.departments.find(x=>x.key===k); if(d){ if(!d.memberGroup)d.memberGroup={}; if(sel.value) d.memberGroup[n]=sel.value; else delete d.memberGroup[n]; save(); render(); } } });
 document.getElementById("deptMgrList").addEventListener("click", e=>{
   const add=e.target.closest("[data-addmember]"); if(add){ addMemberFromBlock(add.closest(".dm-block"), add.dataset.addmember); return; }
-  const rm=e.target.closest("[data-rmname]"); if(rm){ const d=state.departments.find(x=>x.key===rm.dataset.rmdept); if(d){ d.owners=(d.owners||[]).filter(n=>n!==rm.dataset.rmname); save(); render(); renderDeptMgr(); } return; }
+  const asub=e.target.closest("[data-addsub]"); if(asub){ addSubFromBlock(asub.dataset.addsub); return; }
+  const rsub=e.target.closest("[data-rmsub]"); if(rsub){ const [k,g]=rsub.dataset.rmsub.split("|"); const d=state.departments.find(x=>x.key===k); if(d){ d.subgroups=(d.subgroups||[]).filter(x=>x!==g); Object.keys(d.memberGroup||{}).forEach(n=>{ if(d.memberGroup[n]===g) delete d.memberGroup[n]; }); save(); render(); renderDeptMgr(); } return; }
+  const rm=e.target.closest("[data-rmname]"); if(rm){ const d=state.departments.find(x=>x.key===rm.dataset.rmdept); if(d){ d.owners=(d.owners||[]).filter(n=>n!==rm.dataset.rmname); if(d.memberGroup) delete d.memberGroup[rm.dataset.rmname]; save(); render(); renderDeptMgr(); } return; }
   const del=e.target.closest("[data-deptdel]"); if(!del) return;
   const key=del.dataset.deptdel;
   if(state.departments.length<=1){ alert("부서가 하나뿐이라 삭제할 수 없습니다."); return; }
