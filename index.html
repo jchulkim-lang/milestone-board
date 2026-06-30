@@ -399,6 +399,10 @@
   .foot-legend{ display:flex; align-items:center; gap:14px; flex:1; min-width:0; overflow:hidden; }
   .foot-tools{ display:flex; align-items:center; gap:8px; flex:0 0 auto; margin-left:14px; }
 
+  /* collapsed 막대도 드래그 이동 */
+  .bar.mbar{ cursor:grab; }
+  .bar.mbar:active{ cursor:grabbing; }
+
   /* 담당자 소속(기획 부서) */
   .mchip-sel{ font-size:10.5px; border:1px solid var(--line); border-radius:6px; background:var(--panel); color:var(--text); padding:1px 2px; margin:0 2px; max-width:96px; cursor:pointer; }
   .mchip.sub{ background:var(--grad-soft); border-color:transparent; padding-left:10px; }
@@ -973,7 +977,7 @@ function renderBody(){
           let merged="";
           active.slice().reverse().forEach(d=>{ const seg=t.depts[d.key];
             const sa=(seg.assignees&&seg.assignees.length)?seg.assignees.join(', '):'미정';
-            merged+=`<div class="bar mbar" data-mbar="${t.id}" style="left:${seg.start*DAY_W}px;width:${(seg.end-seg.start+1)*DAY_W}px;top:10px;background:${d.color}" title="${d.key} · 담당: ${escapeHtml(sa)}"><span class="mbar-r">${escapeHtml(sa)}</span></div>`; });
+            merged+=`<div class="bar mbar" data-mbar="${t.id}" data-mdep="${escapeHtml(d.key)}" style="left:${seg.start*DAY_W}px;width:${(seg.end-seg.start+1)*DAY_W}px;top:10px;background:${d.color}" title="${d.key} · 담당: ${escapeHtml(sa)} (드래그: 이동 · 클릭: 펼치기)"><span class="mbar-r">${escapeHtml(sa)}</span></div>`; });
           const planSeg = (t.depts["기획"]&&t.depts["기획"].on) ? t.depts["기획"] : null;
           const kfMark = planSeg ? `<span class="kf" data-mbar="${t.id}" style="left:${Math.max(0,planSeg.start*DAY_W-7)}px;top:23px;background:${kf.color}">${kf.icon}</span>` : "";
           rows+=`<div class="tl-task ${skip}"><div class="tl-task-head">${merged}${kfMark}</div></div>`;
@@ -1063,7 +1067,18 @@ function attachBarHandlers(){
     });
   });
   document.querySelectorAll(".mbar[data-mbar]").forEach(mb=>{
-    mb.addEventListener("click", ()=>{ const t=findTask(mb.dataset.mbar); if(t){ t.open=true; save(); render(); } });
+    mb.addEventListener("pointerdown", e=>{
+      if(e.button&&e.button!==0) return; e.preventDefault();
+      const tid=mb.dataset.mbar, dep=mb.dataset.mdep; const t=findTask(tid); const seg=t&&t.depts[dep]; if(!seg) return;
+      const startX=e.clientX, s0=seg.start, e0=seg.end, len=e0-s0; let moved=false;
+      try{ mb.setPointerCapture(e.pointerId); }catch(_){}
+      function onMove(ev){ const dx=ev.clientX-startX; if(Math.abs(dx)>3) moved=true; const dd=Math.round(dx/DAY_W);
+        let ns=Math.min(Math.max(0,s0+dd),N-1-len); seg.start=ns; seg.end=ns+len;
+        mb.style.left=(seg.start*DAY_W)+"px"; }
+      function onUp(){ mb.removeEventListener("pointermove",onMove); mb.removeEventListener("pointerup",onUp);
+        if(!moved){ t.open=true; } save(); render(); }
+      mb.addEventListener("pointermove",onMove); mb.addEventListener("pointerup",onUp);
+    });
   });
 }
 
