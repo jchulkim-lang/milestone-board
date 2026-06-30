@@ -361,6 +361,11 @@
   /* 세로 flex 레이아웃 — 컨텍스트 바·파이프라인을 보드 위에 */
   body{ display:flex; flex-direction:column; }
   .wrap{ flex:1; min-height:0; height:auto; }
+  /* 스크롤 영역 높이 제약 복구 + 좌측 Task 목록 직접 스크롤 */
+  .left, .right{ min-height:0; }
+  .left-body{ min-height:0; overflow-y:auto; overflow-x:hidden; scrollbar-width:none; }
+  .left-body::-webkit-scrollbar{ width:0; height:0; }
+  .right-body{ min-height:0; }
 
   /* 컨텍스트 바 */
   .ctxbar{ flex:0 0 auto; display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:9px 16px; background:var(--panel); border-bottom:1px solid var(--line); }
