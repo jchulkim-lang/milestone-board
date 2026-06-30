@@ -403,6 +403,10 @@
   .mchip-sel{ font-size:10.5px; border:1px solid var(--line); border-radius:6px; background:var(--panel); color:var(--text); padding:1px 2px; margin:0 2px; max-width:96px; cursor:pointer; }
   .mchip.sub{ background:var(--grad-soft); border-color:transparent; padding-left:10px; }
   .dm-sub .dm-mlabel{ color:var(--accent); }
+  .dm-mlabel.sub-h{ flex:0 0 70px; color:var(--accent); }
+  .da-sub-h{ font-size:10.5px; font-weight:800; color:var(--accent); margin:6px 0 2px; }
+  .da-subsec{ width:100%; }
+  .da-subchips{ display:flex; flex-wrap:wrap; gap:6px; }
   .dm-newsub{ width:128px; background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:6px; padding:5px 8px; font-size:12px; }
 
   /* 부서 관리 — 분류 배지 */
@@ -1203,35 +1207,40 @@ function openDeptMgr(){ renderDeptMgr(); deptMgrModal.classList.add("show"); }
 function renderDeptMgr(){
   const order={"개발":0,"개발·아트":1,"아트":2};
   const sorted=[...state.departments].sort((a,b)=>(order[depTracks(a).join("·")]??1)-(order[depTracks(b).join("·")]??1));
+  const memChip=(key,n)=>`<span class="mchip">${escapeHtml(n)}<b data-rmdept="${escapeHtml(key)}" data-rmname="${escapeHtml(n)}" title="제거">×</b></span>`;
+  const addRow=(key,sub,ph)=>`<span class="dm-addwrap"><input class="dm-newmember" data-newmember="${escapeHtml(key)}" data-tosub="${escapeHtml(sub)}" placeholder="${ph}"><button class="meta-btn" data-addmember="${escapeHtml(key)}" data-tosub="${escapeHtml(sub)}">＋</button></span>`;
   document.getElementById("deptMgrList").innerHTML = sorted.map(d=>{
-    const hasSub = (d.key==="기획");   // 소속 구분은 기획 부서만
-    const subs = d.subgroups||[]; const mg = d.memberGroup||{};
-    const subSel = n => hasSub ? `<select class="mchip-sel" data-mgroup="${escapeHtml(d.key)}|${escapeHtml(n)}"><option value="">소속</option>${subs.map(g=>`<option ${mg[n]===g?'selected':''}>${escapeHtml(g)}</option>`).join("")}</select>` : "";
-    const chips=(d.owners||[]).map(n=>`<span class="mchip">${escapeHtml(n)}${subSel(n)}<b data-rmdept="${escapeHtml(d.key)}" data-rmname="${escapeHtml(n)}" title="제거">×</b></span>`).join("");
     const tb=depTracks(d).join("·");
-    const subRow = hasSub ? `<div class="dm-members dm-sub"><span class="dm-mlabel">소속</span>${subs.map(g=>`<span class="mchip sub">${escapeHtml(g)}<b data-rmsub="${escapeHtml(d.key)}|${escapeHtml(g)}" title="소속 삭제">×</b></span>`).join("")||'<span class="dm-empty">없음</span>'}<span class="dm-addwrap"><input class="dm-newsub" data-newsub="${escapeHtml(d.key)}" placeholder="소속 추가 (예: 시스템)"><button class="meta-btn" data-addsub="${escapeHtml(d.key)}">＋ 소속</button></span></div>` : "";
-    return `<div class="dm-block">
-      <div class="dm-row"><input type="color" value="${d.color}" data-deptcolor="${escapeHtml(d.key)}"><span class="dm-name">${escapeHtml(d.key)}</span><span class="dm-track">${tb}</span><button class="linkrow" data-deptdel="${escapeHtml(d.key)}">부서 삭제</button></div>
-      ${subRow}
-      <div class="dm-members"><span class="dm-mlabel">담당자</span>${chips||'<span class="dm-empty">없음</span>'}<span class="dm-addwrap"><input class="dm-newmember" data-newmember="${escapeHtml(d.key)}" placeholder="이름 입력"><button class="meta-btn" data-addmember="${escapeHtml(d.key)}">＋ 인원 추가</button></span></div>
-    </div>`; }).join("");
+    const head=`<div class="dm-row"><input type="color" value="${d.color}" data-deptcolor="${escapeHtml(d.key)}"><span class="dm-name">${escapeHtml(d.key)}</span><span class="dm-track">${tb}</span><button class="linkrow" data-deptdel="${escapeHtml(d.key)}">부서 삭제</button></div>`;
+    if(d.key==="기획"){   // 소속별로 묶어서 표시
+      const subs=d.subgroups||[], mg=d.memberGroup||{};
+      const subRow=`<div class="dm-members dm-sub"><span class="dm-mlabel">소속</span>${subs.map(g=>`<span class="mchip sub">${escapeHtml(g)}<b data-rmsub="${escapeHtml(d.key)}|${escapeHtml(g)}" title="소속 삭제">×</b></span>`).join("")||'<span class="dm-empty">없음</span>'}<span class="dm-addwrap"><input class="dm-newsub" data-newsub="${escapeHtml(d.key)}" placeholder="소속 추가 (예: 시스템)"><button class="meta-btn" data-addsub="${escapeHtml(d.key)}">＋ 소속</button></span></div>`;
+      const block=(label,mem,sub)=>`<div class="dm-members"><span class="dm-mlabel sub-h">${escapeHtml(label)}</span>${mem.map(n=>memChip(d.key,n)).join("")||'<span class="dm-empty">없음</span>'}${addRow(d.key,sub,"이름 추가")}</div>`;
+      const groups=subs.map(g=>block(g,(d.owners||[]).filter(n=>mg[n]===g),g)).join("");
+      const others=block("소속 없음",(d.owners||[]).filter(n=>!subs.includes(mg[n])),"");
+      return `<div class="dm-block">${head}${subRow}${groups}${others}</div>`;
+    }
+    const chips=(d.owners||[]).map(n=>memChip(d.key,n)).join("");
+    return `<div class="dm-block">${head}<div class="dm-members"><span class="dm-mlabel">담당자</span>${chips||'<span class="dm-empty">없음</span>'}${addRow(d.key,"","이름 입력")}</div></div>`;
+  }).join("");
 }
-function addMemberFromBlock(blockEl, key){
-  const inp=blockEl.querySelector(".dm-newmember"); const name=(inp.value||"").trim(); if(!name) return;
+// 이름 추가/소속 이동: 이미 있는 이름을 다른 소속 칸에 넣으면 이동, '소속 없음' 칸이면 소속 해제
+function doAddMember(key, sub, inp){
+  const name=(inp.value||"").trim(); if(!name) return;
   const d=state.departments.find(x=>x.key===key); if(!d) return; if(!d.owners) d.owners=[];
   if(!d.owners.includes(name)) d.owners.push(name);
+  if(!d.memberGroup) d.memberGroup={}; if(sub) d.memberGroup[name]=sub; else delete d.memberGroup[name];
   inp.value=""; save(); render(); renderDeptMgr();
 }
 document.getElementById("footbar").addEventListener("click", e=>{ if(e.target.closest("#catLegendBtn")){ openCatMgr(); return; } if(e.target.closest("#deptLegendBtn")||e.target.closest("#deptLegendBtn2")) openDeptMgr(); });
 document.getElementById("deptMgrList").addEventListener("input", e=>{ const c=e.target.closest("[data-deptcolor]"); if(c){ const d=state.departments.find(x=>x.key===c.dataset.deptcolor); if(d){ d.color=c.value; save(); render(); } } });
 function addSubFromBlock(key){ const inp=document.querySelector(`[data-newsub="${CSS.escape(key)}"]`); if(!inp) return; const g=(inp.value||"").trim(); if(!g) return; const d=state.departments.find(x=>x.key===key); if(!d) return; if(!Array.isArray(d.subgroups))d.subgroups=[]; if(!d.subgroups.includes(g)) d.subgroups.push(g); inp.value=""; save(); renderDeptMgr(); render(); }
 document.getElementById("deptMgrList").addEventListener("keydown", e=>{
-  const inp=e.target.closest("[data-newmember]"); if(inp && e.key==="Enter"){ e.preventDefault(); addMemberFromBlock(inp.closest(".dm-block"), inp.dataset.newmember); return; }
+  const inp=e.target.closest("[data-newmember]"); if(inp && e.key==="Enter"){ e.preventDefault(); doAddMember(inp.dataset.newmember, inp.dataset.tosub||"", inp); return; }
   const si=e.target.closest("[data-newsub]"); if(si && e.key==="Enter"){ e.preventDefault(); addSubFromBlock(si.dataset.newsub); }
 });
-document.getElementById("deptMgrList").addEventListener("change", e=>{ const sel=e.target.closest("[data-mgroup]"); if(sel){ const [k,n]=sel.dataset.mgroup.split("|"); const d=state.departments.find(x=>x.key===k); if(d){ if(!d.memberGroup)d.memberGroup={}; if(sel.value) d.memberGroup[n]=sel.value; else delete d.memberGroup[n]; save(); render(); } } });
 document.getElementById("deptMgrList").addEventListener("click", e=>{
-  const add=e.target.closest("[data-addmember]"); if(add){ addMemberFromBlock(add.closest(".dm-block"), add.dataset.addmember); return; }
+  const add=e.target.closest("[data-addmember]"); if(add){ const inp=add.closest(".dm-members").querySelector(".dm-newmember"); doAddMember(add.dataset.addmember, add.dataset.tosub||"", inp); return; }
   const asub=e.target.closest("[data-addsub]"); if(asub){ addSubFromBlock(asub.dataset.addsub); return; }
   const rsub=e.target.closest("[data-rmsub]"); if(rsub){ const [k,g]=rsub.dataset.rmsub.split("|"); const d=state.departments.find(x=>x.key===k); if(d){ d.subgroups=(d.subgroups||[]).filter(x=>x!==g); Object.keys(d.memberGroup||{}).forEach(n=>{ if(d.memberGroup[n]===g) delete d.memberGroup[n]; }); save(); render(); renderDeptMgr(); } return; }
   const rm=e.target.closest("[data-rmname]"); if(rm){ const d=state.departments.find(x=>x.key===rm.dataset.rmdept); if(d){ d.owners=(d.owners||[]).filter(n=>n!==rm.dataset.rmname); if(d.memberGroup) delete d.memberGroup[rm.dataset.rmname]; save(); render(); renderDeptMgr(); } return; }
@@ -1256,7 +1265,13 @@ document.getElementById("deptAddNew").onclick=()=>{ const name=document.getEleme
 function taskAssignees(t){ const s=new Set(); activeDepts(t).forEach(d=>{ const seg=t.depts[d.key]; ((seg&&seg.assignees)||[]).forEach(n=>s.add(n)); }); return [...s]; }
 function deptAssigneeChips(t, key){ const dept=state.departments.find(d=>d.key===key); const roster=(dept&&dept.owners)||[]; const seg=t.depts[key]; const sel=new Set((seg&&seg.assignees)||[]);
   if(!roster.length) return `<span class="dm-empty">이 부서에 등록된 인원이 없습니다 (부서 관리에서 추가).</span>`;
-  return roster.map(n=>`<span class="dept-chip ${sel.has(n)?'on':''}" data-aassign="${escapeHtml(key)}" data-aname="${escapeHtml(n)}">${sel.has(n)?'✓ ':''}${escapeHtml(n)}</span>`).join(""); }
+  const chip=n=>`<span class="dept-chip ${sel.has(n)?'on':''}" data-aassign="${escapeHtml(key)}" data-aname="${escapeHtml(n)}">${sel.has(n)?'✓ ':''}${escapeHtml(n)}</span>`;
+  const subs=(dept.subgroups||[]), mg=(dept.memberGroup||{});
+  if(subs.length){   // 기획: 소속별로 구분해 표시
+    const sec=(label,mem)=> mem.length ? `<div class="da-subsec"><div class="da-sub-h">${escapeHtml(label)}</div><div class="da-subchips">${mem.map(chip).join("")}</div></div>` : '';
+    return subs.map(g=>sec(g, roster.filter(n=>mg[n]===g))).join("") + sec("소속 없음", roster.filter(n=>!subs.includes(mg[n])));
+  }
+  return roster.map(chip).join(""); }
 function toggleDeptAssignee(t, key, name){ const seg=t.depts[key]; if(!seg) return; if(!Array.isArray(seg.assignees)) seg.assignees=[]; const i=seg.assignees.indexOf(name); if(i>=0) seg.assignees.splice(i,1); else seg.assignees.push(name); }
 
 function openTaskModal(){ taskInput.value=""; taskMs.innerHTML=state.milestones.map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join(""); const tt=document.getElementById("taskTrack"); if(tt) tt.value=TRACKS.includes(trackFilter)?trackFilter:"개발"; if(msFilter.size===1) taskMs.value=[...msFilter][0]; taskModal.classList.add("show"); taskInput.focus(); }
