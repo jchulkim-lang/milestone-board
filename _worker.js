@@ -60,20 +60,26 @@ function textBlock(segs){
 async function notifyStatusChanges(env, oldStr, newStr, who, origin){
   if(!env.KAKAO_BOT_KEY && !env.KAKAO_WEBHOOK_URL) return;
   let o, n; try{ o=JSON.parse(oldStr||"{}"); n=JSON.parse(newStr||"{}"); }catch(_){ return; }
-  const oldStatus={}; (o.tasks||[]).forEach(t=>{ oldStatus[t.id]=t.status; });
+  const oldStatus={}, oldDone={}, oldExists={};
+  (o.tasks||[]).forEach(t=>{ oldStatus[t.id]=t.status; oldDone[t.id]=!!t.done; oldExists[t.id]=true; });
   const msName={}; (n.milestones||[]).forEach(m=>{ msName[m.id]=m.name; });
   const WATCH=["진행 중","검토·이슈","완료"];   // 개발: 이 상태로 바뀔 때 알림
   const DOT={"진행 중":"🔵","검토·이슈":"🟠","완료":"🟢"}; // 앱 상태 색과 매칭
   const blocks=[{ type:"text", text:`📌 상태 변경 (${who})` }];
   const preview=[`📌 상태 변경 (${who})`];
   (n.tasks||[]).forEach(t=>{
-    const prev=oldStatus[t.id];
-    // 개발은 WATCH 상태로 바뀔 때, 아트는 모든 단계 변경 시 알림
-    if(prev!==undefined && prev!==t.status && (WATCH.includes(t.status) || t.track==="아트")){
+    // 개발: WATCH 상태로 바뀔 때. 아트: 완료(done) 체크 시.
+    let label=null, dot="•";
+    if(t.track==="아트"){
+      if(oldExists[t.id] && !oldDone[t.id] && t.done){ label=`${t.status} · 완료`; dot="🟢"; }
+    } else {
+      const prev=oldStatus[t.id];
+      if(prev!==undefined && prev!==t.status && WATCH.includes(t.status)){ label=`${prev} → ${t.status}`; dot=DOT[t.status]||"•"; }
+    }
+    if(label){
       const ms=msName[t.milestoneId]||"-";
       const plan=(t.links && t.links.plan)||"", trello=(t.links && t.links.trello)||"";
-      const dot = DOT[t.status] || (t.track==="아트" ? "🟣" : "•");
-      const segs=[{ text:`${dot} [${ms}] ${t.name} : ${prev} → ${t.status}\n📄 기획서 ` }];
+      const segs=[{ text:`${dot} [${ms}] ${t.name} : ${label}\n📄 기획서 ` }];
       segs.push(plan ? { text:"[LINK]", url:plan } : { text:"링크 없음" });
       segs.push({ text:`\n📋 Trello ` });
       segs.push(trello ? { text:"[LINK]", url:trello } : { text:"링크 없음" });

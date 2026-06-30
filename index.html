@@ -382,6 +382,12 @@
   .pstep .pcnt{ font-size:11px; font-weight:800; min-width:18px; text-align:center; background:var(--panel2); border-radius:99px; padding:1px 6px; flex:0 0 auto; }
   .pstep.on .pnm{ color:var(--text); }
   .pstep.on .pcnt{ background:rgba(255,255,255,.18); }
+
+  /* 아트 완료 토글 + 우측 영역 폭 확대 */
+  .th-right, .th-right-spacer{ width:140px; }
+  .done-chip{ width:19px; height:19px; flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:900; border-radius:50%; border:1px solid var(--line); color:var(--muted); background:var(--panel2); cursor:pointer; user-select:none; }
+  .done-chip.on{ background:#10b981; border-color:#10b981; color:#fff; }
+  .task.tdone .task-name{ text-decoration:line-through; color:var(--muted); }
   .parrow{ display:flex; align-items:center; color:var(--line); font-size:13px; font-weight:700; flex:0 0 auto; }
 
   /* 하단 바 — 좌측 범례 + 우측 도구(관리자/편집 기능) */
@@ -517,6 +523,17 @@
       </div>
       <div class="modal-actions"><span></span><div class="right"><button class="btn" data-close>닫기</button></div></div></div>
   </div>
+  <div class="modal-bg" id="catMgrModal">
+    <div class="modal"><h3>아트 종류 관리</h3><div class="msub">아트 Task를 묶는 종류입니다. 색상은 버튼으로 바꾸고, 추가/삭제할 수 있습니다. (개발 분류에는 영향 없음)</div>
+      <div id="catMgrList"></div>
+      <div class="dm-add">
+        <button type="button" class="color-pick" id="newCatColorBtn"><span class="color-dot" id="newCatColorDot" style="background:#8b5cf6"></span>색상</button>
+        <input type="color" id="newCatColor" value="#8b5cf6" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none">
+        <input type="text" id="newCatName" placeholder="새 종류명 (예: 탈것)">
+        <button class="meta-btn" id="catAddNew">＋ 추가</button>
+      </div>
+      <div class="modal-actions"><span></span><div class="right"><button class="btn" data-close>닫기</button></div></div></div>
+  </div>
   <div class="modal-bg" id="titleModal">
     <div class="modal"><h3>제목 편집</h3><div class="msub">상단에 표시될 이름입니다.</div>
       <input id="titleInput" placeholder="예: 빅게임 본부 마일스톤" />
@@ -586,28 +603,24 @@ const KICKOFFS = [
   { k:"Skip", icon:"–", color:"#9aa3b2" },
 ];
 const kfOf = k => KICKOFFS.find(x=>x.k===k) || KICKOFFS[0];
-/* Task 진행 상태(관리자 지정) — 개발/아트 분류별로 다름 */
-const TASK_STATUSES = [   // 개발
+/* 개발 분류: 진행 상태로 묶음 */
+const TASK_STATUSES = [
   { k:"대기", color:"#64748b" },
   { k:"진행 중", color:"#3b82f6" },
   { k:"검토·이슈", color:"#f59e0b" },
   { k:"완료", color:"#10b981", done:true },
 ];
-const ART_STATUSES = [    // 아트 (제작 파이프라인)
-  { k:"대기", color:"#64748b" },
-  { k:"배경원화", color:"#22d3ee" },
-  { k:"캐릭터원화", color:"#f472b6" },
-  { k:"배경모델링", color:"#2dd4bf" },
-  { k:"캐릭터모델링", color:"#c084fc" },
-  { k:"애니메이션", color:"#fbbf24" },
-  { k:"가조립", color:"#fb923c" },
-  { k:"이펙트", color:"#a3e635" },
-  { k:"최종 조립 및 사운드", color:"#10b981", done:true },
+/* 아트 분류: 상태 대신 '종류'로 묶음(사용자 편집 가능), 완료는 t.done 플래그 */
+const DEFAULT_ART_CATEGORIES = [
+  { key:"PC", color:"#6366f1" }, { key:"프리미엄코스튬", color:"#ec4899" },
+  { key:"몬스터", color:"#f59e0b" }, { key:"보스", color:"#ef4444" },
+  { key:"NPC", color:"#22d3ee" }, { key:"배경", color:"#10b981" },
 ];
-const statusesFor = track => track==="아트" ? ART_STATUSES : TASK_STATUSES;
-const ALL_STATUSES = TASK_STATUSES.concat(ART_STATUSES).filter((s,i,a)=>a.findIndex(x=>x.k===s.k)===i);
-const tsOf = k => ALL_STATUSES.find(x=>x.k===k) || TASK_STATUSES[0];
-const isDone = t => { const s=statusesFor(t.track||"개발").find(x=>x.k===t.status); return !!(s&&s.done); };
+// 좌측 그룹/스테퍼/드롭다운의 묶음 기준: 개발=상태, 아트=종류
+const statusesFor = track => track==="아트" ? (state.artCategories||[]).map(c=>({k:c.key,color:c.color})) : TASK_STATUSES;
+function allStatusDefs(){ return TASK_STATUSES.concat((state.artCategories||[]).map(c=>({k:c.key,color:c.color}))).filter((s,i,a)=>a.findIndex(x=>x.k===s.k)===i); }
+const tsOf = k => allStatusDefs().find(x=>x.k===k) || TASK_STATUSES[0];
+const isDone = t => (t.track==="아트") ? !!t.done : t.status==="완료";
 const TRACKS = ["개발","아트"];   // 마일스톤 내부 일감 분류(고정)
 const TRACK_COLORS = { "개발":"#3b82f6", "아트":"#ec4899" };   // 분류 구분 색
 const MARKERS = [
@@ -660,6 +673,14 @@ function findMs(id){ return state.milestones.find(m=>m.id===id); }
 function msName(id){ const m=findMs(id); return m?m.name:""; }
 function msColor(id){ const m=findMs(id); return m?(m.color||"#6366f1"):"#6366f1"; }
 function findTask(id){ return state.tasks.find(t=>t.id===id); }
+function duplicateTask(id){
+  const t=findTask(id); if(!t) return;
+  const copy=JSON.parse(JSON.stringify(t));   // 부서·일정·담당자·링크까지 깊은 복사
+  copy.id=uid(); copy.name=(t.name||"Task")+" (복사)"; copy.open=true;
+  const idx=state.tasks.findIndex(x=>x.id===id);
+  state.tasks.splice(idx<0?state.tasks.length:idx+1, 0, copy);
+  selectedId=copy.id; save(); render(); scrollToTask(copy);
+}
 
 const LS_KEY = "milestone_state_v6";
 function migrate(){
@@ -671,6 +692,9 @@ function migrate(){
   // 아트 전용 부서 1회 시드(기존 데이터에 추가)
   if(!state.artSeeded){ ART_DEPARTMENTS.forEach(ad=>{ if(!state.departments.some(d=>d.key===ad.key)) state.departments.push({...ad, owners:[]}); }); state.artSeeded=true; }
   DEPARTMENTS = state.departments;
+  // 아트 종류(분류) 시드
+  if(!Array.isArray(state.artCategories) || !state.artCategories.length) state.artCategories = DEFAULT_ART_CATEGORIES.map(c=>({...c}));
+  state.artCategories.forEach(c=>{ if(!c.color) c.color="#888"; });
   if(!state.milestones) state.milestones=[];
   if(state.activeId!==undefined && state.milestones.length && state.milestones[0].tasks){
     // v5(마일스톤별 tasks) → 전역 tasks 변환
@@ -683,7 +707,8 @@ function migrate(){
   const firstMs=state.milestones[0].id;
   state.tasks.forEach(t=>{ if(!t.kickoff) t.kickoff = t.status && KICKOFFS.some(k=>k.k===t.status) ? t.status : "예정";
     if(!TRACKS.includes(t.track)) t.track="개발";
-    const _ss=statusesFor(t.track); if(!t.status || !_ss.some(s=>s.k===t.status)) t.status=_ss[0].k;
+    const _ss=statusesFor(t.track); if(!t.status || !_ss.some(s=>s.k===t.status)) t.status=(_ss[0]&&_ss[0].k)||"대기";
+    if(typeof t.done!=="boolean") t.done = (t.track!=="아트" && t.status==="완료");
     if(!t.links) t.links={plan:"",trello:""}; if(t.depts) Object.values(t.depts).forEach(s=>{ if(s && !Array.isArray(s.assignees)) s.assignees=[]; }); if(!t.milestoneId || !findMs(t.milestoneId)) t.milestoneId=firstMs; if(t.open===undefined)t.open=false; });
 }
 function save(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); if(remote.active) remote.push(state); }
@@ -771,16 +796,18 @@ function renderPipeline(){
   const sts=statusesFor(headTrack());
   const scope=state.tasks.filter(t=> (msFilter.size===0||msFilter.has(t.milestoneId)) && (t.track||"개발")===headTrack());
   box.innerHTML=sts.map((s,i)=>{ const n=scope.filter(t=>t.status===s.k).length; const on=statusFilter.has(s.k);
-    return `<div class="pstep ${on?'on':''}" data-pstep="${escapeHtml(s.k)}"><span class="pd" style="background:${s.color}"></span><span class="pnm">${escapeHtml(s.k)}</span><span class="pcnt">${n}</span></div>`+(i<sts.length-1?`<span class="parrow">›</span>`:'');
+    return `<div class="pstep ${on?'on':''}" data-pstep="${escapeHtml(s.k)}"><span class="pd" style="background:${s.color}"></span><span class="pnm">${escapeHtml(s.k)}</span><span class="pcnt">${n}</span></div>`+((headTrack()==="개발"&&i<sts.length-1)?`<span class="parrow">›</span>`:'');
   }).join("");
 }
 
 function renderLegend(){
   const dep=depsFor(headTrack()).map(d=>`<span class="di"><i style="background:${d.color}"></i>${escapeHtml(d.key)}</span>`).join("");
   const ts=statusesFor(headTrack()).map(s=>`<span class="di" style="color:${s.color}">● ${s.k}</span>`).join("");
+  const art=headTrack()==="아트";
+  const stLabel = art ? `<button class="lbl legend-edit" id="catLegendBtn" title="아트 종류 추가·편집">종류 ✎</button>` : `<span class="lbl">상태</span>`;
   document.getElementById("footbar").innerHTML=
     `<button class="lbl legend-edit" id="deptLegendBtn" title="클릭하여 부서 색상 편집·추가">부서 ✎</button><div class="grp clickable" id="deptLegendBtn2">${dep}</div>`+
-    `<div class="grp" style="margin-left:auto"><span class="lbl">상태</span>${ts}</div>`;
+    `<div class="grp" style="margin-left:auto">${stLabel}${ts}</div>`;
 }
 
 function renderFilter(){
@@ -850,7 +877,9 @@ function deptGridHtml(t){
 function taskHeadHtml(t){
   const ms=findMs(t.milestoneId);
   const kf=kfOf(t.kickoff);
+  const isArt=(t.track==="아트");
   const stOpts=statusesFor(t.track||"개발").map(s=>`<option ${s.k===t.status?'selected':''}>${escapeHtml(s.k)}</option>`).join("");
+  const doneChip=isArt?`<span class="done-chip ${t.done?'on':''}" data-done="${t.id}" title="완료 토글">${t.done?'✓':'○'}</span>`:'';
   const links=(t.links.plan?`<a class="lk" href="${escapeHtml(t.links.plan)}" target="_blank" rel="noopener" title="기획서">📄</a>`:"")+(t.links.trello?`<a class="lk" href="${escapeHtml(t.links.trello)}" target="_blank" rel="noopener" title="Trello">📋</a>`:"");
   const aps=taskAssignees(t);
   const asg=aps.length?`<span class="asg-badge" title="담당: ${escapeHtml(aps.join(', '))}">👤 ${escapeHtml(aps[0])}${aps.length>1?' +'+(aps.length-1):''}</span>`:'';
@@ -863,7 +892,7 @@ function taskHeadHtml(t){
       <span class="th-spacer"></span>
       <span class="dept-grid">${deptGridHtml(t)}</span>
       <span class="th-right"><span class="kf-chip" data-kf="${t.id}" style="background:${kf.color}" title="킥오프: ${t.kickoff} (클릭하여 변경)">${kf.icon}</span>
-      <select class="st-sel" data-status="${t.id}" title="진행 상태">${stOpts}</select>
+      ${doneChip}<select class="st-sel" data-status="${t.id}" title="${isArt?'종류':'진행 상태'}">${stOpts}</select>
       <span class="task-del" data-del="${t.id}" title="삭제">✕</span></span></div>`;
 }
 
@@ -891,8 +920,8 @@ function renderLeft(){
         const planBtn=t.links.plan?`<a class="meta-btn set" href="${escapeHtml(t.links.plan)}" target="_blank" rel="noopener" title="기획서 열기">📄 기획서</a>`:`<button class="meta-btn dim" data-openedit="${t.id}" title="기획서 링크 추가">📄 기획서 +</button>`;
         const trelloBtn=t.links.trello?`<a class="meta-btn set" href="${escapeHtml(t.links.trello)}" target="_blank" rel="noopener" title="Trello 열기">📋 Trello</a>`:`<button class="meta-btn dim" data-openedit="${t.id}" title="Trello 링크 추가">📋 Trello +</button>`;
         const trOpts=TRACKS.map(tr=>`<option value="${tr}" ${tr===t.track?'selected':''}>${tr}</option>`).join("");
-        const meta=`<div class="meta-rows"><div class="meta-row"><button class="meta-btn" data-openpicker="${t.id}">＋ 부서</button><button class="meta-btn" data-openedit="${t.id}">✏️ 편집</button>${planBtn}${trelloBtn}<select class="meta-sel" data-settrack="${t.id}" title="분류">${trOpts}</select><select class="meta-sel" data-setms="${t.id}" title="마일스톤">${msOpts}</select></div></div>`;
-        html+=`<div class="task ${t.open?'open':''} ${t.kickoff==='Skip'?'skip':''} ${t.id===selectedId?'selected':''}" data-task="${t.id}" draggable="true">${taskHeadHtml(t)}${inner}${meta}</div>`;
+        const meta=`<div class="meta-rows"><div class="meta-row"><button class="meta-btn" data-openpicker="${t.id}">＋ 부서</button><button class="meta-btn" data-openedit="${t.id}">✏️ 편집</button><button class="meta-btn" data-dup="${t.id}" title="이 Task 복제">⧉ 복제</button>${planBtn}${trelloBtn}<select class="meta-sel" data-settrack="${t.id}" title="분류">${trOpts}</select><select class="meta-sel" data-setms="${t.id}" title="마일스톤">${msOpts}</select></div></div>`;
+        html+=`<div class="task ${t.open?'open':''} ${t.kickoff==='Skip'?'skip':''} ${t.track==='아트'&&t.done?'tdone':''} ${t.id===selectedId?'selected':''}" data-task="${t.id}" draggable="true">${taskHeadHtml(t)}${inner}${meta}</div>`;
       });
     }
   });
@@ -961,8 +990,10 @@ leftBody.addEventListener("click", e=>{
   if(e.target.closest("[data-status]")||e.target.closest("[data-setms]")||e.target.closest("[data-settrack]")) return;
   const grp=e.target.closest("[data-group]"); if(grp){ const k=grp.dataset.group; groupCollapsed.has(k)?groupCollapsed.delete(k):groupCollapsed.add(k); render(); return; }
   const kf=e.target.closest("[data-kf]"); if(kf){ e.stopPropagation(); const t=findTask(kf.dataset.kf); const i=KICKOFFS.findIndex(x=>x.k===t.kickoff); t.kickoff=KICKOFFS[(i+1)%KICKOFFS.length].k; save(); render(); return; }
+  const dn=e.target.closest("[data-done]"); if(dn){ e.stopPropagation(); const t=findTask(dn.dataset.done); t.done=!t.done; save(); render(); return; }
   const del=e.target.closest("[data-del]"); if(del){ e.stopPropagation(); const id=del.dataset.del; if(confirm("이 Task를 삭제할까요?")){ state.tasks=state.tasks.filter(t=>t.id!==id); save(); render(); } return; }
   const pick=e.target.closest("[data-openpicker]"); if(pick){ e.stopPropagation(); openDeptModal(pick.dataset.openpicker); return; }
+  const dup=e.target.closest("[data-dup]"); if(dup){ e.stopPropagation(); duplicateTask(dup.dataset.dup); return; }
   const lnk=e.target.closest("[data-openedit]"); if(lnk){ e.stopPropagation(); openEditModal(lnk.dataset.openedit); return; }
   const open=e.target.closest("[data-toggleopen]"); if(open){ if(e.target.closest("[data-drag]")) return; const t=findTask(open.dataset.toggleopen); selectedId=t.id; t.open=!t.open; save(); render(); scrollToTask(t); }
 });
@@ -1014,10 +1045,40 @@ function attachBarHandlers(){
 /* ===== 모달들 ===== */
 let editing=null;
 const taskModal=document.getElementById("taskModal"), taskInput=document.getElementById("taskInput"), taskMs=document.getElementById("taskMs");
-const deptModal=document.getElementById("deptModal"), linkModal=document.getElementById("linkModal"), schedModal=document.getElementById("schedModal"), msModal=document.getElementById("msModal"), deptMgrModal=document.getElementById("deptMgrModal"), titleModal=document.getElementById("titleModal"), dashModal=document.getElementById("dashModal"), historyModal=document.getElementById("historyModal"), notifyModal=document.getElementById("notifyModal"), noticePopup=document.getElementById("noticePopup"), noticeEditModal=document.getElementById("noticeEditModal");
-function closeModals(){ [taskModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.classList.remove("show")); }
+const deptModal=document.getElementById("deptModal"), linkModal=document.getElementById("linkModal"), schedModal=document.getElementById("schedModal"), msModal=document.getElementById("msModal"), deptMgrModal=document.getElementById("deptMgrModal"), catMgrModal=document.getElementById("catMgrModal"), titleModal=document.getElementById("titleModal"), dashModal=document.getElementById("dashModal"), historyModal=document.getElementById("historyModal"), notifyModal=document.getElementById("notifyModal"), noticePopup=document.getElementById("noticePopup"), noticeEditModal=document.getElementById("noticeEditModal");
+function closeModals(){ [taskModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.classList.remove("show")); }
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=closeModals);
-[taskModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
+[taskModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
+
+/* ===== 아트 종류 관리 ===== */
+function openCatMgr(){ renderCatMgr(); catMgrModal.classList.add("show"); }
+function renderCatMgr(){
+  document.getElementById("catMgrList").innerHTML = (state.artCategories||[]).map(c=>{
+    const used=state.tasks.filter(t=>t.track==="아트"&&t.status===c.key).length;
+    return `<div class="dm-block"><div class="dm-row"><input type="color" value="${c.color}" data-catcolor="${escapeHtml(c.key)}"><span class="dm-name">${escapeHtml(c.key)}</span><span class="dm-track">${used}건</span><button class="linkrow" data-catdel="${escapeHtml(c.key)}">삭제</button></div></div>`;
+  }).join("") || '<div class="dm-empty">종류가 없습니다.</div>';
+}
+document.getElementById("newCatColorBtn").onclick=()=>document.getElementById("newCatColor").click();
+document.getElementById("newCatColor").addEventListener("input",e=>{ document.getElementById("newCatColorDot").style.background=e.target.value; });
+document.getElementById("catAddNew").onclick=()=>{
+  const name=document.getElementById("newCatName").value.trim(); const color=document.getElementById("newCatColor").value;
+  if(!name){ alert("종류명을 입력하세요."); return; }
+  if((state.artCategories||[]).some(c=>c.key===name)){ alert("이미 있는 종류명입니다."); return; }
+  if(!state.artCategories) state.artCategories=[];
+  state.artCategories.push({key:name,color}); document.getElementById("newCatName").value=""; save(); render(); renderCatMgr();
+};
+document.getElementById("catMgrList").addEventListener("input", e=>{ const c=e.target.closest("[data-catcolor]"); if(c){ const cat=state.artCategories.find(x=>x.key===c.dataset.catcolor); if(cat){ cat.color=c.value; save(); render(); } } });
+document.getElementById("catMgrList").addEventListener("click", e=>{
+  const del=e.target.closest("[data-catdel]"); if(!del) return;
+  const key=del.dataset.catdel;
+  if((state.artCategories||[]).length<=1){ alert("종류가 하나뿐이라 삭제할 수 없습니다."); return; }
+  const used=state.tasks.filter(t=>t.track==="아트"&&t.status===key).length;
+  if(!confirm(`'${key}' 종류를 삭제할까요?${used?` 이 종류의 아트 Task ${used}개는 '${state.artCategories.find(c=>c.key!==key).key}'로 옮겨집니다.`:''}`)) return;
+  state.artCategories=state.artCategories.filter(c=>c.key!==key);
+  const fallback=state.artCategories[0].key;
+  state.tasks.forEach(t=>{ if(t.track==="아트"&&t.status===key) t.status=fallback; });
+  statusFilter.delete(key); save(); render(); renderCatMgr();
+});
 
 /* ===== 공지사항 ===== */
 let noticeEvaluated=false;
@@ -1090,7 +1151,7 @@ function renderDashboard(){
   const sel=document.getElementById("dashMs").value;
   const scope = sel==="all" ? state.tasks : state.tasks.filter(t=>t.milestoneId===sel);
   const total=scope.length;
-  const stCount=ALL_STATUSES.map(s=>({s,n:scope.filter(t=>t.status===s.k).length})).filter(x=>x.n>0);
+  const stCount=allStatusDefs().map(s=>({s,n:scope.filter(t=>t.status===s.k).length})).filter(x=>x.n>0);
   const done=scope.filter(isDone).length;
   const pct=total?Math.round(done/total*100):0;
   const stack=stCount.map(x=>x.n?`<div class="seg" style="flex:${x.n};background:${x.s.color}" title="${x.s.k} ${x.n}"></div>`:"").join("")||`<div class="seg empty"></div>`;
@@ -1100,7 +1161,7 @@ function renderDashboard(){
   if(sel==="all" && state.milestones.length){
     let rows="";
     state.milestones.forEach(m=>{ const ts=state.tasks.filter(t=>t.milestoneId===m.id); const tt=ts.length; const dn=ts.filter(isDone).length; const p=tt?Math.round(dn/tt*100):0;
-      const seg=ALL_STATUSES.map(s=>{const n=ts.filter(t=>t.status===s.k).length;return n?`<div class="seg" style="flex:${n};background:${s.color}"></div>`:"";}).join("")||`<div class="seg empty"></div>`;
+      const seg=allStatusDefs().map(s=>{const n=ts.filter(t=>t.status===s.k).length;return n?`<div class="seg" style="flex:${n};background:${s.color}"></div>`:"";}).join("")||`<div class="seg empty"></div>`;
       rows+=`<div class="dash-row"><div class="dash-row-l"><i style="background:${m.color}"></i>${escapeHtml(m.name)}</div><div class="stack sm" style="flex:1">${seg}</div><div class="dash-row-r">${dn}/${tt} · ${p}%</div></div>`; });
     html+=`<div class="dash-sec"><div class="dash-h">마일스톤별 진행</div>${rows}</div>`;
   }
@@ -1135,7 +1196,7 @@ function addMemberFromBlock(blockEl, key){
   if(!d.owners.includes(name)) d.owners.push(name);
   inp.value=""; save(); render(); renderDeptMgr();
 }
-document.getElementById("footbar").addEventListener("click", e=>{ if(e.target.closest("#deptLegendBtn")||e.target.closest("#deptLegendBtn2")) openDeptMgr(); });
+document.getElementById("footbar").addEventListener("click", e=>{ if(e.target.closest("#catLegendBtn")){ openCatMgr(); return; } if(e.target.closest("#deptLegendBtn")||e.target.closest("#deptLegendBtn2")) openDeptMgr(); });
 document.getElementById("deptMgrList").addEventListener("input", e=>{ const c=e.target.closest("[data-deptcolor]"); if(c){ const d=state.departments.find(x=>x.key===c.dataset.deptcolor); if(d){ d.color=c.value; save(); render(); } } });
 document.getElementById("deptMgrList").addEventListener("keydown", e=>{ const inp=e.target.closest("[data-newmember]"); if(inp && e.key==="Enter"){ e.preventDefault(); addMemberFromBlock(inp.closest(".dm-block"), inp.dataset.newmember); } });
 document.getElementById("deptMgrList").addEventListener("click", e=>{
@@ -1171,7 +1232,7 @@ taskInput.addEventListener("keydown",e=>{ if(e.key==="Enter") addTask(); });
 function addTask(){ const name=taskInput.value.trim(); if(!name) return;
   const trackSel=document.getElementById("taskTrack");
   const trk=(trackSel&&TRACKS.includes(trackSel.value))?trackSel.value:"개발";
-  const tk={ id:uid(), name, milestoneId:taskMs.value||state.milestones[0].id, track:trk, open:true, kickoff:"예정", status:statusesFor(trk)[0].k, links:{plan:"",trello:""}, depts:{} };
+  const _s0=statusesFor(trk)[0]; const tk={ id:uid(), name, milestoneId:taskMs.value||state.milestones[0].id, track:trk, open:true, kickoff:"예정", status:(_s0&&_s0.k)||"대기", done:false, links:{plan:"",trello:""}, depts:{} };
   state.tasks.push(tk); closeModals(); save(); render(); openDeptModal(tk.id); }
 
 function openDeptModal(tid){ editing={tid}; const t=findTask(tid);

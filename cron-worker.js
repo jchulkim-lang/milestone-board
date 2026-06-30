@@ -37,7 +37,7 @@ async function checkDeadlines(env){
 
   (st.milestones||[]).forEach(m=>{
     const tasks = (st.tasks||[]).filter(t=>t.milestoneId===m.id);
-    const isDone = t => t.track==="아트" ? t.status==="최종 조립 및 사운드" : t.status==="완료";
+    const isDone = t => t.track==="아트" ? !!t.done : t.status==="완료";
     const incomplete = tasks.filter(t=>!isDone(t)).length;
     DL.forEach(([k,label])=>{
       if(!m[k]) return;
