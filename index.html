@@ -594,6 +594,7 @@ const TASK_STATUSES = [   // 개발
   { k:"완료", color:"#10b981", done:true },
 ];
 const ART_STATUSES = [    // 아트 (제작 파이프라인)
+  { k:"대기", color:"#64748b" },
   { k:"배경원화", color:"#22d3ee" },
   { k:"캐릭터원화", color:"#f472b6" },
   { k:"배경모델링", color:"#2dd4bf" },
@@ -604,7 +605,7 @@ const ART_STATUSES = [    // 아트 (제작 파이프라인)
   { k:"최종 조립 및 사운드", color:"#10b981", done:true },
 ];
 const statusesFor = track => track==="아트" ? ART_STATUSES : TASK_STATUSES;
-const ALL_STATUSES = TASK_STATUSES.concat(ART_STATUSES);
+const ALL_STATUSES = TASK_STATUSES.concat(ART_STATUSES).filter((s,i,a)=>a.findIndex(x=>x.k===s.k)===i);
 const tsOf = k => ALL_STATUSES.find(x=>x.k===k) || TASK_STATUSES[0];
 const isDone = t => { const s=statusesFor(t.track||"개발").find(x=>x.k===t.status); return !!(s&&s.done); };
 const TRACKS = ["개발","아트"];   // 마일스톤 내부 일감 분류(고정)
