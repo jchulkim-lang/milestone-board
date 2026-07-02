@@ -414,6 +414,7 @@
   .da-subsec{ width:100%; }
   .da-subchips{ display:flex; flex-wrap:wrap; gap:6px; }
   .dm-newsub{ width:128px; background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:6px; padding:5px 8px; font-size:12px; }
+  .cat-rename{ background:var(--panel2); border:1px solid var(--accent); color:var(--text); border-radius:6px; padding:4px 8px; font-size:13px; font-weight:600; min-width:120px; outline:none; box-shadow:0 0 0 3px rgba(99,102,241,.22); }
 
   /* 부서 관리 — 분류 배지 */
   .dm-track{ font-size:10px; font-weight:800; color:var(--muted); background:var(--panel2); border:1px solid var(--line); border-radius:999px; padding:2px 8px; margin-left:8px; white-space:nowrap; }
@@ -1104,14 +1105,29 @@ document.querySelectorAll("[data-close]").forEach(b=>b.onclick=closeModals);
 [taskModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
 
 /* ===== 종류 관리 (아트·전투 등 종류 방식 분류) ===== */
-let catMgrTrack="아트";
-function openCatMgr(){ catMgrTrack = isCatTrack(headTrack()) ? headTrack() : "아트"; const h=catMgrModal.querySelector("h3"); if(h) h.textContent=`${catMgrTrack} 종류 관리`; renderCatMgr(); catMgrModal.classList.add("show"); }
+let catMgrTrack="아트", catEditKey=null;
+function openCatMgr(){ catMgrTrack = isCatTrack(headTrack()) ? headTrack() : "아트"; catEditKey=null; const h=catMgrModal.querySelector("h3"); if(h) h.textContent=`${catMgrTrack} 종류 관리`; renderCatMgr(); catMgrModal.classList.add("show"); }
 function renderCatMgr(){
   const list=catsFor(catMgrTrack);
   document.getElementById("catMgrList").innerHTML = list.map(c=>{
     const used=state.tasks.filter(t=>t.track===catMgrTrack&&t.status===c.key).length;
-    return `<div class="dm-block"><div class="dm-row"><input type="color" value="${c.color}" data-catcolor="${escapeHtml(c.key)}"><span class="dm-name">${escapeHtml(c.key)}</span><span class="dm-track">${used}건</span><button class="linkrow" data-catdel="${escapeHtml(c.key)}">삭제</button></div></div>`;
+    const nameCell = (catEditKey===c.key)
+      ? `<input class="cat-rename" data-catrename="${escapeHtml(c.key)}" value="${escapeHtml(c.key)}">`
+      : `<span class="dm-name">${escapeHtml(c.key)}</span><button class="meta-btn" data-catedit="${escapeHtml(c.key)}" title="이름 변경">✎</button>`;
+    return `<div class="dm-block"><div class="dm-row"><input type="color" value="${c.color}" data-catcolor="${escapeHtml(c.key)}">${nameCell}<span class="dm-track">${used}건</span><button class="linkrow" data-catdel="${escapeHtml(c.key)}">삭제</button></div></div>`;
   }).join("") || '<div class="dm-empty">종류가 없습니다.</div>';
+  if(catEditKey){ const inp=document.querySelector(`[data-catrename="${CSS.escape(catEditKey)}"]`); if(inp){ inp.focus(); inp.select(); } }
+}
+function renameCat(oldKey, newVal){
+  const list=catsFor(catMgrTrack); const cat=list.find(c=>c.key===oldKey); catEditKey=null;
+  const nk=(newVal||"").trim();
+  if(!cat || !nk || nk===oldKey){ renderCatMgr(); return; }
+  if(list.some(c=>c.key===nk)){ alert("이미 있는 종류명입니다."); renderCatMgr(); return; }
+  cat.key=nk;
+  state.tasks.forEach(t=>{ if(t.track===catMgrTrack && t.status===oldKey) t.status=nk; });
+  if(statusFilter.has(oldKey)){ statusFilter.delete(oldKey); statusFilter.add(nk); }
+  if(groupCollapsed.has(oldKey)){ groupCollapsed.delete(oldKey); groupCollapsed.add(nk); }
+  save(); render(); renderCatMgr();
 }
 document.getElementById("newCatColorBtn").onclick=()=>document.getElementById("newCatColor").click();
 document.getElementById("newCatColor").addEventListener("input",e=>{ document.getElementById("newCatColorDot").style.background=e.target.value; });
@@ -1123,7 +1139,10 @@ document.getElementById("catAddNew").onclick=()=>{
   list.push({key:name,color}); document.getElementById("newCatName").value=""; save(); render(); renderCatMgr();
 };
 document.getElementById("catMgrList").addEventListener("input", e=>{ const c=e.target.closest("[data-catcolor]"); if(c){ const cat=catsFor(catMgrTrack).find(x=>x.key===c.dataset.catcolor); if(cat){ cat.color=c.value; save(); render(); } } });
+document.getElementById("catMgrList").addEventListener("change", e=>{ const r=e.target.closest("[data-catrename]"); if(r){ renameCat(r.dataset.catrename, r.value); } });
+document.getElementById("catMgrList").addEventListener("keydown", e=>{ const r=e.target.closest("[data-catrename]"); if(!r) return; if(e.key==="Enter"){ e.preventDefault(); r.blur(); } else if(e.key==="Escape"){ e.preventDefault(); catEditKey=null; renderCatMgr(); } });
 document.getElementById("catMgrList").addEventListener("click", e=>{
+  const ed=e.target.closest("[data-catedit]"); if(ed){ catEditKey=ed.dataset.catedit; renderCatMgr(); return; }
   const del=e.target.closest("[data-catdel]"); if(!del) return;
   const key=del.dataset.catdel; const list=catsFor(catMgrTrack);
   if(list.length<=1){ alert("종류가 하나뿐이라 삭제할 수 없습니다."); return; }
