@@ -349,9 +349,11 @@
   .trdot{ width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:6px; vertical-align:middle; }
   .seg-group .trtab.on[data-track="개발"]{ background:linear-gradient(135deg,#3b82f6,#6366f1); box-shadow:0 2px 9px rgba(59,130,246,.45); }
   .seg-group .trtab.on[data-track="아트"]{ background:linear-gradient(135deg,#ec4899,#a855f7); box-shadow:0 2px 9px rgba(236,72,153,.45); }
+  .seg-group .trtab.on[data-track="전투"]{ background:linear-gradient(135deg,#ef4444,#f97316); box-shadow:0 2px 9px rgba(239,68,68,.45); }
   .seg-group .trtab.on .trdot{ background:#fff !important; }
   .seg-group .trtab:not(.on)[data-track="개발"]{ color:#7ea8f0; }
   .seg-group .trtab:not(.on)[data-track="아트"]{ color:#f08fc2; }
+  .seg-group .trtab:not(.on)[data-track="전투"]{ color:#f0a08f; }
 
   /* 필터 담당자 — 아트 부서 표시 + 부서명 칸 넓힘(잘림 방지) */
   .fa-trk{ font-size:9px; font-weight:800; color:#fff; background:linear-gradient(135deg,#a855f7,#ec4899); border-radius:999px; padding:1px 6px; margin-left:3px; vertical-align:middle; }
@@ -487,7 +489,7 @@
     <div class="modal"><h3>새 Task 추가</h3><div class="msub">업무 단위와 소속 마일스톤을 정합니다.</div>
       <label>Task 이름</label><input id="taskInput" placeholder="예: 로그인 기능" />
       <label>마일스톤</label><select id="taskMs"></select>
-      <label>분류</label><select id="taskTrack"><option value="개발">개발</option><option value="아트">아트</option></select>
+      <label>분류</label><select id="taskTrack"><option value="개발">개발</option><option value="아트">아트</option><option value="전투">전투</option></select>
       <div class="msub" style="margin:6px 0 0">다음 단계에서 부서를 지정하고, 부서별로 담당자를 배정합니다.</div>
       <div class="modal-actions"><span></span><div class="right"><button class="btn ghost" data-close>취소</button><button class="btn" id="taskAddOk">다음: 부서 지정</button></div></div></div>
   </div>
@@ -629,19 +631,27 @@ const TASK_STATUSES = [
   { k:"검토·이슈", color:"#f59e0b" },
   { k:"완료", color:"#10b981", done:true },
 ];
-/* 아트 분류: 상태 대신 '종류'로 묶음(사용자 편집 가능), 완료는 t.done 플래그 */
+/* 종류 방식 분류(아트·전투): 상태 대신 '종류'로 묶음(사용자 편집 가능), 완료는 t.done 플래그 */
 const DEFAULT_ART_CATEGORIES = [
   { key:"PC", color:"#6366f1" }, { key:"프리미엄코스튬", color:"#ec4899" },
   { key:"몬스터", color:"#f59e0b" }, { key:"보스", color:"#ef4444" },
   { key:"NPC", color:"#22d3ee" }, { key:"배경", color:"#10b981" },
 ];
-// 좌측 그룹/스테퍼/드롭다운의 묶음 기준: 개발=상태, 아트=종류
-const statusesFor = track => track==="아트" ? (state.artCategories||[]).map(c=>({k:c.key,color:c.color})) : TASK_STATUSES;
-function allStatusDefs(){ return TASK_STATUSES.concat((state.artCategories||[]).map(c=>({k:c.key,color:c.color}))).filter((s,i,a)=>a.findIndex(x=>x.k===s.k)===i); }
+const DEFAULT_COMBAT_CATEGORIES = [
+  { key:"전투시스템", color:"#ef4444" }, { key:"스킬", color:"#f97316" },
+  { key:"몬스터AI", color:"#a855f7" }, { key:"밸런스", color:"#22d3ee" },
+];
+const CATEGORY_TRACKS = ["아트","전투"];               // 종류 방식으로 묶는 분류
+const isCatTrack = tr => CATEGORY_TRACKS.includes(tr);
+function catsFor(track){ return track==="아트" ? (state.artCategories||[]) : track==="전투" ? (state.combatCategories||[]) : []; }
+function setCats(track, arr){ if(track==="아트") state.artCategories=arr; else if(track==="전투") state.combatCategories=arr; }
+// 좌측 그룹/스테퍼/드롭다운의 묶음 기준: 개발=상태, 아트·전투=종류
+const statusesFor = track => isCatTrack(track) ? catsFor(track).map(c=>({k:c.key,color:c.color})) : TASK_STATUSES;
+function allStatusDefs(){ return TASK_STATUSES.concat(catsFor("아트").map(c=>({k:c.key,color:c.color}))).concat(catsFor("전투").map(c=>({k:c.key,color:c.color}))).filter((s,i,a)=>a.findIndex(x=>x.k===s.k)===i); }
 const tsOf = k => allStatusDefs().find(x=>x.k===k) || TASK_STATUSES[0];
-const isDone = t => (t.track==="아트") ? !!t.done : t.status==="완료";
-const TRACKS = ["개발","아트"];   // 마일스톤 내부 일감 분류(고정)
-const TRACK_COLORS = { "개발":"#3b82f6", "아트":"#ec4899" };   // 분류 구분 색
+const isDone = t => isCatTrack(t.track) ? !!t.done : t.status==="완료";
+const TRACKS = ["개발","아트","전투"];   // 분류 탭
+const TRACK_COLORS = { "개발":"#3b82f6", "아트":"#ec4899", "전투":"#ef4444" };   // 분류 구분 색
 const MARKERS = [
   { k:"start", label:"시작", color:"#22c55e" },
   { k:"end", label:"종료", color:"#ef4444" },
@@ -707,13 +717,16 @@ function migrate(){
   if(!Array.isArray(state.notifyEmails)) state.notifyEmails = [];
   if(!state.notice || typeof state.notice!=="object") state.notice = { text:"", updatedAt:"" };
   if(!state.departments || !state.departments.length) state.departments = DEFAULT_DEPARTMENTS.concat(ART_DEPARTMENTS).map(d=>({...d}));
-  state.departments.forEach(d=>{ if(!Array.isArray(d.owners)) d.owners=[]; if(!Array.isArray(d.tracks)||!d.tracks.length) d.tracks = (d.key==="기획")?["개발","아트"]:["개발"]; if(!Array.isArray(d.subgroups)) d.subgroups=[]; if(!d.memberGroup||typeof d.memberGroup!=="object") d.memberGroup={}; });
+  state.departments.forEach(d=>{ if(!Array.isArray(d.owners)) d.owners=[]; if(!Array.isArray(d.tracks)||!d.tracks.length) d.tracks = (d.key==="기획")?["개발","아트","전투"]:["개발"]; if(!Array.isArray(d.subgroups)) d.subgroups=[]; if(!d.memberGroup||typeof d.memberGroup!=="object") d.memberGroup={}; });
+  { const plan=state.departments.find(d=>d.key==="기획"); if(plan && !plan.tracks.includes("전투")) plan.tracks.push("전투"); }
   // 아트 전용 부서 1회 시드(기존 데이터에 추가)
   if(!state.artSeeded){ ART_DEPARTMENTS.forEach(ad=>{ if(!state.departments.some(d=>d.key===ad.key)) state.departments.push({...ad, owners:[]}); }); state.artSeeded=true; }
   DEPARTMENTS = state.departments;
   // 아트 종류(분류) 시드
   if(!Array.isArray(state.artCategories) || !state.artCategories.length) state.artCategories = DEFAULT_ART_CATEGORIES.map(c=>({...c}));
   state.artCategories.forEach(c=>{ if(!c.color) c.color="#888"; });
+  if(!Array.isArray(state.combatCategories) || !state.combatCategories.length) state.combatCategories = DEFAULT_COMBAT_CATEGORIES.map(c=>({...c}));
+  state.combatCategories.forEach(c=>{ if(!c.color) c.color="#888"; });
   if(!state.milestones) state.milestones=[];
   if(state.activeId!==undefined && state.milestones.length && state.milestones[0].tasks){
     // v5(마일스톤별 tasks) → 전역 tasks 변환
@@ -815,14 +828,14 @@ function renderPipeline(){
   const sts=statusesFor(headTrack());
   const scope=state.tasks.filter(t=> (msFilter.size===0||msFilter.has(t.milestoneId)) && (t.track||"개발")===headTrack());
   box.innerHTML=sts.map((s,i)=>{ const n=scope.filter(t=>t.status===s.k).length; const on=statusFilter.has(s.k);
-    return `<div class="pstep ${on?'on':''}" data-pstep="${escapeHtml(s.k)}"><span class="pd" style="background:${s.color}"></span><span class="pnm">${escapeHtml(s.k)}</span><span class="pcnt">${n}</span></div>`+((headTrack()==="개발"&&i<sts.length-1)?`<span class="parrow">›</span>`:'');
+    return `<div class="pstep ${on?'on':''}" data-pstep="${escapeHtml(s.k)}"><span class="pd" style="background:${s.color}"></span><span class="pnm">${escapeHtml(s.k)}</span><span class="pcnt">${n}</span></div>`+((!isCatTrack(headTrack())&&i<sts.length-1)?`<span class="parrow">›</span>`:'');
   }).join("");
 }
 
 function renderLegend(){
   const dep=depsFor(headTrack()).map(d=>`<span class="di"><i style="background:${d.color}"></i>${escapeHtml(d.key)}</span>`).join("");
   const ts=statusesFor(headTrack()).map(s=>`<span class="di" style="color:${s.color}">● ${s.k}</span>`).join("");
-  const art=headTrack()==="아트";
+  const art=isCatTrack(headTrack());
   const stLabel = art ? `<button class="lbl legend-edit" id="catLegendBtn" title="아트 종류 추가·편집">종류 ✎</button>` : `<span class="lbl">상태</span>`;
   document.getElementById("footbar").innerHTML=
     `<button class="lbl legend-edit" id="deptLegendBtn" title="클릭하여 부서 색상 편집·추가">부서 ✎</button><div class="grp clickable" id="deptLegendBtn2">${dep}</div>`+
@@ -906,7 +919,7 @@ function deptGridHtml(t){
 function taskHeadHtml(t){
   const ms=findMs(t.milestoneId);
   const kf=kfOf(t.kickoff);
-  const isArt=(t.track==="아트");
+  const isArt=isCatTrack(t.track);
   const stOpts=statusesFor(t.track||"개발").map(s=>`<option ${s.k===t.status?'selected':''}>${escapeHtml(s.k)}</option>`).join("");
   const doneChip=isArt?`<span class="done-chip ${t.done?'on':''}" data-done="${t.id}" title="완료 토글">${t.done?'✓':'○'}</span>`:'';
   const links=(t.links.plan?`<a class="lk" href="${escapeHtml(t.links.plan)}" target="_blank" rel="noopener" title="기획서">📄</a>`:"")+(t.links.trello?`<a class="lk" href="${escapeHtml(t.links.trello)}" target="_blank" rel="noopener" title="Trello">📋</a>`:"");
@@ -950,7 +963,7 @@ function renderLeft(){
         const trelloBtn=t.links.trello?`<a class="meta-btn set" href="${escapeHtml(t.links.trello)}" target="_blank" rel="noopener" title="Trello 열기">📋 Trello</a>`:`<button class="meta-btn dim" data-openedit="${t.id}" title="Trello 링크 추가">📋 Trello +</button>`;
         const trOpts=TRACKS.map(tr=>`<option value="${tr}" ${tr===t.track?'selected':''}>${tr}</option>`).join("");
         const meta=`<div class="meta-rows"><div class="meta-row"><button class="meta-btn" data-openpicker="${t.id}">＋ 부서</button><button class="meta-btn" data-openedit="${t.id}">✏️ 편집</button><button class="meta-btn" data-dup="${t.id}" title="이 Task 복제">⧉ 복제</button>${planBtn}${trelloBtn}<select class="meta-sel" data-settrack="${t.id}" title="분류">${trOpts}</select><select class="meta-sel" data-setms="${t.id}" title="마일스톤">${msOpts}</select></div></div>`;
-        html+=`<div class="task ${t.open?'open':''} ${t.kickoff==='Skip'?'skip':''} ${t.track==='아트'&&t.done?'tdone':''} ${t.id===selectedId?'selected':''}" data-task="${t.id}" draggable="true">${taskHeadHtml(t)}${inner}${meta}</div>`;
+        html+=`<div class="task ${t.open?'open':''} ${t.kickoff==='Skip'?'skip':''} ${isCatTrack(t.track)&&t.done?'tdone':''} ${t.id===selectedId?'selected':''}" data-task="${t.id}" draggable="true">${taskHeadHtml(t)}${inner}${meta}</div>`;
       });
     }
   });
@@ -1090,11 +1103,13 @@ function closeModals(){ [taskModal,deptModal,linkModal,schedModal,msModal,deptMg
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=closeModals);
 [taskModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
 
-/* ===== 아트 종류 관리 ===== */
-function openCatMgr(){ renderCatMgr(); catMgrModal.classList.add("show"); }
+/* ===== 종류 관리 (아트·전투 등 종류 방식 분류) ===== */
+let catMgrTrack="아트";
+function openCatMgr(){ catMgrTrack = isCatTrack(headTrack()) ? headTrack() : "아트"; const h=catMgrModal.querySelector("h3"); if(h) h.textContent=`${catMgrTrack} 종류 관리`; renderCatMgr(); catMgrModal.classList.add("show"); }
 function renderCatMgr(){
-  document.getElementById("catMgrList").innerHTML = (state.artCategories||[]).map(c=>{
-    const used=state.tasks.filter(t=>t.track==="아트"&&t.status===c.key).length;
+  const list=catsFor(catMgrTrack);
+  document.getElementById("catMgrList").innerHTML = list.map(c=>{
+    const used=state.tasks.filter(t=>t.track===catMgrTrack&&t.status===c.key).length;
     return `<div class="dm-block"><div class="dm-row"><input type="color" value="${c.color}" data-catcolor="${escapeHtml(c.key)}"><span class="dm-name">${escapeHtml(c.key)}</span><span class="dm-track">${used}건</span><button class="linkrow" data-catdel="${escapeHtml(c.key)}">삭제</button></div></div>`;
   }).join("") || '<div class="dm-empty">종류가 없습니다.</div>';
 }
@@ -1103,20 +1118,21 @@ document.getElementById("newCatColor").addEventListener("input",e=>{ document.ge
 document.getElementById("catAddNew").onclick=()=>{
   const name=document.getElementById("newCatName").value.trim(); const color=document.getElementById("newCatColor").value;
   if(!name){ alert("종류명을 입력하세요."); return; }
-  if((state.artCategories||[]).some(c=>c.key===name)){ alert("이미 있는 종류명입니다."); return; }
-  if(!state.artCategories) state.artCategories=[];
-  state.artCategories.push({key:name,color}); document.getElementById("newCatName").value=""; save(); render(); renderCatMgr();
+  const list=catsFor(catMgrTrack);
+  if(list.some(c=>c.key===name)){ alert("이미 있는 종류명입니다."); return; }
+  list.push({key:name,color}); document.getElementById("newCatName").value=""; save(); render(); renderCatMgr();
 };
-document.getElementById("catMgrList").addEventListener("input", e=>{ const c=e.target.closest("[data-catcolor]"); if(c){ const cat=state.artCategories.find(x=>x.key===c.dataset.catcolor); if(cat){ cat.color=c.value; save(); render(); } } });
+document.getElementById("catMgrList").addEventListener("input", e=>{ const c=e.target.closest("[data-catcolor]"); if(c){ const cat=catsFor(catMgrTrack).find(x=>x.key===c.dataset.catcolor); if(cat){ cat.color=c.value; save(); render(); } } });
 document.getElementById("catMgrList").addEventListener("click", e=>{
   const del=e.target.closest("[data-catdel]"); if(!del) return;
-  const key=del.dataset.catdel;
-  if((state.artCategories||[]).length<=1){ alert("종류가 하나뿐이라 삭제할 수 없습니다."); return; }
-  const used=state.tasks.filter(t=>t.track==="아트"&&t.status===key).length;
-  if(!confirm(`'${key}' 종류를 삭제할까요?${used?` 이 종류의 아트 Task ${used}개는 '${state.artCategories.find(c=>c.key!==key).key}'로 옮겨집니다.`:''}`)) return;
-  state.artCategories=state.artCategories.filter(c=>c.key!==key);
-  const fallback=state.artCategories[0].key;
-  state.tasks.forEach(t=>{ if(t.track==="아트"&&t.status===key) t.status=fallback; });
+  const key=del.dataset.catdel; const list=catsFor(catMgrTrack);
+  if(list.length<=1){ alert("종류가 하나뿐이라 삭제할 수 없습니다."); return; }
+  const used=state.tasks.filter(t=>t.track===catMgrTrack&&t.status===key).length;
+  const remain=list.filter(c=>c.key!==key);
+  if(!confirm(`'${key}' 종류를 삭제할까요?${used?` 이 종류의 ${catMgrTrack} Task ${used}개는 '${remain[0].key}'로 옮겨집니다.`:''}`)) return;
+  setCats(catMgrTrack, remain);
+  const fallback=remain[0].key;
+  state.tasks.forEach(t=>{ if(t.track===catMgrTrack&&t.status===key) t.status=fallback; });
   statusFilter.delete(key); save(); render(); renderCatMgr();
 });
 

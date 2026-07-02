@@ -70,7 +70,7 @@ async function notifyStatusChanges(env, oldStr, newStr, who, origin){
   (n.tasks||[]).forEach(t=>{
     // 개발: WATCH 상태로 바뀔 때. 아트: 완료(done) 체크 시.
     let label=null, dot="•";
-    if(t.track==="아트"){
+    if(t.track==="아트"||t.track==="전투"){
       if(oldExists[t.id] && !oldDone[t.id] && t.done){ label=`${t.status} · 완료`; dot="🟢"; }
     } else {
       const prev=oldStatus[t.id];
