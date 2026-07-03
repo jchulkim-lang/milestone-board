@@ -753,10 +753,19 @@ function migrate(){
  *  아트 Task마다 전투에 짝 미러를 생성. 아트를 수정하면 미러에 이름·마일스톤·링크·킥오프·완료·기획일정을 전부 덮어씀.
  *  종류(전투 종류)만 전투 소유(아트엔 대응값이 없어서). 아트 삭제 시 미러도 삭제. 전투에서 만든 Task는 미러 아님. */
 let mirrorSnap = {};
-function artSig(t){ return JSON.stringify({ n:t.name, m:t.milestoneId, l:t.links||{}, k:t.kickoff, d:!!t.done, g:(t.depts&&t.depts["기획"])||null }); }
+function artSig(t){ return JSON.stringify({ n:t.name, m:t.milestoneId, l:t.links||{}, k:t.kickoff, d:!!t.done, s:t.status, g:(t.depts&&t.depts["기획"])||null }); }
+// 아트 종류를 전투 종류 목록에도 보장(없으면 아트 색으로 추가) — 미러가 같은 종류로 묶이게
+function ensureCombatCat(key){
+  if(!key) return;
+  if(!Array.isArray(state.combatCategories)) state.combatCategories=[];
+  if(!state.combatCategories.some(c=>c.key===key)){
+    const ac=(state.artCategories||[]).find(c=>c.key===key);
+    state.combatCategories.push({ key, color:(ac&&ac.color)||"#a855f7" });
+  }
+}
 function ensureMirror(art){
   let mir=state.tasks.find(t=>t.mirrorOf===art.id);
-  if(!mir){ mir={ id:uid(), mirrorOf:art.id, track:"전투", open:false, status:((statusesFor("전투")[0]||{}).k)||"", kickoff:"예정", done:false, links:{plan:"",trello:""}, depts:{} }; state.tasks.push(mir); }
+  if(!mir){ mir={ id:uid(), mirrorOf:art.id, track:"전투", open:false, status:art.status, kickoff:"예정", done:false, links:{plan:"",trello:""}, depts:{} }; ensureCombatCat(art.status); state.tasks.push(mir); }
   return mir;
 }
 function syncMirror(art){
@@ -765,14 +774,15 @@ function syncMirror(art){
   mir.links={ plan:(art.links&&art.links.plan)||"", trello:(art.links&&art.links.trello)||"" };
   mir.kickoff=art.kickoff; mir.done=!!art.done;
   mir.depts = (art.depts && art.depts["기획"]) ? { "기획": JSON.parse(JSON.stringify(art.depts["기획"])) } : {};
-  if(!statusesFor("전투").some(s=>s.k===mir.status)) mir.status=((statusesFor("전투")[0]||{}).k)||"";
+  mir.status = art.status;            // 종류도 미러링(아트 종류 그대로)
+  ensureCombatCat(art.status);
 }
 function reconcileMirrors(mode){
   const arts=state.tasks.filter(t=>t.track==="아트");
   const artIds=new Set(arts.map(a=>a.id));
   state.tasks = state.tasks.filter(t=> !t.mirrorOf || artIds.has(t.mirrorOf));   // 원본 사라진 미러 제거
   if(mode==="init"){
-    arts.forEach(a=>{ const had=state.tasks.some(t=>t.mirrorOf===a.id); ensureMirror(a); if(!had) syncMirror(a); mirrorSnap[a.id]=artSig(a); });
+    arts.forEach(a=>{ const had=state.tasks.some(t=>t.mirrorOf===a.id); const mir=ensureMirror(a); if(!had){ syncMirror(a); } else { mir.status=a.status; ensureCombatCat(a.status); }  mirrorSnap[a.id]=artSig(a); });   // 종류는 항상 아트 기준으로 교정
   } else {
     arts.forEach(a=>{ const sig=artSig(a); if(mirrorSnap[a.id]!==sig){ syncMirror(a); mirrorSnap[a.id]=sig; } else { ensureMirror(a); } });
   }
