@@ -403,6 +403,10 @@
 
   /* 아트 미러 배지 */
   .mirror-badge{ font-size:9.5px; font-weight:800; color:#fff; background:linear-gradient(135deg,#ec4899,#a855f7); border-radius:999px; padding:1px 7px; margin-left:6px; white-space:nowrap; flex:0 0 auto; }
+  .art-tag{ font-size:9px; font-weight:800; color:#fff; background:linear-gradient(135deg,#ec4899,#a855f7); border-radius:999px; padding:1px 6px; margin-left:5px; white-space:nowrap; flex:0 0 auto; }
+  .cat-ord{ display:inline-flex; gap:2px; margin-left:6px; }
+  .meta-btn.ord{ padding:2px 7px; font-size:10px; line-height:1; }
+  .meta-btn.ord[disabled]{ opacity:.35; cursor:default; }
 
   /* collapsed 막대도 드래그 이동 */
   .bar.mbar{ cursor:grab; }
@@ -654,6 +658,8 @@ const statusesFor = track => isCatTrack(track) ? catsFor(track).map(c=>({k:c.key
 function allStatusDefs(){ return TASK_STATUSES.concat(catsFor("아트").map(c=>({k:c.key,color:c.color}))).concat(catsFor("전투").map(c=>({k:c.key,color:c.color}))).filter((s,i,a)=>a.findIndex(x=>x.k===s.k)===i); }
 const tsOf = k => allStatusDefs().find(x=>x.k===k) || TASK_STATUSES[0];
 const isDone = t => isCatTrack(t.track) ? !!t.done : t.status==="완료";
+// 전투 종류 중 아트에서 미러된(아트 종류와 같은 이름) 것인지
+const catIsArtMirror = key => (state.artCategories||[]).some(c=>c.key===key);
 const TRACKS = ["개발","아트","전투"];   // 분류 탭
 const TRACK_COLORS = { "개발":"#3b82f6", "아트":"#ec4899", "전투":"#ef4444" };   // 분류 구분 색
 const MARKERS = [
@@ -873,7 +879,8 @@ function renderPipeline(){
   const sts=statusesFor(headTrack());
   const scope=state.tasks.filter(t=> (msFilter.size===0||msFilter.has(t.milestoneId)) && (t.track||"개발")===headTrack());
   box.innerHTML=sts.map((s,i)=>{ const n=scope.filter(t=>t.status===s.k).length; const on=statusFilter.has(s.k);
-    return `<div class="pstep ${on?'on':''}" data-pstep="${escapeHtml(s.k)}"><span class="pd" style="background:${s.color}"></span><span class="pnm">${escapeHtml(s.k)}</span><span class="pcnt">${n}</span></div>`+((!isCatTrack(headTrack())&&i<sts.length-1)?`<span class="parrow">›</span>`:'');
+    const at = (headTrack()==="전투" && catIsArtMirror(s.k)) ? '<span class="art-tag">아트</span>' : '';
+    return `<div class="pstep ${on?'on':''}" data-pstep="${escapeHtml(s.k)}"><span class="pd" style="background:${s.color}"></span><span class="pnm">${escapeHtml(s.k)}</span>${at}<span class="pcnt">${n}</span></div>`+((!isCatTrack(headTrack())&&i<sts.length-1)?`<span class="parrow">›</span>`:'');
   }).join("");
 }
 
@@ -992,7 +999,7 @@ function renderLeft(){
     const col=groupCollapsed.has(s.k);
     html+=`<div class="group-head ${col?'collapsed':''}" data-group="${s.k}" data-droptarget="${s.k}">
       <span class="group-caret">▼</span><span class="group-dot" style="background:${s.color}"></span>
-      <span class="group-name">${s.k}</span><span class="group-count">${tasks.length}</span></div>`;
+      <span class="group-name">${s.k}</span>${(headTrack()==="전투"&&catIsArtMirror(s.k))?'<span class="art-tag">아트</span>':''}<span class="group-count">${tasks.length}</span></div>`;
     if(!col){
       tasks.forEach(t=>{
         let inner="";
@@ -1157,12 +1164,14 @@ let catMgrTrack="아트", catEditKey=null;
 function openCatMgr(){ catMgrTrack = isCatTrack(headTrack()) ? headTrack() : "아트"; catEditKey=null; const h=catMgrModal.querySelector("h3"); if(h) h.textContent=`${catMgrTrack} 종류 관리`; renderCatMgr(); catMgrModal.classList.add("show"); }
 function renderCatMgr(){
   const list=catsFor(catMgrTrack);
-  document.getElementById("catMgrList").innerHTML = list.map(c=>{
+  document.getElementById("catMgrList").innerHTML = list.map((c,i)=>{
     const used=state.tasks.filter(t=>t.track===catMgrTrack&&t.status===c.key).length;
     const nameCell = (catEditKey===c.key)
       ? `<input class="cat-rename" data-catrename="${escapeHtml(c.key)}" value="${escapeHtml(c.key)}">`
       : `<span class="dm-name">${escapeHtml(c.key)}</span><button class="meta-btn" data-catedit="${escapeHtml(c.key)}" title="이름 변경">✎</button>`;
-    return `<div class="dm-block"><div class="dm-row"><input type="color" value="${c.color}" data-catcolor="${escapeHtml(c.key)}">${nameCell}<span class="dm-track">${used}건</span><button class="linkrow" data-catdel="${escapeHtml(c.key)}">삭제</button></div></div>`;
+    const artTag = (catMgrTrack==="전투" && catIsArtMirror(c.key)) ? '<span class="art-tag">아트</span>' : '';
+    const ord = `<span class="cat-ord"><button class="meta-btn ord" data-catup="${i}" title="위로" ${i===0?'disabled':''}>▲</button><button class="meta-btn ord" data-catdown="${i}" title="아래로" ${i===list.length-1?'disabled':''}>▼</button></span>`;
+    return `<div class="dm-block"><div class="dm-row"><input type="color" value="${c.color}" data-catcolor="${escapeHtml(c.key)}">${nameCell}${artTag}${ord}<span class="dm-track">${used}건</span><button class="linkrow" data-catdel="${escapeHtml(c.key)}">삭제</button></div></div>`;
   }).join("") || '<div class="dm-empty">종류가 없습니다.</div>';
   if(catEditKey){ const inp=document.querySelector(`[data-catrename="${CSS.escape(catEditKey)}"]`); if(inp){ inp.focus(); inp.select(); } }
 }
@@ -1191,6 +1200,8 @@ document.getElementById("catMgrList").addEventListener("change", e=>{ const r=e.
 document.getElementById("catMgrList").addEventListener("keydown", e=>{ const r=e.target.closest("[data-catrename]"); if(!r) return; if(e.key==="Enter"){ e.preventDefault(); r.blur(); } else if(e.key==="Escape"){ e.preventDefault(); catEditKey=null; renderCatMgr(); } });
 document.getElementById("catMgrList").addEventListener("click", e=>{
   const ed=e.target.closest("[data-catedit]"); if(ed){ catEditKey=ed.dataset.catedit; renderCatMgr(); return; }
+  const up=e.target.closest("[data-catup]"); if(up){ const i=+up.dataset.catup; const L=catsFor(catMgrTrack); if(i>0){ [L[i-1],L[i]]=[L[i],L[i-1]]; save(); render(); renderCatMgr(); } return; }
+  const dn=e.target.closest("[data-catdown]"); if(dn){ const i=+dn.dataset.catdown; const L=catsFor(catMgrTrack); if(i<L.length-1){ [L[i+1],L[i]]=[L[i],L[i+1]]; save(); render(); renderCatMgr(); } return; }
   const del=e.target.closest("[data-catdel]"); if(!del) return;
   const key=del.dataset.catdel; const list=catsFor(catMgrTrack);
   if(list.length<=1){ alert("종류가 하나뿐이라 삭제할 수 없습니다."); return; }
@@ -1300,8 +1311,20 @@ function renderDashboard(){
 }
 
 /* ===== 부서 관리 ===== */
+let deptEditKey=null;
 function allPeople(){ const s=new Set(); state.departments.forEach(d=>(d.owners||[]).forEach(n=>s.add(n))); return [...s]; }
-function openDeptMgr(){ renderDeptMgr(); deptMgrModal.classList.add("show"); }
+function openDeptMgr(){ deptEditKey=null; renderDeptMgr(); deptMgrModal.classList.add("show"); }
+function renameDept(oldKey, newVal){
+  const d=state.departments.find(x=>x.key===oldKey); deptEditKey=null;
+  const nk=(newVal||"").trim();
+  if(!d || !nk || nk===oldKey){ renderDeptMgr(); return; }
+  if(oldKey==="기획"){ alert("기획 부서는 이름을 바꿀 수 없습니다 (미러링·소속 기능과 연결됨)."); renderDeptMgr(); return; }
+  if(state.departments.some(x=>x.key===nk)){ alert("이미 있는 부서명입니다."); renderDeptMgr(); return; }
+  d.key=nk;
+  state.tasks.forEach(t=>{ if(t.depts && t.depts[oldKey]){ t.depts[nk]=t.depts[oldKey]; delete t.depts[oldKey]; } });
+  if(deptFilter.has(oldKey)){ deptFilter.delete(oldKey); deptFilter.add(nk); }
+  save(); render(); renderDeptMgr();
+}
 function renderDeptMgr(){
   const order={"개발":0,"개발·아트":1,"아트":2};
   const sorted=[...state.departments].sort((a,b)=>(order[depTracks(a).join("·")]??1)-(order[depTracks(b).join("·")]??1));
@@ -1309,7 +1332,10 @@ function renderDeptMgr(){
   const addRow=(key,sub,ph)=>`<span class="dm-addwrap"><input class="dm-newmember" data-newmember="${escapeHtml(key)}" data-tosub="${escapeHtml(sub)}" placeholder="${ph}"><button class="meta-btn" data-addmember="${escapeHtml(key)}" data-tosub="${escapeHtml(sub)}">＋</button></span>`;
   document.getElementById("deptMgrList").innerHTML = sorted.map(d=>{
     const tb=depTracks(d).join("·");
-    const head=`<div class="dm-row"><input type="color" value="${d.color}" data-deptcolor="${escapeHtml(d.key)}"><span class="dm-name">${escapeHtml(d.key)}</span><span class="dm-track">${tb}</span><button class="linkrow" data-deptdel="${escapeHtml(d.key)}">부서 삭제</button></div>`;
+    const nameCell = (deptEditKey===d.key)
+      ? `<input class="cat-rename" data-deptrename="${escapeHtml(d.key)}" value="${escapeHtml(d.key)}">`
+      : `<span class="dm-name">${escapeHtml(d.key)}</span>${d.key==="기획"?'':`<button class="meta-btn" data-deptedit="${escapeHtml(d.key)}" title="이름 변경">✎</button>`}`;
+    const head=`<div class="dm-row"><input type="color" value="${d.color}" data-deptcolor="${escapeHtml(d.key)}">${nameCell}<span class="dm-track">${tb}</span><button class="linkrow" data-deptdel="${escapeHtml(d.key)}">부서 삭제</button></div>`;
     if(d.key==="기획"){   // 소속별로 묶어서 표시
       const subs=d.subgroups||[], mg=d.memberGroup||{};
       const subRow=`<div class="dm-members dm-sub"><span class="dm-mlabel">소속</span>${subs.map(g=>`<span class="mchip sub">${escapeHtml(g)}<b data-rmsub="${escapeHtml(d.key)}|${escapeHtml(g)}" title="소속 삭제">×</b></span>`).join("")||'<span class="dm-empty">없음</span>'}<span class="dm-addwrap"><input class="dm-newsub" data-newsub="${escapeHtml(d.key)}" placeholder="소속 추가 (예: 시스템)"><button class="meta-btn" data-addsub="${escapeHtml(d.key)}">＋ 소속</button></span></div>`;
@@ -1333,11 +1359,14 @@ function doAddMember(key, sub, inp){
 document.getElementById("footbar").addEventListener("click", e=>{ if(e.target.closest("#catLegendBtn")){ openCatMgr(); return; } if(e.target.closest("#deptLegendBtn")||e.target.closest("#deptLegendBtn2")) openDeptMgr(); });
 document.getElementById("deptMgrList").addEventListener("input", e=>{ const c=e.target.closest("[data-deptcolor]"); if(c){ const d=state.departments.find(x=>x.key===c.dataset.deptcolor); if(d){ d.color=c.value; save(); render(); } } });
 function addSubFromBlock(key){ const inp=document.querySelector(`[data-newsub="${CSS.escape(key)}"]`); if(!inp) return; const g=(inp.value||"").trim(); if(!g) return; const d=state.departments.find(x=>x.key===key); if(!d) return; if(!Array.isArray(d.subgroups))d.subgroups=[]; if(!d.subgroups.includes(g)) d.subgroups.push(g); inp.value=""; save(); renderDeptMgr(); render(); }
+document.getElementById("deptMgrList").addEventListener("change", e=>{ const r=e.target.closest("[data-deptrename]"); if(r){ renameDept(r.dataset.deptrename, r.value); } });
 document.getElementById("deptMgrList").addEventListener("keydown", e=>{
+  const rn=e.target.closest("[data-deptrename]"); if(rn){ if(e.key==="Enter"){ e.preventDefault(); rn.blur(); } else if(e.key==="Escape"){ e.preventDefault(); deptEditKey=null; renderDeptMgr(); } return; }
   const inp=e.target.closest("[data-newmember]"); if(inp && e.key==="Enter"){ e.preventDefault(); doAddMember(inp.dataset.newmember, inp.dataset.tosub||"", inp); return; }
   const si=e.target.closest("[data-newsub]"); if(si && e.key==="Enter"){ e.preventDefault(); addSubFromBlock(si.dataset.newsub); }
 });
 document.getElementById("deptMgrList").addEventListener("click", e=>{
+  const dedit=e.target.closest("[data-deptedit]"); if(dedit){ deptEditKey=dedit.dataset.deptedit; renderDeptMgr(); return; }
   const add=e.target.closest("[data-addmember]"); if(add){ const inp=add.closest(".dm-members").querySelector(".dm-newmember"); doAddMember(add.dataset.addmember, add.dataset.tosub||"", inp); return; }
   const asub=e.target.closest("[data-addsub]"); if(asub){ addSubFromBlock(asub.dataset.addsub); return; }
   const rsub=e.target.closest("[data-rmsub]"); if(rsub){ const [k,g]=rsub.dataset.rmsub.split("|"); const d=state.departments.find(x=>x.key===k); if(d){ d.subgroups=(d.subgroups||[]).filter(x=>x!==g); Object.keys(d.memberGroup||{}).forEach(n=>{ if(d.memberGroup[n]===g) delete d.memberGroup[n]; }); save(); render(); renderDeptMgr(); } return; }
