@@ -401,6 +401,9 @@
   .foot-legend{ display:flex; align-items:center; gap:14px; flex:1; min-width:0; overflow:hidden; }
   .foot-tools{ display:flex; align-items:center; gap:8px; flex:0 0 auto; margin-left:14px; }
 
+  /* 아트 미러 배지 */
+  .mirror-badge{ font-size:9.5px; font-weight:800; color:#fff; background:linear-gradient(135deg,#ec4899,#a855f7); border-radius:999px; padding:1px 7px; margin-left:6px; white-space:nowrap; flex:0 0 auto; }
+
   /* collapsed 막대도 드래그 이동 */
   .bar.mbar{ cursor:grab; }
   .bar.mbar:active{ cursor:grabbing; }
@@ -706,7 +709,7 @@ function findTask(id){ return state.tasks.find(t=>t.id===id); }
 function duplicateTask(id){
   const t=findTask(id); if(!t) return;
   const copy=JSON.parse(JSON.stringify(t));   // 부서·일정·담당자·링크까지 깊은 복사
-  copy.id=uid(); copy.name=(t.name||"Task")+" (복사)"; copy.open=true;
+  copy.id=uid(); copy.name=(t.name||"Task")+" (복사)"; copy.open=true; delete copy.mirrorOf;   // 사본은 독립(미러 아님)
   const idx=state.tasks.findIndex(x=>x.id===id);
   state.tasks.splice(idx<0?state.tasks.length:idx+1, 0, copy);
   selectedId=copy.id; save(); render(); scrollToTask(copy);
@@ -741,10 +744,41 @@ function migrate(){
   state.tasks.forEach(t=>{ if(!t.kickoff) t.kickoff = t.status && KICKOFFS.some(k=>k.k===t.status) ? t.status : "예정";
     if(!TRACKS.includes(t.track)) t.track="개발";
     const _ss=statusesFor(t.track); if(!t.status || !_ss.some(s=>s.k===t.status)) t.status=(_ss[0]&&_ss[0].k)||"대기";
-    if(typeof t.done!=="boolean") t.done = (t.track!=="아트" && t.status==="완료");
+    if(typeof t.done!=="boolean") t.done = (!isCatTrack(t.track) && t.status==="완료");
     if(!t.links) t.links={plan:"",trello:""}; if(t.depts) Object.values(t.depts).forEach(s=>{ if(s && !Array.isArray(s.assignees)) s.assignees=[]; }); if(!t.milestoneId || !findMs(t.milestoneId)) t.milestoneId=firstMs; if(t.open===undefined)t.open=false; });
+  reconcileMirrors("init");
 }
-function save(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); if(remote.active) remote.push(state); }
+
+/* ===== 아트 → 전투 미러링 (아트가 원본, 단방향) =====
+ *  아트 Task마다 전투에 짝 미러를 생성. 아트를 수정하면 미러에 이름·마일스톤·링크·킥오프·완료·기획일정을 전부 덮어씀.
+ *  종류(전투 종류)만 전투 소유(아트엔 대응값이 없어서). 아트 삭제 시 미러도 삭제. 전투에서 만든 Task는 미러 아님. */
+let mirrorSnap = {};
+function artSig(t){ return JSON.stringify({ n:t.name, m:t.milestoneId, l:t.links||{}, k:t.kickoff, d:!!t.done, g:(t.depts&&t.depts["기획"])||null }); }
+function ensureMirror(art){
+  let mir=state.tasks.find(t=>t.mirrorOf===art.id);
+  if(!mir){ mir={ id:uid(), mirrorOf:art.id, track:"전투", open:false, status:((statusesFor("전투")[0]||{}).k)||"", kickoff:"예정", done:false, links:{plan:"",trello:""}, depts:{} }; state.tasks.push(mir); }
+  return mir;
+}
+function syncMirror(art){
+  const mir=ensureMirror(art);
+  mir.name=art.name; mir.milestoneId=art.milestoneId;
+  mir.links={ plan:(art.links&&art.links.plan)||"", trello:(art.links&&art.links.trello)||"" };
+  mir.kickoff=art.kickoff; mir.done=!!art.done;
+  mir.depts = (art.depts && art.depts["기획"]) ? { "기획": JSON.parse(JSON.stringify(art.depts["기획"])) } : {};
+  if(!statusesFor("전투").some(s=>s.k===mir.status)) mir.status=((statusesFor("전투")[0]||{}).k)||"";
+}
+function reconcileMirrors(mode){
+  const arts=state.tasks.filter(t=>t.track==="아트");
+  const artIds=new Set(arts.map(a=>a.id));
+  state.tasks = state.tasks.filter(t=> !t.mirrorOf || artIds.has(t.mirrorOf));   // 원본 사라진 미러 제거
+  if(mode==="init"){
+    arts.forEach(a=>{ const had=state.tasks.some(t=>t.mirrorOf===a.id); ensureMirror(a); if(!had) syncMirror(a); mirrorSnap[a.id]=artSig(a); });
+  } else {
+    arts.forEach(a=>{ const sig=artSig(a); if(mirrorSnap[a.id]!==sig){ syncMirror(a); mirrorSnap[a.id]=sig; } else { ensureMirror(a); } });
+  }
+  Object.keys(mirrorSnap).forEach(id=>{ if(!artIds.has(id)) delete mirrorSnap[id]; });
+}
+function save(){ reconcileMirrors("edit"); localStorage.setItem(LS_KEY, JSON.stringify(state)); if(remote.active) remote.push(state); }
 function load(){ const raw=localStorage.getItem(LS_KEY); if(raw){ try{state=JSON.parse(raw);}catch(e){} } migrate(); buildTimeline(); }
 
 const remote = { active:false, client:null,
@@ -930,7 +964,7 @@ function taskHeadHtml(t){
       <span class="drag-handle" data-drag="${t.id}" title="드래그하여 이동">⠿</span>
       <span class="caret">▶</span>
       <span class="ms-tag"><i class="bd" style="background:${ms.color}"></i>${escapeHtml(ms.name)}</span>
-      <span class="task-name">${escapeHtml(t.name)}</span>
+      <span class="task-name">${escapeHtml(t.name)}</span>${t.mirrorOf?'<span class="mirror-badge" title="아트에서 미러된 Task (아트 수정 시 갱신)">🔗 아트</span>':''}
       ${links}${asg}
       <span class="th-spacer"></span>
       <span class="dept-grid">${deptGridHtml(t)}</span>
