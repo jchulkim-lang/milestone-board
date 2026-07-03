@@ -991,7 +991,7 @@ function renderBody(){
           let merged="";
           active.slice().reverse().forEach(d=>{ const seg=t.depts[d.key];
             const sa=(seg.assignees&&seg.assignees.length)?seg.assignees.join(', '):'미정';
-            merged+=`<div class="bar mbar" data-mbar="${t.id}" data-mdep="${escapeHtml(d.key)}" style="left:${seg.start*DAY_W}px;width:${(seg.end-seg.start+1)*DAY_W}px;top:10px;background:${d.color}" title="${d.key} · 담당: ${escapeHtml(sa)} (드래그: 이동 · 클릭: 펼치기)"><span class="mbar-r">${escapeHtml(sa)}</span></div>`; });
+            merged+=`<div class="bar mbar" data-mbar="${t.id}" data-mdep="${escapeHtml(d.key)}" style="left:${seg.start*DAY_W}px;width:${(seg.end-seg.start+1)*DAY_W}px;top:10px;background:${d.color}" title="${d.key} · 담당: ${escapeHtml(sa)} (가운데 드래그: 이동 · 끝 드래그: 기간 조절 · 클릭: 펼치기)"><div class="handle l"></div><span class="mbar-r">${escapeHtml(sa)}</span><div class="handle r"></div></div>`; });
           const planSeg = (t.depts["기획"]&&t.depts["기획"].on) ? t.depts["기획"] : null;
           const kfMark = planSeg ? `<span class="kf" data-mbar="${t.id}" style="left:${Math.max(0,planSeg.start*DAY_W-7)}px;top:23px;background:${kf.color}">${kf.icon}</span>` : "";
           rows+=`<div class="tl-task ${skip}"><div class="tl-task-head">${merged}${kfMark}</div></div>`;
@@ -1084,11 +1084,15 @@ function attachBarHandlers(){
     mb.addEventListener("pointerdown", e=>{
       if(e.button&&e.button!==0) return; e.preventDefault();
       const tid=mb.dataset.mbar, dep=mb.dataset.mdep; const t=findTask(tid); const seg=t&&t.depts[dep]; if(!seg) return;
+      const isL=e.target.classList.contains("l"), isR=e.target.classList.contains("r");
+      const mode=isL?"l":isR?"r":"move";
       const startX=e.clientX, s0=seg.start, e0=seg.end, len=e0-s0; let moved=false;
       try{ mb.setPointerCapture(e.pointerId); }catch(_){}
       function onMove(ev){ const dx=ev.clientX-startX; if(Math.abs(dx)>3) moved=true; const dd=Math.round(dx/DAY_W);
-        let ns=Math.min(Math.max(0,s0+dd),N-1-len); seg.start=ns; seg.end=ns+len;
-        mb.style.left=(seg.start*DAY_W)+"px"; }
+        if(mode==="move"){ let ns=Math.min(Math.max(0,s0+dd),N-1-len); seg.start=ns; seg.end=ns+len; }
+        else if(mode==="l"){ seg.start=Math.min(Math.max(0,s0+dd),e0); }
+        else { seg.end=Math.max(s0,Math.min(N-1,e0+dd)); }
+        mb.style.left=(seg.start*DAY_W)+"px"; mb.style.width=((seg.end-seg.start+1)*DAY_W)+"px"; }
       function onUp(){ mb.removeEventListener("pointermove",onMove); mb.removeEventListener("pointerup",onUp);
         if(!moved){ t.open=true; } save(); render(); }
       mb.addEventListener("pointermove",onMove); mb.addEventListener("pointerup",onUp);
@@ -1324,14 +1328,19 @@ function deptAssigneeChips(t, key){ const dept=state.departments.find(d=>d.key==
   return roster.map(chip).join(""); }
 function toggleDeptAssignee(t, key, name){ const seg=t.depts[key]; if(!seg) return; if(!Array.isArray(seg.assignees)) seg.assignees=[]; const i=seg.assignees.indexOf(name); if(i>=0) seg.assignees.splice(i,1); else seg.assignees.push(name); }
 
-function openTaskModal(){ taskInput.value=""; taskMs.innerHTML=state.milestones.map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join(""); const tt=document.getElementById("taskTrack"); if(tt) tt.value=TRACKS.includes(trackFilter)?trackFilter:"개발"; if(msFilter.size===1) taskMs.value=[...msFilter][0]; taskModal.classList.add("show"); taskInput.focus(); }
+function openTaskModal(){ taskInput.value=""; taskMs.innerHTML=state.milestones.map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join(""); const tt=document.getElementById("taskTrack"); if(tt) tt.value=TRACKS.includes(trackFilter)?trackFilter:"개발"; if(msFilter.size===1) taskMs.value=[...msFilter][0];
+  const selT = selectedId && findTask(selectedId);   // 선택한 Task 기준: 같은 마일스톤·분류로 시작
+  if(selT){ taskMs.value=selT.milestoneId; if(tt && TRACKS.includes(selT.track)) tt.value=selT.track; }
+  taskModal.classList.add("show"); taskInput.focus(); }
 document.getElementById("taskAddOk").onclick=addTask;
 taskInput.addEventListener("keydown",e=>{ if(e.key==="Enter") addTask(); });
 function addTask(){ const name=taskInput.value.trim(); if(!name) return;
   const trackSel=document.getElementById("taskTrack");
   const trk=(trackSel&&TRACKS.includes(trackSel.value))?trackSel.value:"개발";
   const _s0=statusesFor(trk)[0]; const tk={ id:uid(), name, milestoneId:taskMs.value||state.milestones[0].id, track:trk, open:true, kickoff:"예정", status:(_s0&&_s0.k)||"대기", done:false, links:{plan:"",trello:""}, depts:{} };
-  state.tasks.push(tk); closeModals(); save(); render(); openDeptModal(tk.id); }
+  const si = selectedId ? state.tasks.findIndex(x=>x.id===selectedId) : -1;   // 선택한 Task 바로 아래에 삽입
+  if(si>=0) state.tasks.splice(si+1,0,tk); else state.tasks.push(tk);
+  selectedId=tk.id; closeModals(); save(); render(); openDeptModal(tk.id); }
 
 function openDeptModal(tid){ editing={tid}; const t=findTask(tid);
   document.getElementById("deptModalSub").textContent=t.name;
