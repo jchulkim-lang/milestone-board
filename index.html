@@ -350,10 +350,14 @@
   .seg-group .trtab.on[data-track="개발"]{ background:linear-gradient(135deg,#3b82f6,#6366f1); box-shadow:0 2px 9px rgba(59,130,246,.45); }
   .seg-group .trtab.on[data-track="아트"]{ background:linear-gradient(135deg,#ec4899,#a855f7); box-shadow:0 2px 9px rgba(236,72,153,.45); }
   .seg-group .trtab.on[data-track="전투"]{ background:linear-gradient(135deg,#ef4444,#f97316); box-shadow:0 2px 9px rgba(239,68,68,.45); }
+  .seg-group .trtab.on[data-track="네러티브"]{ background:linear-gradient(135deg,#14b8a6,#06b6d4); box-shadow:0 2px 9px rgba(20,184,166,.45); }
+  .seg-group .trtab.on[data-track="콘텐츠"]{ background:linear-gradient(135deg,#f59e0b,#f97316); box-shadow:0 2px 9px rgba(245,158,11,.45); }
   .seg-group .trtab.on .trdot{ background:#fff !important; }
   .seg-group .trtab:not(.on)[data-track="개발"]{ color:#7ea8f0; }
   .seg-group .trtab:not(.on)[data-track="아트"]{ color:#f08fc2; }
   .seg-group .trtab:not(.on)[data-track="전투"]{ color:#f0a08f; }
+  .seg-group .trtab:not(.on)[data-track="네러티브"]{ color:#7fd9cc; }
+  .seg-group .trtab:not(.on)[data-track="콘텐츠"]{ color:#f0c880; }
 
   /* 필터 담당자 — 아트 부서 표시 + 부서명 칸 넓힘(잘림 방지) */
   .fa-trk{ font-size:9px; font-weight:800; color:#fff; background:linear-gradient(135deg,#a855f7,#ec4899); border-radius:999px; padding:1px 6px; margin-left:3px; vertical-align:middle; }
@@ -497,7 +501,7 @@
     <div class="modal"><h3>새 Task 추가</h3><div class="msub">업무 단위와 소속 마일스톤을 정합니다.</div>
       <label>Task 이름</label><input id="taskInput" placeholder="예: 로그인 기능" />
       <label>마일스톤</label><select id="taskMs"></select>
-      <label>분류</label><select id="taskTrack"><option value="개발">개발</option><option value="아트">아트</option><option value="전투">전투</option></select>
+      <label>분류</label><select id="taskTrack"><option value="개발">개발</option><option value="아트">아트</option><option value="전투">전투</option><option value="네러티브">네러티브</option><option value="콘텐츠">콘텐츠</option></select>
       <div class="msub" style="margin:6px 0 0">다음 단계에서 부서를 지정하고, 부서별로 담당자를 배정합니다.</div>
       <div class="modal-actions"><span></span><div class="right"><button class="btn ghost" data-close>취소</button><button class="btn" id="taskAddOk">다음: 부서 지정</button></div></div></div>
   </div>
@@ -660,8 +664,8 @@ const tsOf = k => allStatusDefs().find(x=>x.k===k) || TASK_STATUSES[0];
 const isDone = t => isCatTrack(t.track) ? !!t.done : t.status==="완료";
 // 전투 종류 중 아트에서 미러된(아트 종류와 같은 이름) 것인지
 const catIsArtMirror = key => (state.artCategories||[]).some(c=>c.key===key);
-const TRACKS = ["개발","아트","전투"];   // 분류 탭
-const TRACK_COLORS = { "개발":"#3b82f6", "아트":"#ec4899", "전투":"#ef4444" };   // 분류 구분 색
+const TRACKS = ["개발","아트","전투","네러티브","콘텐츠"];   // 분류 탭
+const TRACK_COLORS = { "개발":"#3b82f6", "아트":"#ec4899", "전투":"#ef4444", "네러티브":"#14b8a6", "콘텐츠":"#f59e0b" };   // 분류 구분 색
 const MARKERS = [
   { k:"start", label:"시작", color:"#22c55e" },
   { k:"end", label:"종료", color:"#ef4444" },
@@ -727,8 +731,8 @@ function migrate(){
   if(!Array.isArray(state.notifyEmails)) state.notifyEmails = [];
   if(!state.notice || typeof state.notice!=="object") state.notice = { text:"", updatedAt:"" };
   if(!state.departments || !state.departments.length) state.departments = DEFAULT_DEPARTMENTS.concat(ART_DEPARTMENTS).map(d=>({...d}));
-  state.departments.forEach(d=>{ if(!Array.isArray(d.owners)) d.owners=[]; if(!Array.isArray(d.tracks)||!d.tracks.length) d.tracks = (d.key==="기획")?["개발","아트","전투"]:["개발"]; if(!Array.isArray(d.subgroups)) d.subgroups=[]; if(!d.memberGroup||typeof d.memberGroup!=="object") d.memberGroup={}; });
-  { const plan=state.departments.find(d=>d.key==="기획"); if(plan && !plan.tracks.includes("전투")) plan.tracks.push("전투"); }
+  state.departments.forEach(d=>{ if(!Array.isArray(d.owners)) d.owners=[]; if(!Array.isArray(d.tracks)||!d.tracks.length) d.tracks = (d.key==="기획")?["개발","아트","전투","네러티브","콘텐츠"]:["개발"]; if(!Array.isArray(d.subgroups)) d.subgroups=[]; if(!d.memberGroup||typeof d.memberGroup!=="object") d.memberGroup={}; });
+  { const plan=state.departments.find(d=>d.key==="기획"); if(plan) ["아트","전투","네러티브","콘텐츠"].forEach(tr=>{ if(!plan.tracks.includes(tr)) plan.tracks.push(tr); }); }
   // 아트 전용 부서 1회 시드(기존 데이터에 추가)
   if(!state.artSeeded){ ART_DEPARTMENTS.forEach(ad=>{ if(!state.departments.some(d=>d.key===ad.key)) state.departments.push({...ad, owners:[]}); }); state.artSeeded=true; }
   DEPARTMENTS = state.departments;
