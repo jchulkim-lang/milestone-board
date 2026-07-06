@@ -1435,8 +1435,12 @@ taskInput.addEventListener("keydown",e=>{ if(e.key==="Enter") addTask(); });
 function addTask(){ const name=taskInput.value.trim(); if(!name) return;
   const trackSel=document.getElementById("taskTrack");
   const trk=(trackSel&&TRACKS.includes(trackSel.value))?trackSel.value:"개발";
-  const _s0=statusesFor(trk)[0]; const tk={ id:uid(), name, milestoneId:taskMs.value||state.milestones[0].id, track:trk, open:true, kickoff:"예정", status:(_s0&&_s0.k)||"대기", done:false, links:{plan:"",trello:""}, depts:{} };
-  const si = selectedId ? state.tasks.findIndex(x=>x.id===selectedId) : -1;   // 선택한 Task 바로 아래에 삽입
+  const selT = selectedId && findTask(selectedId);
+  let status;   // 선택한 Task와 같은 분류면 상태(그룹)까지 물려받아 바로 아래에 나오게
+  if(selT && selT.track===trk && statusesFor(trk).some(s=>s.k===selT.status)) status=selT.status;
+  else { const _s0=statusesFor(trk)[0]; status=(_s0&&_s0.k)||"대기"; }
+  const tk={ id:uid(), name, milestoneId:taskMs.value||state.milestones[0].id, track:trk, open:true, kickoff:"예정", status, done:false, links:{plan:"",trello:""}, depts:{} };
+  const si = selT ? state.tasks.findIndex(x=>x.id===selectedId) : -1;   // 선택한 Task 바로 아래에 삽입
   if(si>=0) state.tasks.splice(si+1,0,tk); else state.tasks.push(tk);
   selectedId=tk.id; closeModals(); save(); render(); openDeptModal(tk.id); }
 
