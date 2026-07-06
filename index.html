@@ -405,6 +405,9 @@
   .foot-legend{ display:flex; align-items:center; gap:14px; flex:1; min-width:0; overflow:hidden; }
   .foot-tools{ display:flex; align-items:center; gap:8px; flex:0 0 auto; margin-left:14px; }
 
+  /* 부서 색상 칸 접힘(개인) — Task 헤드의 부서 점 숨김 */
+  body.hide-deptgrid .task-head .dept-grid{ display:none; }
+
   /* 아트 미러 배지 */
   .mirror-badge{ font-size:9.5px; font-weight:800; color:#fff; background:linear-gradient(135deg,#ec4899,#a855f7); border-radius:999px; padding:1px 7px; margin-left:6px; white-space:nowrap; flex:0 0 auto; }
   .art-tag{ font-size:9px; font-weight:800; color:#fff; background:linear-gradient(135deg,#ec4899,#a855f7); border-radius:999px; padding:1px 6px; margin-left:5px; white-space:nowrap; flex:0 0 auto; }
@@ -725,6 +728,10 @@ function loadOpen(){ try{ const r=localStorage.getItem(OPEN_KEY); if(r) openTask
 function saveOpen(){ try{ localStorage.setItem(OPEN_KEY, JSON.stringify([...openTasks])); }catch(_){}  }
 const isOpen=id=>openTasks.has(id);
 function setOpen(id,on){ if(on) openTasks.add(id); else openTasks.delete(id); saveOpen(); }
+/* 부서 색상 칸 표시 여부 — 개인 브라우저 저장, 기본 접힘 */
+let showDeptGrid=false;
+function loadDeptGrid(){ try{ showDeptGrid = localStorage.getItem("milestone_deptgrid_v1")==="1"; }catch(_){}  applyDeptGridClass(); }
+function applyDeptGridClass(){ document.body.classList.toggle("hide-deptgrid", !showDeptGrid); }
 let msSelId=null;               // 마일스톤 편집 대상
 
 function findMs(id){ return state.milestones.find(m=>m.id===id); }
@@ -980,7 +987,7 @@ function renderFilter(){
        <button class="filter-btn" id="toggleAllBtn" style="margin-left:auto" title="모두 펼침/접기 (개인 화면)">${_allOpen?'⊖ 모두 접기':'⊕ 모두 펼치기'}</button>
        <button class="filter-btn ${cnt?'active':''}" id="filterBtn">필터${cnt?' ('+cnt+')':''} ▾</button>
      </div>
-     <div class="lh-row dept-head-row"><span class="lh-label">부서 지정 →</span><span class="th-spacer"></span><span class="dept-grid">${depsFor(headTrack()).map(d=>`<span class="dept-slot on" title="${escapeHtml(d.key)}${(d.owners&&d.owners.length)?' · 담당: '+escapeHtml(d.owners.join(', ')):''}"><i style="background:${d.color}"></i></span>`).join("")}</span><span class="th-right-spacer"></span></div>
+     <div class="lh-row dept-head-row"><button class="lh-label legend-edit" id="deptGridToggle" title="부서 체크 색상 표시/숨김">부서 색상 ${showDeptGrid?'▾':'▸'}</button>${showDeptGrid?`<span class="th-spacer"></span><span class="dept-grid">${depsFor(headTrack()).map(d=>`<span class="dept-slot on" title="${escapeHtml(d.key)}${(d.owners&&d.owners.length)?' · 담당: '+escapeHtml(d.owners.join(', ')):''}"><i style="background:${d.color}"></i></span>`).join("")}</span><span class="th-right-spacer"></span>`:''}</div>
      <div class="filter-pop ${filterOpen?'show':''}" id="filterPop">
        <div class="fsec"><span class="lh-label">부서</span><div class="fchips"><span class="fchip all ${allD?'on':''}" data-fd="__all">전체</span>${dchips}</div></div>
        <div class="fsec"><span class="lh-label">진행 상태</span><div class="fchips"><span class="fchip all ${allS?'on':''}" data-fs="__all">전체</span>${schips}</div></div>
@@ -1115,6 +1122,7 @@ leftHead.addEventListener("click", e=>{
   if(e.target.closest("#addTaskBtn")){ openTaskModal(); return; }
   if(e.target.closest("#filterBtn")){ filterOpen=!filterOpen; renderFilter(); return; }
   if(e.target.closest("#toggleAllBtn")){ const vis=state.tasks.filter(passFilter); const allOpen=vis.length>0 && vis.every(t=>isOpen(t.id)); vis.forEach(t=>{ if(allOpen) openTasks.delete(t.id); else openTasks.add(t.id); }); saveOpen(); render(); return; }
+  if(e.target.closest("#deptGridToggle")){ showDeptGrid=!showDeptGrid; try{localStorage.setItem("milestone_deptgrid_v1",showDeptGrid?"1":"0");}catch(_){}  applyDeptGridClass(); renderFilter(); return; }
   const tab=e.target.closest("[data-mstab]"); if(tab){ const k=tab.dataset.mstab; msFilter.clear(); if(k!=="__all") msFilter.add(k); render(); return; }
   const trk=e.target.closest("[data-track]"); if(trk){ trackFilter=trk.dataset.track; deptFilter.clear(); assigneeFilter.clear(); statusFilter.clear(); groupCollapsed.clear(); render(); return; }
   const fd=e.target.closest("[data-fd]"), fs=e.target.closest("[data-fs]"), fa=e.target.closest("[data-fa]");
@@ -1590,7 +1598,7 @@ document.getElementById("themeBtn").onclick=()=>{ const nxt=document.body.classL
 
 /* ===== init (v7) ===== */
 const savedW=localStorage.getItem("ms_leftw"); if(savedW) document.documentElement.style.setProperty("--left-w",savedW);
-loadOpen(); load(); render();
+loadOpen(); loadDeptGrid(); load(); render();
 const ni=nearestIndex(); if(ni>3) rightBody.scrollLeft=(ni-3)*DAY_W;
 remote.init();
 
