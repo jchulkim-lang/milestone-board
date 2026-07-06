@@ -100,6 +100,7 @@
   function applyRoleUI(){
     if(!canEdit()){ document.body.classList.add("readonly"); injectReadonlyStyle(); injectRequestButton(); }
     if(ROLE==="admin"){ injectAccessButton(); }
+    else { const hb=document.getElementById("historyBtn"); if(hb) hb.style.display="none"; }   // 히스토리는 관리자 전용
   }
   function injectReadonlyStyle(){
     if(document.getElementById("ro-style")) return;

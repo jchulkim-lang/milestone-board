@@ -215,11 +215,12 @@ async function handleApi(request, env, url, ctx){
 
   // 히스토리 / 롤백
   if(p === "/api/history" && request.method === "GET"){
+    if((await effectiveRole(env, user.email)) !== "admin") return json({ error:"forbidden", reason:"admin-only" }, 403);   // 히스토리는 관리자 전용
     const { results } = await env.DB.prepare("SELECT id,version,saved_by,saved_at FROM history ORDER BY id DESC LIMIT 30").all();
     return json({ items: results || [] });
   }
   if(p === "/api/restore" && request.method === "POST"){
-    if(!canEdit(await effectiveRole(env, user.email))) return json({ error:"forbidden", reason:"edit-not-allowed" }, 403);
+    if((await effectiveRole(env, user.email)) !== "admin") return json({ error:"forbidden", reason:"admin-only" }, 403);   // 되돌리기는 관리자 전용
     const b = await request.json();
     const snap = await env.DB.prepare("SELECT data FROM history WHERE id=?").bind(b.id).first();
     if(!snap) return json({ error:"snapshot not found" }, 404);
