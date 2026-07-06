@@ -818,6 +818,33 @@ function reconcileMirrors(mode){
   }
   Object.keys(mirrorSnap).forEach(id=>{ if(!artIds.has(id)) delete mirrorSnap[id]; });
 }
+/* ===== 동시 편집 안전 병합 (3-way) — 공통 기준 대비 내가 바꾼 Task만 내 것, 상대가 바꾼 Task는 보존 ===== */
+function _clone(o){ return o==null?o:JSON.parse(JSON.stringify(o)); }
+function _byId(arr){ const m={}; (arr||[]).forEach(x=>{ if(x&&x.id) m[x.id]=x; }); return m; }
+function _eq(a,b){ return JSON.stringify(a)===JSON.stringify(b); }
+function _mergeFields(b,o,t){ const out=_clone(t)||{}; Object.keys(o||{}).forEach(k=>{ if(!_eq(o[k],b?b[k]:undefined)) out[k]=_clone(o[k]); }); return out; }
+function _mergeTasks(base,ours,theirs){
+  const B=_byId(base),O=_byId(ours),T=_byId(theirs);
+  const ids=new Set([...Object.keys(B),...Object.keys(O),...Object.keys(T)]);
+  const res={};
+  ids.forEach(id=>{ const b=B[id],o=O[id],t=T[id];
+    if(b && !o) return;                                   // 우리가 삭제 → 삭제 유지
+    if(b && !t){ if(!_eq(o,b)) res[id]=o; return; }       // 상대 삭제: 우리가 수정했으면 유지, 아니면 삭제
+    if(!b){ res[id]= o||t; return; }                      // 추가: 우리 우선
+    const oC=!_eq(o,b), tC=!_eq(t,b);
+    if(oC&&!tC) res[id]=o; else if(!oC&&tC) res[id]=t; else if(!oC&&!tC) res[id]=b; else res[id]=_mergeFields(b,o,t);
+  });
+  const out=[]; (ours||[]).forEach(x=>{ if(x&&x.id&&res[x.id]){ out.push(res[x.id]); delete res[x.id]; } });
+  (theirs||[]).forEach(x=>{ if(x&&x.id&&res[x.id]){ out.push(res[x.id]); delete res[x.id]; } });
+  return out;
+}
+function mergeState3(base,ours,theirs){
+  base=base||{}; ours=ours||{}; theirs=theirs||{};
+  const out=_clone(theirs)||{};                           // 상대(서버 최신) 기준
+  out.tasks=_mergeTasks(base.tasks||[], ours.tasks||[], theirs.tasks||[]);
+  ["title","milestones","departments","artCategories","combatCategories","trackStatuses","notice","notifyEmails","artSeeded"].forEach(k=>{ if(!_eq(ours[k],base[k])) out[k]=_clone(ours[k]); });
+  return out;
+}
 function save(){ reconcileMirrors("edit"); localStorage.setItem(LS_KEY, JSON.stringify(state)); if(remote.active) remote.push(state); }
 function load(){ const raw=localStorage.getItem(LS_KEY); if(raw){ try{state=JSON.parse(raw);}catch(e){} } migrate(); buildTimeline(); }
 

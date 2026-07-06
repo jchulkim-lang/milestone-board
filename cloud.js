@@ -52,32 +52,42 @@
   }
 
   function setupSync(){
-    remote.active = true; remote.version = -1; remote._t = null;
+    remote.active = true; remote.version = -1; remote._t = null; remote.base = null;   // base = 서버와의 공통 기준
+    const clone = (o)=> (typeof _clone==="function") ? _clone(o) : (o==null?o:JSON.parse(JSON.stringify(o)));
     remote.pull = async function(initial){
       try{
         const r = await fetch("/api/state", { credentials:"same-origin" });
         if(!r.ok) return;
         const j = await r.json();
-        if(initial || j.version > this.version){
-          this.version = j.version;
-          if(j.data && j.data.milestones) state = j.data;
+        const remoteData = (j.data && j.data.milestones) ? j.data : { milestones:[], tasks:[] };
+        if(initial){
+          state = remoteData; this.version = j.version; remote.base = clone(remoteData);
+          migrate(); buildTimeline(); render(); return;
+        }
+        if(j.version > this.version){
+          state = (typeof mergeState3==="function") ? mergeState3(remote.base, state, remoteData) : remoteData;   // 3-way 병합
+          this.version = j.version; remote.base = clone(remoteData);
           migrate(); buildTimeline(); render();
         }
       }catch(_){}
     };
-    remote.push = function(s){
+    remote.push = function(){
       if(!canEdit()) return;            // 뷰어는 저장 불가(서버도 차단)
       clearTimeout(this._t);
       this._t = setTimeout(async () => {
         try{
+          const r0 = await fetch("/api/state", { credentials:"same-origin" });   // 저장 직전 서버 최신
+          const j0 = r0.ok ? await r0.json() : null;
+          const remoteData = (j0 && j0.data && j0.data.milestones) ? j0.data : (remote.base || { milestones:[], tasks:[] });
+          const merged = (typeof mergeState3==="function") ? mergeState3(remote.base, state, remoteData) : state;
           const r = await fetch("/api/state", { method:"PUT", credentials:"same-origin",
-            headers:{ "content-type":"application/json" }, body: JSON.stringify({ data: s }) });
-          if(r.ok){ const j = await r.json(); this.version = j.version; }
+            headers:{ "content-type":"application/json" }, body: JSON.stringify({ data: merged }) });
+          if(r.ok){ const j = await r.json(); this.version = j.version; state = merged; remote.base = clone(merged); buildTimeline(); render(); }
         }catch(_){}
       }, 800);
     };
     remote.pull(true);
-    setInterval(() => remote.pull(false), 10000);
+    setInterval(() => remote.pull(false), 8000);
     startPresence();
   }
 
