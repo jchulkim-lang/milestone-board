@@ -765,8 +765,8 @@ function migrate(){
   if(!state.milestones.some(m=>m.free)) state.milestones.push({ id:FREE_MS, name:"자유", color:"#94a3b8", free:true, start:"", end:"", resource:"", dev:"", qa:"" });
   const firstMs=state.milestones[0].id;
   state.tasks.forEach(t=>{ if(!t.kickoff) t.kickoff = t.status && KICKOFFS.some(k=>k.k===t.status) ? t.status : "예정";
-    if(!TRACKS.includes(t.track)) t.track="개발";
-    const _ss=statusesFor(t.track); if(!t.status || !_ss.some(s=>s.k===t.status)) t.status=(_ss[0]&&_ss[0].k)||"대기";
+    if(!t.track) t.track="개발";   // 미지정만 기본값. 모르는 분류(신버전)라도 덮어쓰지 않음(데이터 보존)
+    const _ss=statusesFor(t.track); if(_ss.length && (!t.status || !_ss.some(s=>s.k===t.status))) t.status=(_ss[0]&&_ss[0].k)||"대기";   // 아는 분류일 때만 상태 보정(모르는 분류 보존)
     if(typeof t.done!=="boolean") t.done = (!isCatTrack(t.track) && t.status==="완료");
     if(!t.links) t.links={plan:"",trello:""}; if(t.depts) Object.values(t.depts).forEach(s=>{ if(s && !Array.isArray(s.assignees)) s.assignees=[]; }); if(!t.milestoneId || !findMs(t.milestoneId)) t.milestoneId=firstMs; if(t.open===undefined)t.open=false; });
   reconcileMirrors("init");
