@@ -670,6 +670,9 @@ const isDone = t => { if(isCatTrack(t.track)) return !!t.done; const s=listFor(t
 const catIsArtMirror = key => (state.artCategories||[]).some(c=>c.key===key);
 const TRACKS = ["개발","아트","전투","네러티브","콘텐츠"];   // 분류 탭
 const TRACK_COLORS = { "개발":"#3b82f6", "아트":"#ec4899", "전투":"#ef4444", "네러티브":"#14b8a6", "콘텐츠":"#f59e0b" };   // 분류 구분 색
+const FREE_MS="__free";   // 자유(마일스톤 미지정) 버킷 — 네러티브·콘텐츠에서만 노출
+const trackAllowsFree = track => track==="네러티브" || track==="콘텐츠";
+const msFor = track => state.milestones.filter(m=> !m.free || trackAllowsFree(track));   // 트랙에서 보이는 마일스톤
 const MARKERS = [
   { k:"start", label:"시작", color:"#22c55e" },
   { k:"end", label:"종료", color:"#ef4444" },
@@ -686,7 +689,8 @@ const stripTime = d => new Date(d.getFullYear(),d.getMonth(),d.getDate());
 const parseYmd = s => { const p=s.split("-").map(Number); return new Date(p[0],p[1]-1,p[2]); };
 let ORIGIN, WORKDAYS=[], N=0;
 function buildTimeline(){
-  const starts = state.milestones.map(m=>parseYmd(m.start||"2026-06-01"));
+  const starts = state.milestones.filter(m=>!m.free && m.start).map(m=>parseYmd(m.start));
+  if(!starts.length) starts.push(parseYmd("2026-06-01"));
   let minStart = new Date(Math.min(...starts.map(d=>d.getTime())));
   while(minStart.getDay()===0||minStart.getDay()===6) minStart.setDate(minStart.getDate()+1);
   ORIGIN = minStart;
@@ -756,7 +760,9 @@ function migrate(){
   }
   if(!state.tasks) state.tasks=[];
   if(!state.milestones.length) state.milestones=[{ id:"m1", name:"마일스톤 1", color:MS_PALETTE[0], start:"2026-06-01", end:"", resource:"", dev:"", qa:"" }];
-  state.milestones.forEach((m,i)=>{ if(!m.id)m.id=uid(); if(!m.color)m.color=MS_PALETTE[i%MS_PALETTE.length]; if(m.dev===undefined)m.dev=""; if(!m.name)m.name="마일스톤"; if(!m.start)m.start="2026-06-01"; });
+  state.milestones.forEach((m,i)=>{ if(!m.id)m.id=uid(); if(!m.color)m.color=MS_PALETTE[i%MS_PALETTE.length]; if(m.dev===undefined)m.dev=""; if(!m.name)m.name="마일스톤"; if(!m.free && !m.start)m.start="2026-06-01"; });
+  // 자유(마일스톤 미지정) 버킷 1회 시드 — 마감일 없음, 삭제 불가
+  if(!state.milestones.some(m=>m.free)) state.milestones.push({ id:FREE_MS, name:"자유", color:"#94a3b8", free:true, start:"", end:"", resource:"", dev:"", qa:"" });
   const firstMs=state.milestones[0].id;
   state.tasks.forEach(t=>{ if(!t.kickoff) t.kickoff = t.status && KICKOFFS.some(k=>k.k===t.status) ? t.status : "예정";
     if(!TRACKS.includes(t.track)) t.track="개발";
@@ -875,7 +881,7 @@ function ddayHtml(){
 function renderContext(){
   const box=document.getElementById("contextBar"); if(!box) return;
   const curMs = msFilter.size===1 ? [...msFilter][0] : "__all";
-  const msOpts = `<option value="__all">전체 마일스톤</option>`+state.milestones.map(m=>`<option value="${m.id}" ${m.id===curMs?'selected':''}>${escapeHtml(m.name)}</option>`).join("");
+  const msOpts = `<option value="__all">전체 마일스톤</option>`+msFor(headTrack()).map(m=>`<option value="${m.id}" ${m.id===curMs?'selected':''}>${escapeHtml(m.name)}</option>`).join("");
   const trackTabs=TRACKS.map(tr=>`<span class="trtab ${trackFilter===tr?'on':''}" data-track="${tr}"><i class="trdot" style="background:${TRACK_COLORS[tr]||'#888'}"></i>${escapeHtml(tr)}</span>`).join("");
   const scope=state.tasks.filter(t=> (msFilter.size===0||msFilter.has(t.milestoneId)) && (t.track||"개발")===headTrack());
   const tot=scope.length, done=scope.filter(isDone).length, pct=tot?Math.round(done/tot*100):0;
@@ -947,7 +953,7 @@ function renderFilter(){
 }
 
 function markerEntries(){
-  const msList=state.milestones.filter(m=> msFilter.size===0 || msFilter.has(m.id));
+  const msList=state.milestones.filter(m=> (msFilter.size===0 || msFilter.has(m.id)) && !m.free);
   const multi=msList.length>1; const out=[];
   msList.forEach(m=> MARKERS.forEach(mk=>{ if(m[mk.k]) out.push({m,mk,v:m[mk.k],multi}); }));
   return out;
@@ -964,7 +970,7 @@ function renderHead(){
   const todayIdx=indexOfToday(); let days="";
   for(let i=0;i<N;i++){ const d=WORKDAYS[i],mon=d.getDay()===1;
     days+=`<div class="day-cell ${mon?'mon':''} ${i===todayIdx?'today':''}" style="left:${i*DAY_W}px"><div>${d.getDate()}</div><div class="dow">${DOW[d.getDay()]}</div></div>`; }
-  const msList=state.milestones.filter(m=>msFilter.size===0||msFilter.has(m.id));
+  const msList=state.milestones.filter(m=>(msFilter.size===0||msFilter.has(m.id)) && !m.free);
   const multi=msList.length>1;
   const msbars=msList.map(m=>{
     const s=nearestWorkdayIndex(m.start), e=m.end?nearestWorkdayIndex(m.end):N-1;
@@ -1023,7 +1029,7 @@ function renderLeft(){
             return `<div class="dept-row"><span class="dept-chip on" style="background:${d.color}"><span class="swatch" style="background:#fff"></span>${d.key}</span>${ow}<span class="dept-dates">${fmt(dateOf(seg.start))} ~ ${fmt(dateOf(seg.end))} · ${seg.end-seg.start+1}영업일</span></div>`; }).join("");
           inner=`<div class="dept-list">${deptRows}</div>`;
         }
-        const msOpts=state.milestones.map(m=>`<option value="${m.id}" ${m.id===t.milestoneId?'selected':''}>${escapeHtml(m.name)}</option>`).join("");
+        const msOpts=msFor(t.track).map(m=>`<option value="${m.id}" ${m.id===t.milestoneId?'selected':''}>${escapeHtml(m.name)}</option>`).join("");
         const planBtn=t.links.plan?`<a class="meta-btn set" href="${escapeHtml(t.links.plan)}" target="_blank" rel="noopener" title="기획서 열기">📄 기획서</a>`:`<button class="meta-btn dim" data-openedit="${t.id}" title="기획서 링크 추가">📄 기획서 +</button>`;
         const trelloBtn=t.links.trello?`<a class="meta-btn set" href="${escapeHtml(t.links.trello)}" target="_blank" rel="noopener" title="Trello 열기">📋 Trello</a>`:`<button class="meta-btn dim" data-openedit="${t.id}" title="Trello 링크 추가">📋 Trello +</button>`;
         const trOpts=TRACKS.map(tr=>`<option value="${tr}" ${tr===t.track?'selected':''}>${tr}</option>`).join("");
@@ -1090,7 +1096,7 @@ pipelineEl.addEventListener("click", e=>{ const st=e.target.closest("[data-pstep
 leftBody.addEventListener("change", e=>{
   const st=e.target.closest("[data-status]"); if(st){ findTask(st.dataset.status).status=st.value; save(); render(); return; }
   const sm=e.target.closest("[data-setms]"); if(sm){ findTask(sm.dataset.setms).milestoneId=sm.value; buildTimeline(); save(); render(); return; }
-  const str=e.target.closest("[data-settrack]"); if(str){ const tk=findTask(str.dataset.settrack); tk.track=str.value; const ss=statusesFor(tk.track); if(!ss.some(s=>s.k===tk.status)) tk.status=ss[0].k; save(); render(); return; }
+  const str=e.target.closest("[data-settrack]"); if(str){ const tk=findTask(str.dataset.settrack); tk.track=str.value; const ss=statusesFor(tk.track); if(!ss.some(s=>s.k===tk.status)) tk.status=ss[0].k; if(tk.milestoneId===FREE_MS && !trackAllowsFree(tk.track)){ const rm=state.milestones.find(m=>!m.free); if(rm) tk.milestoneId=rm.id; } save(); render(); return; }
 });
 leftBody.addEventListener("click", e=>{
   if(e.target.closest("a")) return;
@@ -1416,10 +1422,14 @@ function deptAssigneeChips(t, key){ const dept=state.departments.find(d=>d.key==
   return roster.map(chip).join(""); }
 function toggleDeptAssignee(t, key, name){ const seg=t.depts[key]; if(!seg) return; if(!Array.isArray(seg.assignees)) seg.assignees=[]; const i=seg.assignees.indexOf(name); if(i>=0) seg.assignees.splice(i,1); else seg.assignees.push(name); }
 
-function openTaskModal(){ taskInput.value=""; taskMs.innerHTML=state.milestones.map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join(""); const tt=document.getElementById("taskTrack"); if(tt) tt.value=TRACKS.includes(trackFilter)?trackFilter:"개발"; if(msFilter.size===1) taskMs.value=[...msFilter][0];
+function fillTaskMs(track, keep){ const cur=keep||taskMs.value; taskMs.innerHTML=msFor(track).map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join(""); if(cur && msFor(track).some(m=>m.id===cur)) taskMs.value=cur; }
+function openTaskModal(){ taskInput.value=""; const tt=document.getElementById("taskTrack"); let trk=TRACKS.includes(trackFilter)?trackFilter:"개발";
   const selT = selectedId && findTask(selectedId);   // 선택한 Task 기준: 같은 마일스톤·분류로 시작
-  if(selT){ taskMs.value=selT.milestoneId; if(tt && TRACKS.includes(selT.track)) tt.value=selT.track; }
+  if(selT && TRACKS.includes(selT.track)) trk=selT.track;
+  if(tt) tt.value=trk;
+  fillTaskMs(trk, selT?selT.milestoneId:(msFilter.size===1?[...msFilter][0]:""));
   taskModal.classList.add("show"); taskInput.focus(); }
+document.getElementById("taskTrack").addEventListener("change", e=>{ fillTaskMs(e.target.value); });
 document.getElementById("taskAddOk").onclick=addTask;
 taskInput.addEventListener("keydown",e=>{ if(e.key==="Enter") addTask(); });
 function addTask(){ const name=taskInput.value.trim(); if(!name) return;
@@ -1476,7 +1486,7 @@ document.getElementById("schedRemove").onclick=()=>{ const t=findTask(editing.ti
 
 /* ===== 마일스톤 관리 ===== */
 function renderMsList(){
-  document.getElementById("msList").innerHTML = state.milestones.map(m=>
+  document.getElementById("msList").innerHTML = state.milestones.filter(m=>!m.free).map(m=>
     `<div class="ms-item ${m.id===msSelId?'sel':''}" data-msitem="${m.id}">
        <span class="ms-swatch" style="background:${m.color}"></span>
        <span class="ms-name">${escapeHtml(m.name)}</span>
@@ -1486,7 +1496,7 @@ function loadMsEditor(id){ const m=findMs(id);
   document.getElementById("msName").value=m.name||""; document.getElementById("msStart").value=m.start||"";
   document.getElementById("msEnd").value=m.end||""; document.getElementById("msResource").value=m.resource||"";
   document.getElementById("msDev").value=m.dev||""; document.getElementById("msQa").value=m.qa||""; }
-function openMsModal(){ msSelId=state.milestones[0].id; renderMsList(); loadMsEditor(msSelId); msModal.classList.add("show"); }
+function openMsModal(){ msSelId=(state.milestones.find(m=>!m.free)||state.milestones[0]).id; renderMsList(); loadMsEditor(msSelId); msModal.classList.add("show"); }
 document.getElementById("msBtn").onclick=openMsModal;
 document.getElementById("msList").addEventListener("click", e=>{ const it=e.target.closest("[data-msitem]"); if(!it) return;
   msSelId=it.dataset.msitem; renderMsList(); loadMsEditor(msSelId); });
