@@ -686,7 +686,7 @@ function buildTimeline(){
   const ends = state.milestones.filter(m=>m.end).map(m=>parseYmd(m.end));
   if(ends.length){ const maxEnd=new Date(Math.max(...ends.map(d=>d.getTime()))); let cnt=0,d=new Date(ORIGIN);
     while(d<=maxEnd){ if(d.getDay()!==0&&d.getDay()!==6) cnt++; d.setDate(d.getDate()+1); } len=Math.max(len,cnt+15); }
-  let maxSeg=0; state.tasks.forEach(t=>depsFor(t.track||"개발").forEach(d=>{ const s=t.depts[d.key]; if(s&&s.on) maxSeg=Math.max(maxSeg,s.end); }));
+  let maxSeg=0; state.tasks.forEach(t=>taskDeps(t).forEach(d=>{ const s=t.depts[d.key]; if(s&&s.on) maxSeg=Math.max(maxSeg,s.end); }));
   len=Math.max(len, maxSeg+6);
   WORKDAYS=[]; let d=new Date(ORIGIN);
   while(WORKDAYS.length<len){ const w=d.getDay(); if(w!==0&&w!==6) WORKDAYS.push(new Date(d)); d.setDate(d.getDate()+1); }
@@ -759,7 +759,7 @@ function migrate(){
  *  아트 Task마다 전투에 짝 미러를 생성. 아트를 수정하면 미러에 이름·마일스톤·링크·킥오프·완료·기획일정을 전부 덮어씀.
  *  종류(전투 종류)만 전투 소유(아트엔 대응값이 없어서). 아트 삭제 시 미러도 삭제. 전투에서 만든 Task는 미러 아님. */
 let mirrorSnap = {};
-function artSig(t){ return JSON.stringify({ n:t.name, m:t.milestoneId, l:t.links||{}, k:t.kickoff, d:!!t.done, s:t.status, g:(t.depts&&t.depts["기획"])||null }); }
+function artSig(t){ return JSON.stringify({ n:t.name, m:t.milestoneId, l:t.links||{}, k:t.kickoff, d:!!t.done, s:t.status, g:t.depts||null }); }
 // 아트 종류를 전투 종류 목록에도 보장(없으면 아트 색으로 추가) — 미러가 같은 종류로 묶이게
 function ensureCombatCat(key){
   if(!key) return;
@@ -779,7 +779,7 @@ function syncMirror(art){
   mir.name=art.name; mir.milestoneId=art.milestoneId;
   mir.links={ plan:(art.links&&art.links.plan)||"", trello:(art.links&&art.links.trello)||"" };
   mir.kickoff=art.kickoff; mir.done=!!art.done;
-  mir.depts = (art.depts && art.depts["기획"]) ? { "기획": JSON.parse(JSON.stringify(art.depts["기획"])) } : {};
+  mir.depts = art.depts ? JSON.parse(JSON.stringify(art.depts)) : {};   // 모든 부서 미러
   mir.status = art.status;            // 종류도 미러링(아트 종류 그대로)
   ensureCombatCat(art.status);
 }
@@ -788,7 +788,7 @@ function reconcileMirrors(mode){
   const artIds=new Set(arts.map(a=>a.id));
   state.tasks = state.tasks.filter(t=> !t.mirrorOf || artIds.has(t.mirrorOf));   // 원본 사라진 미러 제거
   if(mode==="init"){
-    arts.forEach(a=>{ const had=state.tasks.some(t=>t.mirrorOf===a.id); const mir=ensureMirror(a); if(!had){ syncMirror(a); } else { mir.status=a.status; ensureCombatCat(a.status); }  mirrorSnap[a.id]=artSig(a); });   // 종류는 항상 아트 기준으로 교정
+    arts.forEach(a=>{ syncMirror(a); mirrorSnap[a.id]=artSig(a); });   // 로드 시 미러를 아트 원본으로 전체 재동기화(부서 포함)
   } else {
     arts.forEach(a=>{ const sig=artSig(a); if(mirrorSnap[a.id]!==sig){ syncMirror(a); mirrorSnap[a.id]=sig; } else { ensureMirror(a); } });
   }
@@ -811,7 +811,9 @@ const remote = { active:false, client:null,
 
 /* ===== 렌더링 ===== */
 const escapeHtml=s=>(s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const activeDepts=t=>depsFor(t.track||"개발").filter(d=>t.depts[d.key]&&t.depts[d.key].on);
+// 미러(전투)는 아트의 모든 부서를 그대로 보여줌 → 전투 참여부서로 제한하지 않고 전체 부서에서 찾음
+const taskDeps=t=>t.mirrorOf ? DEPARTMENTS : depsFor(t.track||"개발");
+const activeDepts=t=>taskDeps(t).filter(d=>t.depts[d.key]&&t.depts[d.key].on);
 function taskHasUnassigned(t){ const ad=activeDepts(t); if(!ad.length) return true; return ad.some(d=>!((t.depts[d.key].assignees)||[]).length); }
 function passFilter(t){
   if(deptFilter.size && !activeDepts(t).some(d=>deptFilter.has(d.key))) return false;
@@ -964,7 +966,7 @@ function renderHead(){
 }
 
 function deptGridHtml(t){
-  return depsFor(t.track||"개발").map(d=>{ const seg=t.depts[d.key]; const on=seg&&seg.on;
+  return taskDeps(t).map(d=>{ const seg=t.depts[d.key]; const on=seg&&seg.on;
     const ow=(on&&seg.assignees&&seg.assignees.length)?' · 담당: '+escapeHtml(seg.assignees.join(', ')):'';
     return `<span class="dept-slot ${on?'on':'off'}" title="${escapeHtml(d.key)}${on?' · 지정됨':' · 미지정'}${ow}"><i ${on?`style="background:${d.color}"`:''}></i></span>`; }).join("");
 }
@@ -1417,7 +1419,7 @@ function addTask(){ const name=taskInput.value.trim(); if(!name) return;
 
 function openDeptModal(tid){ editing={tid}; const t=findTask(tid);
   document.getElementById("deptModalSub").textContent=t.name;
-  document.getElementById("deptPickGrid").innerHTML=depsFor(t.track||"개발").map(d=>{ const on=t.depts[d.key]&&t.depts[d.key].on;
+  document.getElementById("deptPickGrid").innerHTML=taskDeps(t).map(d=>{ const on=t.depts[d.key]&&t.depts[d.key].on;
     return `<span class="dept-chip ${on?'on':''}" style="${on?'background:'+d.color:''}" data-pick="${d.key}"><span class="swatch" style="background:${on?'#fff':d.color}"></span>${d.key}</span>`; }).join("");
   document.getElementById("deptAssignArea").innerHTML = activeDepts(t).length
     ? `<label style="margin-top:14px">부서별 담당자</label>`+activeDepts(t).map(d=>`<div class="da-row"><div class="da-dept"><i style="background:${d.color}"></i>${d.key}</div><div class="da-chips">${deptAssigneeChips(t,d.key)}</div></div>`).join("")
