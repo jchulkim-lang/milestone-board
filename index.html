@@ -717,7 +717,14 @@ let state = { milestones:[{ id:"m1", name:"마일스톤 1", color:MS_PALETTE[0],
 let deptFilter=new Set(), statusFilter=new Set(), msFilter=new Set(), assigneeFilter=new Set();
 let trackFilter="개발";   // 분류 탭(개발/아트) — '전체' 없음
 let filterOpen=false;
-let groupCollapsed=new Set();   // 접힌 상태 그룹
+let groupCollapsed=new Set();   // 접힌 상태 그룹(개인)
+/* Task 펼침 상태 — 개인 브라우저에만 저장(공유 안 됨). 기본은 모두 접힘 */
+let openTasks=new Set();
+const OPEN_KEY="milestone_open_v1";
+function loadOpen(){ try{ const r=localStorage.getItem(OPEN_KEY); if(r) openTasks=new Set(JSON.parse(r)); }catch(_){}  }
+function saveOpen(){ try{ localStorage.setItem(OPEN_KEY, JSON.stringify([...openTasks])); }catch(_){}  }
+const isOpen=id=>openTasks.has(id);
+function setOpen(id,on){ if(on) openTasks.add(id); else openTasks.delete(id); saveOpen(); }
 let msSelId=null;               // 마일스톤 편집 대상
 
 function findMs(id){ return state.milestones.find(m=>m.id===id); }
@@ -727,10 +734,10 @@ function findTask(id){ return state.tasks.find(t=>t.id===id); }
 function duplicateTask(id){
   const t=findTask(id); if(!t) return;
   const copy=JSON.parse(JSON.stringify(t));   // 부서·일정·담당자·링크까지 깊은 복사
-  copy.id=uid(); copy.name=(t.name||"Task")+" (복사)"; copy.open=true; delete copy.mirrorOf;   // 사본은 독립(미러 아님)
+  copy.id=uid(); copy.name=(t.name||"Task")+" (복사)"; delete copy.open; delete copy.mirrorOf;   // 사본은 독립(미러 아님)
   const idx=state.tasks.findIndex(x=>x.id===id);
   state.tasks.splice(idx<0?state.tasks.length:idx+1, 0, copy);
-  selectedId=copy.id; save(); render(); scrollToTask(copy);
+  selectedId=copy.id; setOpen(copy.id,true); save(); render(); scrollToTask(copy);
 }
 
 const LS_KEY = "milestone_state_v6";
@@ -768,7 +775,7 @@ function migrate(){
     if(!t.track) t.track="개발";   // 미지정만 기본값. 모르는 분류(신버전)라도 덮어쓰지 않음(데이터 보존)
     const _ss=statusesFor(t.track); if(_ss.length && (!t.status || !_ss.some(s=>s.k===t.status))) t.status=(_ss[0]&&_ss[0].k)||"대기";   // 아는 분류일 때만 상태 보정(모르는 분류 보존)
     if(typeof t.done!=="boolean") t.done = (!isCatTrack(t.track) && t.status==="완료");
-    if(!t.links) t.links={plan:"",trello:""}; if(t.depts) Object.values(t.depts).forEach(s=>{ if(s && !Array.isArray(s.assignees)) s.assignees=[]; }); if(!t.milestoneId || !findMs(t.milestoneId)) t.milestoneId=firstMs; if(t.open===undefined)t.open=false; });
+    if(!t.links) t.links={plan:"",trello:""}; if(t.depts) Object.values(t.depts).forEach(s=>{ if(s && !Array.isArray(s.assignees)) s.assignees=[]; }); if(!t.milestoneId || !findMs(t.milestoneId)) t.milestoneId=firstMs; if("open" in t) delete t.open; });   // 펼침은 개인 로컬로 이동
   reconcileMirrors("init");
 }
 
@@ -788,7 +795,7 @@ function ensureCombatCat(key){
 }
 function ensureMirror(art){
   let mir=state.tasks.find(t=>t.mirrorOf===art.id);
-  if(!mir){ mir={ id:uid(), mirrorOf:art.id, track:"전투", open:false, status:art.status, kickoff:"예정", done:false, links:{plan:"",trello:""}, depts:{} }; ensureCombatCat(art.status); state.tasks.push(mir); }
+  if(!mir){ mir={ id:uid(), mirrorOf:art.id, track:"전투", status:art.status, kickoff:"예정", done:false, links:{plan:"",trello:""}, depts:{} }; ensureCombatCat(art.status); state.tasks.push(mir); }
   return mir;
 }
 function syncMirror(art){
@@ -915,6 +922,7 @@ function renderLegend(){
 
 function renderFilter(){
   const allD=deptFilter.size===0, allS=statusFilter.size===0, allM=msFilter.size===0;
+  const _vis=state.tasks.filter(passFilter); const _allOpen=_vis.length>0 && _vis.every(t=>isOpen(t.id));
   const dchips=depsFor(headTrack()).map(d=>{ const on=deptFilter.has(d.key);
     return `<span class="fchip ${on?'on':''}" style="${on?'background:'+d.color:''}" data-fd="${d.key}"><span class="dot" style="background:${on?'#fff':d.color}"></span>${d.key}</span>`; }).join("");
   const schips=statusesFor(headTrack()).map(s=>{ const on=statusFilter.has(s.k);
@@ -942,7 +950,8 @@ function renderFilter(){
     `<div class="lh-row">
        <button class="btn sm" id="addTaskBtn">＋ Task</button>
        <span class="lh-label" style="margin-left:4px">TASK · 부서 · 킥오프</span>
-       <button class="filter-btn ${cnt?'active':''}" id="filterBtn" style="margin-left:auto">필터${cnt?' ('+cnt+')':''} ▾</button>
+       <button class="filter-btn" id="toggleAllBtn" style="margin-left:auto" title="모두 펼침/접기 (개인 화면)">${_allOpen?'⊖ 모두 접기':'⊕ 모두 펼치기'}</button>
+       <button class="filter-btn ${cnt?'active':''}" id="filterBtn">필터${cnt?' ('+cnt+')':''} ▾</button>
      </div>
      <div class="lh-row dept-head-row"><span class="lh-label">부서 지정 →</span><span class="th-spacer"></span><span class="dept-grid">${depsFor(headTrack()).map(d=>`<span class="dept-slot on" title="${escapeHtml(d.key)}${(d.owners&&d.owners.length)?' · 담당: '+escapeHtml(d.owners.join(', ')):''}"><i style="background:${d.color}"></i></span>`).join("")}</span><span class="th-right-spacer"></span></div>
      <div class="filter-pop ${filterOpen?'show':''}" id="filterPop">
@@ -1022,7 +1031,7 @@ function renderLeft(){
     if(!col){
       tasks.forEach(t=>{
         let inner="";
-        if(t.open){
+        if(isOpen(t.id)){
           const deptRows=activeDepts(t).map(d=>{ const seg=t.depts[d.key];
             const sa=(seg.assignees&&seg.assignees.length)?seg.assignees:[];
             const ow=sa.length?`<span class="dept-owner" title="담당: ${escapeHtml(sa.join(', '))}">👤 ${escapeHtml(sa.join(', '))}</span>`:'<span class="dept-owner" style="opacity:.6">담당 미정</span>';
@@ -1034,7 +1043,7 @@ function renderLeft(){
         const trelloBtn=t.links.trello?`<a class="meta-btn set" href="${escapeHtml(t.links.trello)}" target="_blank" rel="noopener" title="Trello 열기">📋 Trello</a>`:`<button class="meta-btn dim" data-openedit="${t.id}" title="Trello 링크 추가">📋 Trello +</button>`;
         const trOpts=TRACKS.map(tr=>`<option value="${tr}" ${tr===t.track?'selected':''}>${tr}</option>`).join("");
         const meta=`<div class="meta-rows"><div class="meta-row"><button class="meta-btn" data-openpicker="${t.id}">＋ 부서</button><button class="meta-btn" data-openedit="${t.id}">✏️ 편집</button><button class="meta-btn" data-dup="${t.id}" title="이 Task 복제">⧉ 복제</button>${planBtn}${trelloBtn}<select class="meta-sel" data-settrack="${t.id}" title="분류">${trOpts}</select><select class="meta-sel" data-setms="${t.id}" title="마일스톤">${msOpts}</select></div></div>`;
-        html+=`<div class="task ${t.open?'open':''} ${t.kickoff==='Skip'?'skip':''} ${isCatTrack(t.track)&&t.done?'tdone':''} ${t.id===selectedId?'selected':''}" data-task="${t.id}" draggable="true">${taskHeadHtml(t)}${inner}${meta}</div>`;
+        html+=`<div class="task ${isOpen(t.id)?'open':''} ${t.kickoff==='Skip'?'skip':''} ${isCatTrack(t.track)&&t.done?'tdone':''} ${t.id===selectedId?'selected':''}" data-task="${t.id}" draggable="true">${taskHeadHtml(t)}${inner}${meta}</div>`;
       });
     }
   });
@@ -1052,7 +1061,7 @@ function renderBody(){
     if(!groupCollapsed.has(s.k)){
       tasks.forEach(t=>{
         const active=activeDepts(t); const skip=t.kickoff==='Skip'?'skip':''; const kf=kfOf(t.kickoff);
-        if(t.open){
+        if(isOpen(t.id)){
           const lanes=active.map(d=>{ const seg=t.depts[d.key];
             const kfm = d.key==="기획" ? `<span class="kf" style="left:${Math.max(0,seg.start*DAY_W-7)}px;top:50%;background:${kf.color}">${kf.icon}</span>` : "";
             return `<div class="tl-dept-lane">${kfm}<div class="bar" data-bar="${t.id}:${d.key}" style="left:${seg.start*DAY_W}px;width:${(seg.end-seg.start+1)*DAY_W}px;background:${d.color}"><div class="handle l"></div><span class="lbl">${d.key} · ${seg.end-seg.start+1}일</span><span class="lbl-r">${(seg.assignees&&seg.assignees.length)?escapeHtml(seg.assignees.join(', ')):'미정'}</span><div class="handle r"></div></div></div>`; }).join("");
@@ -1078,6 +1087,7 @@ const leftBody=document.getElementById("leftBody"), leftHead=document.getElement
 leftHead.addEventListener("click", e=>{
   if(e.target.closest("#addTaskBtn")){ openTaskModal(); return; }
   if(e.target.closest("#filterBtn")){ filterOpen=!filterOpen; renderFilter(); return; }
+  if(e.target.closest("#toggleAllBtn")){ const vis=state.tasks.filter(passFilter); const allOpen=vis.length>0 && vis.every(t=>isOpen(t.id)); vis.forEach(t=>{ if(allOpen) openTasks.delete(t.id); else openTasks.add(t.id); }); saveOpen(); render(); return; }
   const tab=e.target.closest("[data-mstab]"); if(tab){ const k=tab.dataset.mstab; msFilter.clear(); if(k!=="__all") msFilter.add(k); render(); return; }
   const trk=e.target.closest("[data-track]"); if(trk){ trackFilter=trk.dataset.track; deptFilter.clear(); assigneeFilter.clear(); statusFilter.clear(); groupCollapsed.clear(); render(); return; }
   const fd=e.target.closest("[data-fd]"), fs=e.target.closest("[data-fs]"), fa=e.target.closest("[data-fa]");
@@ -1108,7 +1118,7 @@ leftBody.addEventListener("click", e=>{
   const pick=e.target.closest("[data-openpicker]"); if(pick){ e.stopPropagation(); openDeptModal(pick.dataset.openpicker); return; }
   const dup=e.target.closest("[data-dup]"); if(dup){ e.stopPropagation(); duplicateTask(dup.dataset.dup); return; }
   const lnk=e.target.closest("[data-openedit]"); if(lnk){ e.stopPropagation(); openEditModal(lnk.dataset.openedit); return; }
-  const open=e.target.closest("[data-toggleopen]"); if(open){ if(e.target.closest("[data-drag]")) return; const t=findTask(open.dataset.toggleopen); selectedId=t.id; t.open=!t.open; save(); render(); scrollToTask(t); }
+  const open=e.target.closest("[data-toggleopen]"); if(open){ if(e.target.closest("[data-drag]")) return; const t=findTask(open.dataset.toggleopen); selectedId=t.id; setOpen(t.id, !isOpen(t.id)); render(); scrollToTask(t); }   // 펼침은 개인 로컬(공유 안 함)
 });
 
 /* ===== 드래그앤드랍 정렬 / 그룹 이동 ===== */
@@ -1164,7 +1174,7 @@ function attachBarHandlers(){
         else { seg.end=Math.max(s0,Math.min(N-1,e0+dd)); }
         mb.style.left=(seg.start*DAY_W)+"px"; mb.style.width=((seg.end-seg.start+1)*DAY_W)+"px"; }
       function onUp(){ mb.removeEventListener("pointermove",onMove); mb.removeEventListener("pointerup",onUp);
-        if(!moved){ t.open=true; } save(); render(); }
+        if(!moved){ setOpen(t.id,true); render(); } else { save(); render(); } }
       mb.addEventListener("pointermove",onMove); mb.addEventListener("pointerup",onUp);
     });
   });
@@ -1439,10 +1449,11 @@ function addTask(){ const name=taskInput.value.trim(); if(!name) return;
   let status;   // 선택한 Task와 같은 분류면 상태(그룹)까지 물려받아 바로 아래에 나오게
   if(selT && selT.track===trk && statusesFor(trk).some(s=>s.k===selT.status)) status=selT.status;
   else { const _s0=statusesFor(trk)[0]; status=(_s0&&_s0.k)||"대기"; }
-  const tk={ id:uid(), name, milestoneId:taskMs.value||state.milestones[0].id, track:trk, open:true, kickoff:"예정", status, done:false, links:{plan:"",trello:""}, depts:{} };
+  const tk={ id:uid(), name, milestoneId:taskMs.value||state.milestones[0].id, track:trk, kickoff:"예정", status, done:false, links:{plan:"",trello:""}, depts:{} };
   const si = selT ? state.tasks.findIndex(x=>x.id===selectedId) : -1;   // 선택한 Task 바로 아래에 삽입
   if(si>=0) state.tasks.splice(si+1,0,tk); else state.tasks.push(tk);
-  selectedId=tk.id; closeModals(); save(); render(); openDeptModal(tk.id); }
+  selectedId=tk.id; setOpen(tk.id,true);   // 만든 사람 화면에서만 펼침
+  closeModals(); save(); render(); openDeptModal(tk.id); }
 
 function openDeptModal(tid){ editing={tid}; const t=findTask(tid);
   document.getElementById("deptModalSub").textContent=t.name;
@@ -1552,7 +1563,7 @@ document.getElementById("themeBtn").onclick=()=>{ const nxt=document.body.classL
 
 /* ===== init (v7) ===== */
 const savedW=localStorage.getItem("ms_leftw"); if(savedW) document.documentElement.style.setProperty("--left-w",savedW);
-load(); render();
+loadOpen(); load(); render();
 const ni=nearestIndex(); if(ni>3) rightBody.scrollLeft=(ni-3)*DAY_W;
 remote.init();
 
@@ -1566,7 +1577,7 @@ function focusTaskFromUrl(){
       deptFilter.clear(); statusFilter.clear(); msFilter.clear(); assigneeFilter.clear();
       if(TRACKS.includes(t.track)) trackFilter=t.track;   // 해당 분류 탭으로 전환
       groupCollapsed.delete(t.status);
-      selectedId=t.id; t.open=true; render();
+      selectedId=t.id; setOpen(t.id,true); render();
       scrollToTask(t);
       const el=document.querySelector('.task[data-task="'+(window.CSS&&CSS.escape?CSS.escape(id):id)+'"]');
       if(el){ el.scrollIntoView({behavior:"smooth",block:"center"}); el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
