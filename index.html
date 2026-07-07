@@ -200,6 +200,12 @@
   .footbar i{width:10px;height:10px;border-radius:3px;display:inline-block;}
   .legend-edit{background:none;border:0;color:var(--muted);font-weight:700;font-size:11px;cursor:pointer;padding:2px 4px;border-radius:5px;}
   .legend-edit:hover{color:var(--text);background:var(--panel2);}
+  .cat-drag{cursor:grab;color:var(--muted);font-size:15px;line-height:1;padding:0 6px 0 2px;user-select:none;flex:0 0 auto;}
+  .cat-drag:active{cursor:grabbing;}
+  .dm-block{border-radius:8px;}
+  .dm-block.dragging{opacity:.45;}
+  .dm-block.drop-above{box-shadow:inset 0 2px 0 0 #6366f1;}
+  .dm-block.drop-below{box-shadow:inset 0 -2px 0 0 #6366f1;}
   .footbar .grp.clickable{cursor:pointer;border-radius:6px;padding:2px 4px;}
   .footbar .grp.clickable:hover{background:var(--panel2);}
   .dm-block{border-bottom:1px solid var(--line);padding:8px 2px;}
@@ -954,13 +960,11 @@ function renderPipeline(){
 }
 
 function renderLegend(){
-  const dep=depsFor(headTrack()).map(d=>`<span class="di"><i style="background:${d.color}"></i>${escapeHtml(d.key)}</span>`).join("");
-  const ts=statusesFor(headTrack()).map(s=>`<span class="di" style="color:${s.color}">● ${s.k}</span>`).join("");
   const art=isCatTrack(headTrack());
-  const stLabel = `<button class="lbl legend-edit" id="catLegendBtn" title="${art?'종류':'상태'} 추가·편집">${art?'종류':'상태'} ✎</button>`;
+  const stLabel = `<button class="lbl legend-edit" id="catLegendBtn" title="${art?'종류':'상태'} 추가·편집">${art?'종류':'상태'} 편집 ✎</button>`;
   document.getElementById("footbar").innerHTML=
-    `<button class="lbl legend-edit" id="deptLegendBtn" title="클릭하여 부서 색상 편집·추가">부서 ✎</button><div class="grp clickable" id="deptLegendBtn2">${dep}</div>`+
-    `<div class="grp" style="margin-left:auto">${stLabel}${ts}</div>`;
+    `<button class="lbl legend-edit" id="deptLegendBtn" title="부서 편집·추가">부서 편집 ✎</button>`+
+    `<div class="grp" style="margin-left:auto">${stLabel}</div>`;
 }
 
 function renderFilter(){
@@ -1244,8 +1248,8 @@ function renderCatMgr(){
       : `<span class="dm-name">${escapeHtml(c.key)}</span><button class="meta-btn" data-catedit="${escapeHtml(c.key)}" title="이름 변경">✎</button>`;
     const artTag = (catMgrTrack==="전투" && catIsArtMirror(c.key)) ? '<span class="art-tag">아트</span>' : '';
     const doneBtn = isCatTrack(catMgrTrack) ? '' : `<button class="meta-btn done-toggle ${c.done?'on':''}" data-catdone="${escapeHtml(c.key)}" title="완료로 취급 여부">${c.done?'✓ 완료':'완료 지정'}</button>`;
-    const ord = `<span class="cat-ord"><button class="meta-btn ord" data-catup="${i}" title="위로" ${i===0?'disabled':''}>▲</button><button class="meta-btn ord" data-catdown="${i}" title="아래로" ${i===list.length-1?'disabled':''}>▼</button></span>`;
-    return `<div class="dm-block"><div class="dm-row"><input type="color" value="${c.color}" data-catcolor="${escapeHtml(c.key)}">${nameCell}${artTag}${doneBtn}${ord}<span class="dm-track">${used}건</span><button class="linkrow" data-catdel="${escapeHtml(c.key)}">삭제</button></div></div>`;
+    const drag = `<span class="cat-drag" title="드래그하여 순서 변경">⠿</span>`;
+    return `<div class="dm-block" draggable="true" data-catrow="${i}"><div class="dm-row">${drag}<input type="color" value="${c.color}" data-catcolor="${escapeHtml(c.key)}">${nameCell}${artTag}${doneBtn}<span class="dm-track">${used}건</span><button class="linkrow" data-catdel="${escapeHtml(c.key)}">삭제</button></div></div>`;
   }).join("") || '<div class="dm-empty">항목이 없습니다.</div>';
   if(catEditKey){ const inp=document.querySelector(`[data-catrename="${CSS.escape(catEditKey)}"]`); if(inp){ inp.focus(); inp.select(); } }
 }
@@ -1275,8 +1279,6 @@ document.getElementById("catMgrList").addEventListener("keydown", e=>{ const r=e
 document.getElementById("catMgrList").addEventListener("click", e=>{
   const ed=e.target.closest("[data-catedit]"); if(ed){ catEditKey=ed.dataset.catedit; renderCatMgr(); return; }
   const dt=e.target.closest("[data-catdone]"); if(dt){ const c=catsFor(catMgrTrack).find(x=>x.key===dt.dataset.catdone); if(c){ c.done=!c.done; save(); render(); renderCatMgr(); } return; }
-  const up=e.target.closest("[data-catup]"); if(up){ const i=+up.dataset.catup; const L=catsFor(catMgrTrack); if(i>0){ [L[i-1],L[i]]=[L[i],L[i-1]]; save(); render(); renderCatMgr(); } return; }
-  const dn=e.target.closest("[data-catdown]"); if(dn){ const i=+dn.dataset.catdown; const L=catsFor(catMgrTrack); if(i<L.length-1){ [L[i+1],L[i]]=[L[i],L[i+1]]; save(); render(); renderCatMgr(); } return; }
   const del=e.target.closest("[data-catdel]"); if(!del) return;
   const key=del.dataset.catdel; const list=catsFor(catMgrTrack);
   if(list.length<=1){ alert("종류가 하나뿐이라 삭제할 수 없습니다."); return; }
@@ -1288,6 +1290,34 @@ document.getElementById("catMgrList").addEventListener("click", e=>{
   state.tasks.forEach(t=>{ if(t.track===catMgrTrack&&t.status===key) t.status=fallback; });
   statusFilter.delete(key); save(); render(); renderCatMgr();
 });
+/* 종류 순서: 드래그하여 재배치 */
+(function(){
+  const cl=document.getElementById("catMgrList"); let from=null;
+  const clearMarks=()=>cl.querySelectorAll(".dragging,.drop-above,.drop-below").forEach(el=>el.classList.remove("dragging","drop-above","drop-below"));
+  cl.addEventListener("dragstart", e=>{
+    const h=e.target.closest(".cat-drag"), row=e.target.closest("[data-catrow]");
+    if(!h||!row){ e.preventDefault(); return; }
+    from=+row.dataset.catrow; e.dataTransfer.effectAllowed="move";
+    try{ e.dataTransfer.setData("text/plain", String(from)); }catch(_){}
+    row.classList.add("dragging");
+  });
+  cl.addEventListener("dragover", e=>{
+    const row=e.target.closest("[data-catrow]"); if(from===null||!row) return;
+    e.preventDefault(); e.dataTransfer.dropEffect="move";
+    cl.querySelectorAll(".drop-above,.drop-below").forEach(el=>el.classList.remove("drop-above","drop-below"));
+    const r=row.getBoundingClientRect(); row.classList.add((e.clientY-r.top)>r.height/2?"drop-below":"drop-above");
+  });
+  cl.addEventListener("drop", e=>{
+    const row=e.target.closest("[data-catrow]"); if(from===null||!row){ clearMarks(); from=null; return; }
+    e.preventDefault();
+    const to=+row.dataset.catrow, r=row.getBoundingClientRect(), after=(e.clientY-r.top)>r.height/2;
+    const L=catsFor(catMgrTrack); let at=to+(after?1:0);
+    const [moved]=L.splice(from,1); if(from<at) at--;
+    at=Math.max(0,Math.min(L.length,at)); L.splice(at,0,moved);
+    from=null; clearMarks(); save(); render(); renderCatMgr();
+  });
+  cl.addEventListener("dragend", ()=>{ from=null; clearMarks(); });
+})();
 
 /* ===== 공지사항 ===== */
 let noticeEvaluated=false;
