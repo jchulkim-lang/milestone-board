@@ -751,8 +751,9 @@ function duplicateTask(id){
 }
 
 const LS_KEY = "milestone_state_v6";
-/* 앱 버전: 서버 MIN_APP_VERSION 이상이어야 동기화 허용(구버전 차단). 호환 깨는 배포마다 올릴 것. */
-const APP_VERSION = 20260707;
+/* 앱 버전: 서버(_worker.js)가 배포 시 __APP_BUILD__ 자리에 현재 빌드 번호를 주입.
+ * 단일 소스는 _worker.js 의 APP_BUILD 하나뿐 — 여기 숫자를 손댈 필요 없음(자동). */
+const APP_VERSION = (function(){ const v = parseInt("__APP_BUILD__", 10); return isNaN(v) ? 0 : v; })();
 window.APP_VERSION = APP_VERSION;
 function migrate(){
   if(!state.title) state.title = "본부 마일스톤 관리";

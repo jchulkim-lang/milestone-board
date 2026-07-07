@@ -7,9 +7,12 @@
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 const SESSION_TTL = 60 * 60 * 12; // 12시간
-/* 이 버전 미만 클라이언트는 상태 동기화(접속) 차단. 호환 깨는 배포마다 올릴 것.
- * index.html 의 APP_VERSION 과 반드시 같거나 낮게 유지(APP_VERSION >= MIN_APP_VERSION). */
-const MIN_APP_VERSION = 20260707;
+/* ===== 앱 버전(단일 소스) =====
+ * 이 숫자 하나만 올리면 됩니다. 호환을 깨는(구버전이 데이터를 망칠 수 있는) 배포일 때만 올리세요.
+ * - 서버는 index.html 을 서빙할 때 __APP_BUILD__ 자리에 이 값을 자동 주입 → 클라이언트 APP_VERSION.
+ * - 이 값보다 낮은(=오래된) 클라이언트는 /api/state 접속이 차단됩니다.
+ * 사소한/비호환 없는 배포에서는 올리지 않아도 됨(불필요한 강제 새로고침 방지). */
+const APP_BUILD = 20260707;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -189,8 +192,8 @@ async function handleApi(request, env, url, ctx){
   }
 
   // 구버전 클라이언트 차단: 상태 동기화(읽기·쓰기) 자체를 막아 데이터 손상을 원천 봉쇄
-  if(p === "/api/state" && clientVersion(request) < MIN_APP_VERSION){
-    return json({ error:"version", reason:"upgrade-required", min:MIN_APP_VERSION }, 426);
+  if(p === "/api/state" && clientVersion(request) < APP_BUILD){
+    return json({ error:"version", reason:"upgrade-required", min:APP_BUILD }, 426);
   }
   if(p === "/api/state" && request.method === "GET"){
     const row = await env.DB.prepare("SELECT data, version, updated_at, updated_by FROM app_state WHERE id='main'").first();
@@ -199,9 +202,16 @@ async function handleApi(request, env, url, ctx){
     return json({ data, version:row.version, updatedAt:row.updated_at, updatedBy:row.updated_by });
   }
   if(p === "/api/state" && request.method === "PUT"){
-    if(!canEdit(await effectiveRole(env, user.email))) return json({ error:"forbidden", reason:"edit-not-allowed" }, 403);
-    const b = await request.json(); const payload = JSON.stringify(b.data ?? {});
+    const role = await effectiveRole(env, user.email);
+    if(!canEdit(role)) return json({ error:"forbidden", reason:"edit-not-allowed" }, 403);
+    const b = await request.json();
     const oldRow = await env.DB.prepare("SELECT data FROM app_state WHERE id='main'").first();
+    let incoming = b.data ?? {};
+    // 마일스톤 설정은 관리자 전용: 비관리자 저장 시 마일스톤 목록은 서버 저장본을 유지(변경 무시)
+    if(role !== "admin" && oldRow && oldRow.data){
+      try{ const prev = JSON.parse(oldRow.data); if(prev && Array.isArray(prev.milestones)) incoming = { ...incoming, milestones: prev.milestones }; }catch(_){}
+    }
+    const payload = JSON.stringify(incoming);
     await env.DB.prepare("UPDATE app_state SET data=?, version=version+1, updated_at=datetime('now'), updated_by=? WHERE id='main'").bind(payload, user.email).run();
     if(ctx && ctx.waitUntil) ctx.waitUntil(notifyStatusChanges(env, oldRow && oldRow.data, payload, user.name || user.email, url.origin));
     const row = await env.DB.prepare("SELECT data, version FROM app_state WHERE id='main'").first();
@@ -247,6 +257,17 @@ export default {
   async fetch(request, env, ctx){
     const url = new URL(request.url);
     if(url.pathname.startsWith("/api/")) return handleApi(request, env, url, ctx);
+    // index.html 문서에 현재 빌드 번호 주입(클라이언트 APP_VERSION 자동 설정)
+    if(url.pathname === "/" || url.pathname === "/index.html"){
+      const res = await env.ASSETS.fetch(request);
+      const ct = res.headers.get("content-type") || "";
+      if(res.ok && ct.includes("text/html")){
+        const html = (await res.text()).replaceAll("__APP_BUILD__", String(APP_BUILD));
+        const h = new Headers(res.headers); h.set("cache-control", "no-cache, must-revalidate");
+        return new Response(html, { status: res.status, headers: h });
+      }
+      return res;
+    }
     return env.ASSETS.fetch(request); // 정적 파일(index.html, cloud.js 등)
   }
 };
