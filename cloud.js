@@ -69,6 +69,9 @@
   function setupSync(){
     remote.active = true; remote.version = -1; remote._t = null; remote.base = null;   // base = 서버와의 공통 기준
     const clone = (o)=> (typeof _clone==="function") ? _clone(o) : (o==null?o:JSON.parse(JSON.stringify(o)));
+    let dirty=false, maxTimer=null; const MAXWAIT=1500;
+    const focusedControl=()=>{ const ae=document.activeElement; return !!(ae && (ae.tagName==="SELECT"||ae.tagName==="INPUT"||ae.tagName==="TEXTAREA")); };
+    const busy=()=> dirty || focusedControl();   // 편집 중(저장 대기 or 컨트롤 포커스): 백그라운드 갱신 보류
     remote.pull = async function(initial){
       if(_blocked) return;
       try{
@@ -82,28 +85,36 @@
           migrate(); buildTimeline(); render(); return;
         }
         if(j.version > this.version){
+          if(busy()) return;   // 편집 중이면 이번 갱신은 건너뜀(다음 폴링에서 반영) — 조작 덮어쓰기 방지
           state = (typeof mergeState3==="function") ? mergeState3(remote.base, state, remoteData) : remoteData;   // 3-way 병합
           this.version = j.version; remote.base = clone(remoteData);
           migrate(); buildTimeline(); render();
         }
       }catch(_){}
     };
+    const doPush = async () => {
+      clearTimeout(remote._t); remote._t=null;
+      if(maxTimer){ clearTimeout(maxTimer); maxTimer=null; }
+      if(!canEdit() || _blocked){ dirty=false; return; }
+      try{
+        const r0 = await fetch("/api/state", { credentials:"same-origin", headers:{ "X-App-Version": APPVER() } });   // 저장 직전 서버 최신
+        if(r0.status===426){ blockOldVersion(); return; }
+        const j0 = r0.ok ? await r0.json() : null;
+        const remoteData = (j0 && j0.data && j0.data.milestones) ? j0.data : (remote.base || { milestones:[], tasks:[] });
+        const merged = (typeof mergeState3==="function") ? mergeState3(remote.base, state, remoteData) : state;
+        const r = await fetch("/api/state", { method:"PUT", credentials:"same-origin",
+          headers:{ "content-type":"application/json", "X-App-Version": APPVER() }, body: JSON.stringify({ data: merged }) });
+        if(r.status===426){ blockOldVersion(); return; }
+        if(r.ok){ const j = await r.json(); remote.version = j.version; state = merged; remote.base = clone(merged); dirty=false; buildTimeline(); if(!focusedControl()) render(); }
+        else dirty=false;
+      }catch(_){ dirty=false; }
+    };
     remote.push = function(){
       if(!canEdit() || _blocked) return;            // 뷰어는 저장 불가(서버도 차단)
+      dirty = true;
+      if(!maxTimer) maxTimer = setTimeout(doPush, MAXWAIT);   // 연속 편집 중에도 최대 대기시간 안에 반드시 저장
       clearTimeout(this._t);
-      this._t = setTimeout(async () => {
-        try{
-          const r0 = await fetch("/api/state", { credentials:"same-origin", headers:{ "X-App-Version": APPVER() } });   // 저장 직전 서버 최신
-          if(r0.status===426){ blockOldVersion(); return; }
-          const j0 = r0.ok ? await r0.json() : null;
-          const remoteData = (j0 && j0.data && j0.data.milestones) ? j0.data : (remote.base || { milestones:[], tasks:[] });
-          const merged = (typeof mergeState3==="function") ? mergeState3(remote.base, state, remoteData) : state;
-          const r = await fetch("/api/state", { method:"PUT", credentials:"same-origin",
-            headers:{ "content-type":"application/json", "X-App-Version": APPVER() }, body: JSON.stringify({ data: merged }) });
-          if(r.status===426){ blockOldVersion(); return; }
-          if(r.ok){ const j = await r.json(); this.version = j.version; state = merged; remote.base = clone(merged); buildTimeline(); render(); }
-        }catch(_){}
-      }, 800);
+      this._t = setTimeout(doPush, 800);
     };
     remote.pull(true);
     // 3초 폴링 + 숨긴 탭에서는 네트워크 호출 중단(부하·비용 절약), 다시 보이면 즉시 갱신
@@ -131,7 +142,7 @@
   function applyRoleUI(){
     if(!canEdit()){ document.body.classList.add("readonly"); injectReadonlyStyle(); injectRequestButton(); }
     if(ROLE==="admin"){ injectAccessButton(); const fr=document.getElementById("forceReloadBtn"); if(fr) fr.style.display=""; }
-    else { const hb=document.getElementById("historyBtn"); if(hb) hb.style.display="none"; const fr=document.getElementById("forceReloadBtn"); if(fr) fr.style.display="none"; }   // 히스토리·강제새로고침은 관리자 전용
+    else { const hb=document.getElementById("historyBtn"); if(hb) hb.style.display="none"; const fr=document.getElementById("forceReloadBtn"); if(fr) fr.style.display="none"; const mb=document.getElementById("msBtn"); if(mb) mb.style.display="none"; }   // 히스토리·강제새로고침·마일스톤 설정은 관리자 전용
   }
   function injectReadonlyStyle(){
     if(document.getElementById("ro-style")) return;
