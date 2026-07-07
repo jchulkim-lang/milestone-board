@@ -751,6 +751,9 @@ function duplicateTask(id){
 }
 
 const LS_KEY = "milestone_state_v6";
+/* 앱 버전: 서버 MIN_APP_VERSION 이상이어야 동기화 허용(구버전 차단). 호환 깨는 배포마다 올릴 것. */
+const APP_VERSION = 20260707;
+window.APP_VERSION = APP_VERSION;
 function migrate(){
   if(!state.title) state.title = "본부 마일스톤 관리";
   if(!Array.isArray(state.notifyEmails)) state.notifyEmails = [];

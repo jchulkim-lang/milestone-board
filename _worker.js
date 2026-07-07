@@ -7,6 +7,10 @@
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 const SESSION_TTL = 60 * 60 * 12; // 12시간
+/* 이 버전 미만 클라이언트는 상태 동기화(접속) 차단. 호환 깨는 배포마다 올릴 것.
+ * index.html 의 APP_VERSION 과 반드시 같거나 낮게 유지(APP_VERSION >= MIN_APP_VERSION). */
+const MIN_APP_VERSION = 20260707;
+function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
 function b64urlFromStr(str){ return b64urlFromBytes(enc.encode(str)); }
@@ -184,6 +188,10 @@ async function handleApi(request, env, url, ctx){
     return json({ ok:true });
   }
 
+  // 구버전 클라이언트 차단: 상태 동기화(읽기·쓰기) 자체를 막아 데이터 손상을 원천 봉쇄
+  if(p === "/api/state" && clientVersion(request) < MIN_APP_VERSION){
+    return json({ error:"version", reason:"upgrade-required", min:MIN_APP_VERSION }, 426);
+  }
   if(p === "/api/state" && request.method === "GET"){
     const row = await env.DB.prepare("SELECT data, version, updated_at, updated_by FROM app_state WHERE id='main'").first();
     if(!row) return json({ data:{ tasks:[], milestones:[] }, version:0 });

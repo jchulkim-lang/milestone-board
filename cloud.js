@@ -51,12 +51,29 @@
     if(names) el.title = "접속 중: " + (names.join(", ") || "-");
   }
 
+  const APPVER = () => String((typeof APP_VERSION!=="undefined" && APP_VERSION) || (window.APP_VERSION||0));
+  let _blocked = false;
+  function reloadFresh(){ try{ const u=new URL(location.href); u.searchParams.set("v", String(Date.now())); location.replace(u.toString()); }catch(_){ location.reload(); } }
+  function blockOldVersion(){
+    if(_blocked) return; _blocked = true;
+    try{ remote.active = false; }catch(_){}
+    const o = document.createElement("div"); o.id = "oldVersionBlock";
+    o.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:rgba(8,11,20,.96);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;font-family:'Pretendard',-apple-system,sans-serif;padding:24px";
+    o.innerHTML = '<div style="font-size:20px;font-weight:800">새 버전이 배포되었습니다</div><div style="font-size:14px;color:#c7cfdf;line-height:1.7">구버전에서는 데이터 보호를 위해 접속이 제한됩니다.<br>잠시 후 자동으로 최신 버전으로 새로고침됩니다.</div>';
+    const b = document.createElement("button"); b.textContent = "지금 새로고침";
+    b.style.cssText = "background:#2563eb;color:#fff;border:0;border-radius:9px;padding:10px 18px;font-weight:800;font-size:14px;cursor:pointer";
+    b.onclick = reloadFresh; o.appendChild(b); document.body.appendChild(o);
+    setTimeout(reloadFresh, 4000);
+  }
+
   function setupSync(){
     remote.active = true; remote.version = -1; remote._t = null; remote.base = null;   // base = 서버와의 공통 기준
     const clone = (o)=> (typeof _clone==="function") ? _clone(o) : (o==null?o:JSON.parse(JSON.stringify(o)));
     remote.pull = async function(initial){
+      if(_blocked) return;
       try{
-        const r = await fetch("/api/state", { credentials:"same-origin" });
+        const r = await fetch("/api/state", { credentials:"same-origin", headers:{ "X-App-Version": APPVER() } });
+        if(r.status===426){ blockOldVersion(); return; }
         if(!r.ok) return;
         const j = await r.json();
         const remoteData = (j.data && j.data.milestones) ? j.data : { milestones:[], tasks:[] };
@@ -72,22 +89,26 @@
       }catch(_){}
     };
     remote.push = function(){
-      if(!canEdit()) return;            // 뷰어는 저장 불가(서버도 차단)
+      if(!canEdit() || _blocked) return;            // 뷰어는 저장 불가(서버도 차단)
       clearTimeout(this._t);
       this._t = setTimeout(async () => {
         try{
-          const r0 = await fetch("/api/state", { credentials:"same-origin" });   // 저장 직전 서버 최신
+          const r0 = await fetch("/api/state", { credentials:"same-origin", headers:{ "X-App-Version": APPVER() } });   // 저장 직전 서버 최신
+          if(r0.status===426){ blockOldVersion(); return; }
           const j0 = r0.ok ? await r0.json() : null;
           const remoteData = (j0 && j0.data && j0.data.milestones) ? j0.data : (remote.base || { milestones:[], tasks:[] });
           const merged = (typeof mergeState3==="function") ? mergeState3(remote.base, state, remoteData) : state;
           const r = await fetch("/api/state", { method:"PUT", credentials:"same-origin",
-            headers:{ "content-type":"application/json" }, body: JSON.stringify({ data: merged }) });
+            headers:{ "content-type":"application/json", "X-App-Version": APPVER() }, body: JSON.stringify({ data: merged }) });
+          if(r.status===426){ blockOldVersion(); return; }
           if(r.ok){ const j = await r.json(); this.version = j.version; state = merged; remote.base = clone(merged); buildTimeline(); render(); }
         }catch(_){}
       }, 800);
     };
     remote.pull(true);
-    setInterval(() => remote.pull(false), 8000);
+    // 3초 폴링 + 숨긴 탭에서는 네트워크 호출 중단(부하·비용 절약), 다시 보이면 즉시 갱신
+    setInterval(() => { if(!_blocked && document.visibilityState==="visible") remote.pull(false); }, 3000);
+    document.addEventListener("visibilitychange", () => { if(!_blocked && document.visibilityState==="visible") remote.pull(false); });
     startPresence();
   }
 
