@@ -652,11 +652,13 @@ const DEFAULT_STATUS_LIST = [
 const STATUS_TRACKS = ["개발","네러티브","콘텐츠"];
 /* 종류 방식 분류(아트·전투): 사용자 편집, 완료는 t.done 플래그 */
 const DEFAULT_ART_CATEGORIES = [
+  { key:"대기", color:"#64748b" },
   { key:"PC", color:"#6366f1" }, { key:"프리미엄코스튬", color:"#ec4899" },
   { key:"몬스터", color:"#f59e0b" }, { key:"보스", color:"#ef4444" },
   { key:"NPC", color:"#22d3ee" }, { key:"배경", color:"#10b981" },
 ];
 const DEFAULT_COMBAT_CATEGORIES = [
+  { key:"대기", color:"#64748b" },
   { key:"전투시스템", color:"#ef4444" }, { key:"스킬", color:"#f97316" },
   { key:"몬스터AI", color:"#a855f7" }, { key:"밸런스", color:"#22d3ee" },
 ];
@@ -764,6 +766,8 @@ function migrate(){
   state.artCategories.forEach(c=>{ if(!c.color) c.color="#888"; });
   if(!Array.isArray(state.combatCategories) || !state.combatCategories.length) state.combatCategories = DEFAULT_COMBAT_CATEGORIES.map(c=>({...c}));
   state.combatCategories.forEach(c=>{ if(!c.color) c.color="#888"; });
+  // '대기' 종류를 아트·전투 목록 맨 앞에 보장(기존 데이터 마이그레이션)
+  [state.artCategories, state.combatCategories].forEach(L=>{ if(Array.isArray(L) && !L.some(c=>c.key==="대기")) L.unshift({ key:"대기", color:"#64748b" }); });
   // 상태 방식 트랙별 편집 가능한 상태 목록 시드
   if(!state.trackStatuses || typeof state.trackStatuses!=="object") state.trackStatuses={};
   STATUS_TRACKS.forEach(tr=>{ if(!Array.isArray(state.trackStatuses[tr])||!state.trackStatuses[tr].length) state.trackStatuses[tr]=DEFAULT_STATUS_LIST.map(s=>({...s})); });
@@ -1483,7 +1487,8 @@ function addTask(){ const name=taskInput.value.trim(); if(!name) return;
   const trk=(trackSel&&TRACKS.includes(trackSel.value))?trackSel.value:"개발";
   const selT = selectedId && findTask(selectedId);
   let status;   // 선택한 Task와 같은 분류면 상태(그룹)까지 물려받아 바로 아래에 나오게
-  if(selT && selT.track===trk && statusesFor(trk).some(s=>s.k===selT.status)) status=selT.status;
+  if(isCatTrack(trk)){ status = listFor(trk).some(c=>c.key==="대기") ? "대기" : ((listFor(trk)[0]&&listFor(trk)[0].key)||"대기"); }   // 아트·전투는 항상 '대기'로 시작
+  else if(selT && selT.track===trk && statusesFor(trk).some(s=>s.k===selT.status)) status=selT.status;
   else { const _s0=statusesFor(trk)[0]; status=(_s0&&_s0.k)||"대기"; }
   const tk={ id:uid(), name, milestoneId:taskMs.value||state.milestones[0].id, track:trk, kickoff:"예정", status, done:false, links:{plan:"",trello:""}, depts:{} };
   const si = selT ? state.tasks.findIndex(x=>x.id===selectedId) : -1;   // 선택한 Task 바로 아래에 삽입
