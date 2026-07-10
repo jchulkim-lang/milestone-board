@@ -1089,7 +1089,7 @@ function renderLeft(){
         const planBtn=t.links.plan?`<a class="meta-btn set" href="${escapeHtml(t.links.plan)}" target="_blank" rel="noopener" title="기획서 열기">📄 기획서</a>`:`<button class="meta-btn dim" data-openedit="${t.id}" title="기획서 링크 추가">📄 기획서 +</button>`;
         const trelloBtn=t.links.trello?`<a class="meta-btn set" href="${escapeHtml(t.links.trello)}" target="_blank" rel="noopener" title="Trello 열기">📋 Trello</a>`:`<button class="meta-btn dim" data-openedit="${t.id}" title="Trello 링크 추가">📋 Trello +</button>`;
         const trOpts=TRACKS.map(tr=>`<option value="${tr}" ${tr===t.track?'selected':''}>${tr}</option>`).join("");
-        const meta=`<div class="meta-rows"><div class="meta-row"><button class="meta-btn" data-openpicker="${t.id}">＋ 부서</button><button class="meta-btn" data-openedit="${t.id}">✏️ 편집</button><button class="meta-btn" data-dup="${t.id}" title="이 Task 복제">⧉ 복제</button>${planBtn}${trelloBtn}<select class="meta-sel" data-settrack="${t.id}" title="분류">${trOpts}</select><select class="meta-sel" data-setms="${t.id}" title="마일스톤">${msOpts}</select></div></div>`;
+        const meta=`<div class="meta-rows"><div class="meta-row"><button class="meta-btn" data-openpicker="${t.id}">＋ 부서</button><button class="meta-btn" data-openedit="${t.id}">✏️ 편집</button><button class="meta-btn" data-dup="${t.id}" title="이 Task 복제">⧉ 복제</button><button class="meta-btn" data-copylink="${t.id}" title="이 Task 링크 복사(전달용)">🔗 링크</button>${planBtn}${trelloBtn}<select class="meta-sel" data-settrack="${t.id}" title="분류">${trOpts}</select><select class="meta-sel" data-setms="${t.id}" title="마일스톤">${msOpts}</select></div></div>`;
         html+=`<div class="task ${isOpen(t.id)?'open':''} ${t.kickoff==='Skip'?'skip':''} ${isCatTrack(t.track)&&t.done?'tdone':''} ${t.id===selectedId?'selected':''}" data-task="${t.id}" draggable="true">${taskHeadHtml(t)}${inner}${meta}</div>`;
       });
     }
@@ -1165,6 +1165,7 @@ leftBody.addEventListener("click", e=>{
   const del=e.target.closest("[data-del]"); if(del){ e.stopPropagation(); const id=del.dataset.del; if(confirm("이 Task를 삭제할까요?")){ state.tasks=state.tasks.filter(t=>t.id!==id); save(); render(); } return; }
   const pick=e.target.closest("[data-openpicker]"); if(pick){ e.stopPropagation(); openDeptModal(pick.dataset.openpicker); return; }
   const dup=e.target.closest("[data-dup]"); if(dup){ e.stopPropagation(); duplicateTask(dup.dataset.dup); return; }
+  const cpl=e.target.closest("[data-copylink]"); if(cpl){ e.stopPropagation(); copyTaskLink(cpl.dataset.copylink, cpl); return; }
   const lnk=e.target.closest("[data-openedit]"); if(lnk){ e.stopPropagation(); openEditModal(lnk.dataset.openedit); return; }
   const open=e.target.closest("[data-toggleopen]"); if(open){ if(e.target.closest("[data-drag]")) return; const t=findTask(open.dataset.toggleopen); selectedId=t.id; setOpen(t.id, !isOpen(t.id)); render(); scrollToTask(t); }   // 펼침은 개인 로컬(공유 안 함)
 });
@@ -1680,6 +1681,18 @@ if(state && state.forceReloadAt && state.forceReloadAt>reloadSeen){ reloadSeen=s
 render();
 const ni=nearestIndex(); if(ni>3) rightBody.scrollLeft=(ni-3)*DAY_W;
 remote.init();
+
+/* 이 Task의 공유 링크를 클립보드에 복사(전달받은 사람 화면에서 해당 Task가 펼쳐짐) */
+function copyTaskLink(id, btn){
+  const url = location.origin + location.pathname + "?task=" + encodeURIComponent(id);
+  const done = ()=>{ if(btn){ const o=btn.textContent; btn.textContent="✓ 복사됨"; setTimeout(()=>{ btn.textContent=o; }, 1500); } };
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(done).catch(()=>fallbackCopyText(url, done)); }
+  else fallbackCopyText(url, done);
+}
+function fallbackCopyText(text, done){
+  try{ const ta=document.createElement("textarea"); ta.value=text; ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); done&&done(); }
+  catch(_){ prompt("아래 주소를 복사해 전달하세요:", text); }
+}
 
 /* 알림 링크(?task=ID)로 들어오면 해당 Task를 펼치고 강조. 클라우드 동기화 지연 대비 재시도 */
 function focusTaskFromUrl(){
