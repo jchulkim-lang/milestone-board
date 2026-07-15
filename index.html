@@ -634,7 +634,9 @@ const ART_DEPARTMENTS = [
   { key:"배경원화", color:"#22d3ee", tracks:["아트"] }, { key:"배경모델링", color:"#2dd4bf", tracks:["아트"] },
   { key:"애니메이션", color:"#fbbf24", tracks:["아트"] }, { key:"시네마", color:"#fb7185", tracks:["아트"] },
   { key:"FX", color:"#a3e635", tracks:["아트"] },
-  { key:"클라이언트", color:"#0ea5e9", tracks:["아트"] },
+  { key:"스킬 개발", color:"#0ea5e9", tracks:["아트"] },
+  { key:"아웃 게임 개발", color:"#a78bfa", tracks:["아트"] },
+  { key:"콘텐츠 개발", color:"#fb923c", tracks:["아트"] },
 ];
 let DEPARTMENTS = DEFAULT_DEPARTMENTS.map(d=>({...d}));
 const colorOf = k => (DEPARTMENTS.find(d=>d.key===k)||{}).color || "#888";
@@ -771,8 +773,10 @@ function migrate(){
   { const plan=state.departments.find(d=>d.key==="기획"); if(plan) ["아트","전투","네러티브","콘텐츠"].forEach(tr=>{ if(!plan.tracks.includes(tr)) plan.tracks.push(tr); }); }
   // 아트 전용 부서 1회 시드(기존 데이터에 추가)
   if(!state.artSeeded){ ART_DEPARTMENTS.forEach(ad=>{ if(!state.departments.some(d=>d.key===ad.key)) state.departments.push({...ad, owners:[]}); }); state.artSeeded=true; }
-  // '클라이언트' 아트 부서 1회 시드(기존 데이터에 추가). 삭제 후 재추가 방지 위해 플래그 사용.
-  if(!state.clientDeptSeeded){ if(!state.departments.some(d=>d.key==="클라이언트")) state.departments.push({ key:"클라이언트", color:"#0ea5e9", tracks:["아트"], owners:[] }); state.clientDeptSeeded=true; }
+  // 이전에 '클라이언트'로 추가됐던 경우 '스킬 개발'로 이름 정정(배포 전 임시 데이터 대비)
+  { const c=state.departments.find(d=>d.key==="클라이언트"); if(c){ c.key="스킬 개발"; (state.tasks||[]).forEach(t=>{ if(t.depts && t.depts["클라이언트"]){ t.depts["스킬 개발"]=t.depts["클라이언트"]; delete t.depts["클라이언트"]; } }); } }
+  // 아트 개발 부서 1회 시드(스킬/아웃게임/콘텐츠 개발). 삭제 후 재추가 방지 위해 플래그 사용.
+  if(!state.devDeptsSeeded){ [["스킬 개발","#0ea5e9"],["아웃 게임 개발","#a78bfa"],["콘텐츠 개발","#fb923c"]].forEach(([k,c])=>{ if(!state.departments.some(d=>d.key===k)) state.departments.push({ key:k, color:c, tracks:["아트"], owners:[] }); }); state.devDeptsSeeded=true; }
   DEPARTMENTS = state.departments;
   // 아트 종류(분류) 시드
   if(!Array.isArray(state.artCategories) || !state.artCategories.length) state.artCategories = DEFAULT_ART_CATEGORIES.map(c=>({...c}));
@@ -867,7 +871,7 @@ function mergeState3(base,ours,theirs){
   base=base||{}; ours=ours||{}; theirs=theirs||{};
   const out=_clone(theirs)||{};                           // 상대(서버 최신) 기준
   out.tasks=_mergeTasks(base.tasks||[], ours.tasks||[], theirs.tasks||[]);
-  ["title","milestones","departments","artCategories","combatCategories","trackStatuses","notice","notifyEmails","artSeeded","clientDeptSeeded","forceReloadAt"].forEach(k=>{ if(!_eq(ours[k],base[k])) out[k]=_clone(ours[k]); });
+  ["title","milestones","departments","artCategories","combatCategories","trackStatuses","notice","notifyEmails","artSeeded","devDeptsSeeded","forceReloadAt"].forEach(k=>{ if(!_eq(ours[k],base[k])) out[k]=_clone(ours[k]); });
   return out;
 }
 function save(){ reconcileMirrors("edit"); localStorage.setItem(LS_KEY, JSON.stringify(state)); if(remote.active) remote.push(state); }
