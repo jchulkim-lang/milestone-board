@@ -12,7 +12,7 @@ const SESSION_TTL = 60 * 60 * 12; // 12시간
  * - 서버는 index.html 을 서빙할 때 __APP_BUILD__ 자리에 이 값을 자동 주입 → 클라이언트 APP_VERSION.
  * - 이 값보다 낮은(=오래된) 클라이언트는 /api/state 접속이 차단됩니다.
  * 사소한/비호환 없는 배포에서는 올리지 않아도 됨(불필요한 강제 새로고침 방지). */
-const APP_BUILD = 20260707;
+const APP_BUILD = 20260708;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -205,15 +205,26 @@ async function handleApi(request, env, url, ctx){
     const role = await effectiveRole(env, user.email);
     if(!canEdit(role)) return json({ error:"forbidden", reason:"edit-not-allowed" }, 403);
     const b = await request.json();
-    const oldRow = await env.DB.prepare("SELECT data FROM app_state WHERE id='main'").first();
+    const baseVersion = (b.baseVersion===undefined || b.baseVersion===null) ? null : Number(b.baseVersion);
+    const cur = await env.DB.prepare("SELECT data, version FROM app_state WHERE id='main'").first();
     let incoming = b.data ?? {};
     // 마일스톤 설정은 관리자 전용: 비관리자 저장 시 마일스톤 목록은 서버 저장본을 유지(변경 무시)
-    if(role !== "admin" && oldRow && oldRow.data){
-      try{ const prev = JSON.parse(oldRow.data); if(prev && Array.isArray(prev.milestones)) incoming = { ...incoming, milestones: prev.milestones }; }catch(_){}
+    if(role !== "admin" && cur && cur.data){
+      try{ const prev = JSON.parse(cur.data); if(prev && Array.isArray(prev.milestones)) incoming = { ...incoming, milestones: prev.milestones }; }catch(_){}
     }
     const payload = JSON.stringify(incoming);
-    await env.DB.prepare("UPDATE app_state SET data=?, version=version+1, updated_at=datetime('now'), updated_by=? WHERE id='main'").bind(payload, user.email).run();
-    if(ctx && ctx.waitUntil) ctx.waitUntil(notifyStatusChanges(env, oldRow && oldRow.data, payload, user.name || user.email, url.origin));
+    // 낙관적 잠금(CAS): 기준 버전이 서버 최신과 같을 때만 저장. 어긋나면 409+현재상태 반환 → 클라이언트가 재병합·재시도(동시 저장 롤백 방지).
+    if(baseVersion !== null && Number.isFinite(baseVersion)){
+      const res = await env.DB.prepare("UPDATE app_state SET data=?, version=version+1, updated_at=datetime('now'), updated_by=? WHERE id='main' AND version=?").bind(payload, user.email, baseVersion).run();
+      if(!(res && res.meta && res.meta.changes)){
+        const c2 = await env.DB.prepare("SELECT data, version FROM app_state WHERE id='main'").first();
+        let cd; try{ cd = JSON.parse(c2.data); }catch(_){ cd = { tasks:[], milestones:[] }; }
+        return json({ error:"conflict", reason:"version-mismatch", version: c2 ? c2.version : 0, data: cd }, 409);
+      }
+    } else {
+      await env.DB.prepare("UPDATE app_state SET data=?, version=version+1, updated_at=datetime('now'), updated_by=? WHERE id='main'").bind(payload, user.email).run();
+    }
+    if(ctx && ctx.waitUntil) ctx.waitUntil(notifyStatusChanges(env, cur && cur.data, payload, user.name || user.email, url.origin));
     const row = await env.DB.prepare("SELECT data, version FROM app_state WHERE id='main'").first();
     // 히스토리 스냅샷 + 최근 50개만 보관
     await env.DB.prepare("INSERT INTO history (data,version,saved_by,saved_at) VALUES (?,?,?,datetime('now'))").bind(row.data, row.version, user.email).run();

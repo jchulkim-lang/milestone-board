@@ -97,16 +97,23 @@
       if(maxTimer){ clearTimeout(maxTimer); maxTimer=null; }
       if(!canEdit() || _blocked){ dirty=false; return; }
       try{
-        const r0 = await fetch("/api/state", { credentials:"same-origin", headers:{ "X-App-Version": APPVER() } });   // 저장 직전 서버 최신
-        if(r0.status===426){ blockOldVersion(); return; }
-        const j0 = r0.ok ? await r0.json() : null;
-        const remoteData = (j0 && j0.data && j0.data.milestones) ? j0.data : (remote.base || { milestones:[], tasks:[] });
-        const merged = (typeof mergeState3==="function") ? mergeState3(remote.base, state, remoteData) : state;
-        const r = await fetch("/api/state", { method:"PUT", credentials:"same-origin",
-          headers:{ "content-type":"application/json", "X-App-Version": APPVER() }, body: JSON.stringify({ data: merged }) });
-        if(r.status===426){ blockOldVersion(); return; }
-        if(r.ok){ const j = await r.json(); remote.version = j.version; state = merged; remote.base = clone(merged); dirty=false; buildTimeline(); if(!focusedControl()) render(); }
-        else dirty=false;
+        for(let attempt=0; attempt<5; attempt++){
+          const r0 = await fetch("/api/state", { credentials:"same-origin", headers:{ "X-App-Version": APPVER() } });   // 저장 직전 서버 최신
+          if(r0.status===426){ blockOldVersion(); return; }
+          if(r0.ok){ const j0 = await r0.json(); if(j0 && j0.data){ state = (typeof mergeState3==="function") ? mergeState3(remote.base, state, j0.data) : state; remote.base = clone(j0.data); remote.version = j0.version; } }
+          const merged = state;
+          const r = await fetch("/api/state", { method:"PUT", credentials:"same-origin",
+            headers:{ "content-type":"application/json", "X-App-Version": APPVER() }, body: JSON.stringify({ data: merged, baseVersion: remote.version }) });
+          if(r.status===426){ blockOldVersion(); return; }
+          if(r.status===409){   // 충돌: 서버 최신으로 재병합 후 재시도(내 변경·남의 변경 모두 보존)
+            let cj=null; try{ cj = await r.json(); }catch(_){}
+            if(cj && cj.data){ state = (typeof mergeState3==="function") ? mergeState3(remote.base, state, cj.data) : state; remote.base = clone(cj.data); remote.version = cj.version; }
+            continue;
+          }
+          if(r.ok){ const j = await r.json(); remote.version = j.version; state = merged; remote.base = clone(merged); dirty=false; buildTimeline(); if(!focusedControl()) render(); return; }
+          dirty=false; return;   // 기타 오류
+        }
+        dirty=false;   // 재시도 소진 — 다음 편집/폴링에서 다시 반영
       }catch(_){ dirty=false; }
     };
     remote.push = function(){
