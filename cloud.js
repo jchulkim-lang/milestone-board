@@ -34,7 +34,7 @@
           try{
             const r = await fetch("/api/auth/google", { method:"POST", credentials:"same-origin",
               headers:{ "content-type":"application/json" }, body: JSON.stringify({ credential: resp.credential }) });
-            if(r.ok){ location.reload(); }
+            if(r.ok){ try{ sessionStorage.setItem("ms_authed_tab","1"); }catch(_){}  try{ const u=new URL(location.href); u.searchParams.set("v", String(Date.now())); location.replace(u.toString()); }catch(_){ location.reload(); } }
             else { const e = await r.json(); document.getElementById("loginErr").textContent = "로그인 실패: " + (e.detail || e.error || ""); }
           }catch(_){ document.getElementById("loginErr").textContent = "네트워크 오류"; }
         }
@@ -230,7 +230,9 @@
 
   (async function(){
     const me = await getMe();
-    if(me){ ROLE = me.role || "viewer"; setupSync(); applyRoleUI(); return; }
+    // 편집 전 매 접속(탭) 1회 로그인 요구 — 세션이 살아있어도 이 탭에서 로그인해야 진입. 로그인 시 최신 버전으로 새로고침.
+    let authedTab=false; try{ authedTab = sessionStorage.getItem("ms_authed_tab")==="1"; }catch(_){}
+    if(me && authedTab){ ROLE = me.role || "viewer"; setupSync(); applyRoleUI(); return; }
     let cfg = {};
     try{ cfg = await (await fetch("/api/config")).json(); }catch(_){}
     showLogin(cfg);
