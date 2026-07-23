@@ -1,284 +1,473 @@
-/* =====================================================================
- *  _worker.js — 단일 파일 버전 (Cloudflare Pages 고급 모드)
- *  이 파일 하나만 저장소 최상위에 올리면 모든 /api/* 서버 기능이 동작합니다.
- *  (functions 폴더가 필요 없습니다. 정적 파일은 env.ASSETS 가 서빙)
- *  필요한 환경변수: GOOGLE_CLIENT_ID, COMPANY_DOMAIN, SESSION_SECRET, D1 바인딩 DB
- * ===================================================================== */
+/**
+ * SVN 테이블 편집 보드 — Cloudflare Worker (로직 소스)
+ *
+ * ※ 이 파일 + index.html 을 build.py 로 합쳐 최종 _worker.js 를 만듭니다.
+ *
+ * 바인딩/환경변수 (Cloudflare Pages 설정):
+ *   - D1 바인딩:  DB
+ *   - 변수:       GOOGLE_CLIENT_ID, ALLOWED_DOMAIN, ADMIN_EMAILS(관리자 이메일들, 콤마구분)
+ *   - 시크릿:     KAKAOWORK_WEBHOOK_URL, SESSION_SECRET, SYNC_TOKEN(동기화 스크립트용, 선택)
+ */
+
 const enc = new TextEncoder();
-const dec = new TextDecoder();
-const SESSION_TTL = 60 * 60 * 12; // 12시간
-/* ===== 앱 버전(단일 소스) =====
- * 이 숫자 하나만 올리면 됩니다. 호환을 깨는(구버전이 데이터를 망칠 수 있는) 배포일 때만 올리세요.
- * - 서버는 index.html 을 서빙할 때 __APP_BUILD__ 자리에 이 값을 자동 주입 → 클라이언트 APP_VERSION.
- * - 이 값보다 낮은(=오래된) 클라이언트는 /api/state 접속이 차단됩니다.
- * 사소한/비호환 없는 배포에서는 올리지 않아도 됨(불필요한 강제 새로고침 방지). */
-const APP_BUILD = 20260708;
-function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
-function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
-function b64urlFromStr(str){ return b64urlFromBytes(enc.encode(str)); }
-function bytesFromB64url(s){ s = s.replace(/-/g,"+").replace(/_/g,"/"); while(s.length%4) s += "="; const bin = atob(s); const a = new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) a[i]=bin.charCodeAt(i); return a; }
-async function hmacKey(secret){ return crypto.subtle.importKey("raw", enc.encode(secret), { name:"HMAC", hash:"SHA-256" }, false, ["sign","verify"]); }
-function json(o, s=200, h={}){ return new Response(JSON.stringify(o), { status:s, headers:{ "content-type":"application/json", ...h } }); }
-
-/* D1 표가 없으면 자동 생성 + 최초 행 보장 (schema.sql 미실행이어도 동작) */
-let DB_READY = false;
-async function ensureDb(env){
-  if(DB_READY) return;
-  await env.DB.prepare("CREATE TABLE IF NOT EXISTS app_state (id TEXT PRIMARY KEY, data TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL, updated_by TEXT)").run();
-  await env.DB.prepare("INSERT OR IGNORE INTO app_state (id,data,version,updated_at,updated_by) VALUES ('main','{\"tasks\":[],\"milestones\":[]}',0,datetime('now'),NULL)").run();
-  await env.DB.prepare("CREATE TABLE IF NOT EXISTS users (email TEXT PRIMARY KEY, name TEXT, last_seen TEXT, role TEXT DEFAULT 'viewer', requested INTEGER DEFAULT 0)").run();
-  try{ await env.DB.prepare("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'viewer'").run(); }catch(_){}
-  try{ await env.DB.prepare("ALTER TABLE users ADD COLUMN requested INTEGER DEFAULT 0").run(); }catch(_){}
-  await env.DB.prepare("CREATE TABLE IF NOT EXISTS history (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT NOT NULL, version INTEGER, saved_by TEXT, saved_at TEXT)").run();
-  DB_READY = true;
+const INDEX_HTML = `<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SVN 테이블 편집 보드</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+ :root{--bg:#0f1115;--panel:#181b22;--panel2:#1f232c;--line:#2b303b;--ink:#e7eaf0;
+  --muted:#9aa3b2;--accent:#ffe94a;--accent-ink:#3a2f00;--free:#37d399;--busy:#ff6b6b;--me:#5b8cff;}
+ *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:'Malgun Gothic','Apple SD Gothic Neo',system-ui,sans-serif;font-size:14px}
+ .wrap{max-width:none;margin:0 auto;padding:18px 24px}
+ h1{font-size:19px;margin:0 0 4px} .sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+ .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--panel);
+  border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:14px}
+ .bar label{color:var(--muted)} input{background:var(--panel2);color:var(--ink);
+  border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px}
+ .pill{font-size:12px;color:var(--muted);background:var(--panel2);border:1px solid var(--line);
+  border-radius:999px;padding:4px 10px}
+ .tag-admin{color:var(--accent);border-color:rgba(255,233,74,.4)}
+ .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+ .row{display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--line)}
+ .row:last-child{border-bottom:none}
+ .tname{flex:1;min-width:0} .tname .f{font-weight:700;font-size:15px;letter-spacing:.2px} .tname .m{font-size:12px;color:var(--muted);margin-top:2px}
+ .fn{color:#7cc4ff} .ext{color:var(--muted);font-weight:400} .dir{color:#8b93a3;font-weight:400;font-size:12px}
+ .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+ .cell{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 11px;min-width:0}
+ .cell.mine{border-color:rgba(91,140,255,.5)} .cell.busy{border-color:rgba(255,107,107,.4)}
+ .cell .top{display:flex;align-items:center;gap:6px}
+ .cell .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;font-size:14px}
+ .cell .bot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}
+ .badge-sm{font-size:11px;font-weight:700;padding:3px 7px;border-radius:999px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+ .btn-sm{border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:7px;padding:5px 11px;font-size:12px;cursor:pointer;white-space:nowrap}
+ .btn-sm:hover{border-color:#3a4150} .btn-sm.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
+ .summary{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:14px}
+ .s-title{color:var(--muted);font-size:13px;font-weight:600;margin-right:4px}
+ .s-empty{color:var(--muted);font-size:13px}
+ .s-chip{font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;color:var(--busy);background:rgba(255,107,107,.12);border:1px solid rgba(255,107,107,.35)}
+ .s-chip.me{color:var(--me);background:rgba(91,140,255,.14);border-color:rgba(91,140,255,.4)}
+ .s-file{color:var(--muted);font-weight:400;margin-left:2px}
+ .badge{font-size:12px;font-weight:700;padding:4px 9px;border-radius:999px;white-space:nowrap}
+ .b-free{color:var(--free);background:rgba(55,211,153,.12);border:1px solid rgba(55,211,153,.35)}
+ .b-busy{color:var(--busy);background:rgba(255,107,107,.12);border:1px solid rgba(255,107,107,.35)}
+ .b-me{color:var(--me);background:rgba(91,140,255,.14);border:1px solid rgba(91,140,255,.4)}
+ .btn{border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:8px;
+  padding:7px 12px;font-size:13px;cursor:pointer} .btn:hover{border-color:#3a4150}
+ .btn-primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
+ .btn-x{border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:16px;padding:4px 8px}
+ .btn-x:hover{color:var(--busy)}
+ .btn:disabled{opacity:.4;cursor:not-allowed}
+ .toast{position:fixed;left:50%;top:20px;transform:translateX(-50%);background:#2a1416;
+  border:1px solid var(--busy);color:#ffd7d7;padding:13px 18px;border-radius:12px;max-width:520px;
+  box-shadow:0 10px 30px rgba(0,0,0,.5);z-index:50;display:none}
+ .toast.show{display:block} .foot{color:var(--muted);font-size:12px;margin-top:14px;line-height:1.7}
+ .center{min-height:70vh;display:grid;place-items:center;text-align:center}
+ .login{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:34px 30px;max-width:360px}
+ .login h1{margin-bottom:8px} .login p{color:var(--muted);font-size:13px;margin:0 0 20px}
+ .who{display:flex;align-items:center;gap:8px}
+</style></head><body>
+<div class="wrap"><div id="app"></div></div>
+<div class="toast" id="toast"></div>
+<script>
+const $=s=>document.querySelector(s);
+let ME=null, POLL=null, SVN_LOADED=false;
+function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");}
+function fmtName(name){
+  name=String(name||"");
+  let dir="",file=name; const s=name.lastIndexOf("/");
+  if(s>=0){ dir=name.slice(0,s+1); file=name.slice(s+1); }
+  let base=file,ext=""; const d=file.lastIndexOf(".");
+  if(d>0){ base=file.slice(0,d); ext=file.slice(d); }
+  return (dir?\`<span class="dir">\${esc(dir)}</span>\`:"")+\`<span class="fn">\${esc(base)}</span><span class="ext">\${esc(ext)}</span>\`;
 }
-function isAdminEmail(env, email){ const list=(env.ADMIN_EMAILS||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean); return list.includes((email||"").toLowerCase()); }
-async function effectiveRole(env, email){ if(isAdminEmail(env, email)) return "admin"; const r=await env.DB.prepare("SELECT role FROM users WHERE email=?").bind(email).first(); return (r && r.role) || "viewer"; }
-function canEdit(role){ return role==="editor" || role==="admin"; }
+function fmtNameCell(name){ // 격자 셀용: 폴더는 빼고 파일명만(전체경로는 title로)
+  name=String(name||""); const s=name.lastIndexOf("/"); const file=s>=0?name.slice(s+1):name;
+  let base=file,ext=""; const d=file.lastIndexOf("."); if(d>0){ base=file.slice(0,d); ext=file.slice(d); }
+  return \`<span class="fn">\${esc(base)}</span><span class="ext">\${esc(ext)}</span>\`;
+}
+function toast(html){const t=$("#toast");t.innerHTML=html;t.classList.add("show");
+  clearTimeout(toast._h);toast._h=setTimeout(()=>t.classList.remove("show"),4600);}
 
-/* ===== 카카오워크 알림 =====
- *  KAKAO_BOT_KEY(봇 App Key)가 있으면 등록된 멤버(state.notifyEmails)에게 개인 DM.
- *  없으면 KAKAO_WEBHOOK_URL(단톡방)으로 폴백. */
-async function dmKakao(env, st, text, blocks){
-  const blk = blocks || [{ type:"text", text, markdown:true }];
-  const key = env.KAKAO_BOT_KEY;
-  if(key){
-    const emails = (st && st.notifyEmails) || [];
-    for(const email of emails){
-      try{
-        const ur = await fetch("https://api.kakaowork.com/v1/users.find_by_email?email=" + encodeURIComponent(email), { headers:{ Authorization:"Bearer " + key } });
-        const uj = await ur.json(); const uid = uj && uj.user && uj.user.id; if(!uid) continue;
-        const cr = await fetch("https://api.kakaowork.com/v1/conversations.open", { method:"POST", headers:{ Authorization:"Bearer " + key, "content-type":"application/json" }, body: JSON.stringify({ user_id: uid }) });
-        const cj = await cr.json(); const cid = cj && cj.conversation && cj.conversation.id; if(!cid) continue;
-        await fetch("https://api.kakaowork.com/v1/messages.send", { method:"POST", headers:{ Authorization:"Bearer " + key, "content-type":"application/json" }, body: JSON.stringify({ conversation_id: cid, text, blocks: blk }) });
-      }catch(_){}
+async function boot(){
+  const me=await (await fetch("/api/me")).json();
+  if(me.authed){ ME=me; renderBoard(); startPoll(); } else { renderLogin(); }
+}
+
+/* ---------- 로그인 ---------- */
+async function renderLogin(){
+  stopPoll();
+  const cfg=await (await fetch("/api/public-config")).json();
+  $("#app").innerHTML=\`<div class="center"><div class="login">
+    <h1>SVN 테이블 편집 보드</h1>
+    <p>회사 Google 계정으로 로그인하세요.<br>회사 도메인 계정만 접속됩니다.</p>
+    <div id="gbtn"></div>
+    <div id="gmsg" style="color:var(--busy);font-size:12px;margin-top:12px"></div>
+  </div></div>\`;
+  (function init(){
+    if(!window.google||!google.accounts){ return setTimeout(init,300); }
+    google.accounts.id.initialize({ client_id: cfg.google_client_id, callback: async (resp)=>{
+      const r=await fetch("/api/auth/google",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({credential:resp.credential})});
+      const d=await r.json();
+      if(d.ok){ boot(); } else { $("#gmsg").textContent=d.error||"로그인 실패"; }
+    }});
+    google.accounts.id.renderButton($("#gbtn"),{theme:"filled_blue",size:"large",text:"signin_with",shape:"pill"});
+  })();
+}
+
+/* ---------- 보드 ---------- */
+function renderBoard(){
+  const adminBadge = ME.is_admin ? \`<span class="pill tag-admin">관리자</span>\` : "";
+  const adminBars = ME.is_admin ? \`
+    <div class="bar">
+      <label>SVN Repo 주소</label>
+      <input id="svn" placeholder="svn://... 또는 https://..." style="flex:1;min-width:240px">
+      <button class="btn" onclick="saveSvn()">저장</button>
+      <span class="pill" id="svnMsg">관리자만 수정 가능 · 목록은 동기화(bat)로 채워집니다</span>
+    </div>\` : "";
+  $("#app").innerHTML=\`
+    <h1>SVN 테이블 편집 보드</h1>
+    <div class="sub">누가 어떤 테이블을 쓰는지 실시간으로 표시됩니다. 수정할 때만 <b>사용 시작</b>을 눌러주세요.</div>
+    <div class="bar">
+      <span class="who"><span class="pill">👤 \${esc(ME.name)} · \${esc(ME.email)}</span>\${adminBadge}</span>
+      <button class="btn" onclick="logout()">로그아웃</button>
+    </div>
+    \${adminBars}
+    <div class="summary" id="summary"></div>
+    <div class="grid" id="list"></div>
+    <div class="foot" id="foot"></div>\`;
+  refresh();
+}
+
+async function refresh(){
+  if(!ME) return;
+  const r=await fetch("/api/status");
+  if(r.status===401){ ME=null; renderLogin(); return; }
+  const d=await r.json();
+  if(ME.is_admin && !SVN_LOADED){ const el=$("#svn"); if(el){ el.value=d.svn_repo_url||""; SVN_LOADED=true; } }
+  const foot=$("#foot"); if(foot) foot.textContent=d.svn_repo_url? ("SVN: "+d.svn_repo_url):"";
+  const sum=$("#summary");
+  if(sum){
+    const inUse=d.tables.filter(t=>t.in_use);
+    let html=\`<span class="s-title">현재 사용 중\${inUse.length?(" · "+inUse.length):""}</span>\`;
+    if(inUse.length===0){ html+=\`<span class="s-empty">사용 중인 테이블이 없습니다</span>\`; }
+    else{
+      html+=inUse.map(t=>{
+        const file=String(t.table).split("/").pop();
+        return \`<span class="s-chip \${t.user_email===ME.email?'me':''}" title="\${esc(t.table)}">👤 \${esc(t.user_name)}<span class="s-file">· \${esc(file)}</span></span>\`;
+      }).join("");
     }
-    return;
+    sum.innerHTML=html;
   }
-  if(env.KAKAO_WEBHOOK_URL){ try{ await fetch(env.KAKAO_WEBHOOK_URL, { method:"POST", headers:{ "content-type":"application/json" }, body: JSON.stringify({ text, blocks: blk }) }); }catch(_){} }
-}
-/* 세그먼트 배열 → 카카오워크 Text Block(inlines). url 있으면 link(짧은 라벨), 없으면 styled */
-function textBlock(segs){
-  return { type:"text", text: segs.map(s=>s.text).join(""),
-    inlines: segs.map(s=> s.url ? { type:"link", text:s.text, url:s.url } : { type:"styled", text:s.text }) };
-}
-// 저장 시 상태가 '진행 중'·'검토·이슈'·'완료'로 바뀐 Task를 모아 알림
-async function notifyStatusChanges(env, oldStr, newStr, who, origin){
-  if(!env.KAKAO_BOT_KEY && !env.KAKAO_WEBHOOK_URL) return;
-  let o, n; try{ o=JSON.parse(oldStr||"{}"); n=JSON.parse(newStr||"{}"); }catch(_){ return; }
-  const oldStatus={}, oldDone={}, oldExists={};
-  (o.tasks||[]).forEach(t=>{ oldStatus[t.id]=t.status; oldDone[t.id]=!!t.done; oldExists[t.id]=true; });
-  const msName={}; (n.milestones||[]).forEach(m=>{ msName[m.id]=m.name; });
-  const WATCH=["진행 중","검토·이슈","완료"];   // 개발: 이 상태로 바뀔 때 알림
-  const DOT={"진행 중":"🔵","검토·이슈":"🟠","완료":"🟢"}; // 앱 상태 색과 매칭
-  const blocks=[{ type:"text", text:`📌 상태 변경 (${who})` }];
-  const preview=[`📌 상태 변경 (${who})`];
-  (n.tasks||[]).forEach(t=>{
-    // 개발: WATCH 상태로 바뀔 때. 아트: 완료(done) 체크 시.
-    let label=null, dot="•";
-    if(t.track==="아트"||t.track==="전투"){
-      if(oldExists[t.id] && !oldDone[t.id] && t.done){ label=`${t.status} · 완료`; dot="🟢"; }
+  const list=$("#list"); if(!list) return;
+  list.innerHTML=d.tables.map(t=>{
+    const tt=esc(t.table).replace(/'/g,"\\\\'");
+    let cls="", badge="", btn="";
+    if(!t.in_use){
+      badge=\`<span class="badge-sm b-free">● 사용 가능</span>\`;
+      btn=\`<button class="btn-sm primary" onclick="start('\${tt}')">시작</button>\`;
+    } else if(t.user_email===ME.email){
+      cls="mine"; badge=\`<span class="badge-sm b-me" title="내가 사용 중 · 경과 \${t.elapsed}">👤 \${esc(t.user_name)}</span>\`;
+      btn=\`<button class="btn-sm" onclick="finish('\${tt}')">종료</button>\`;
     } else {
-      const prev=oldStatus[t.id];
-      if(prev!==undefined && prev!==t.status && WATCH.includes(t.status)){ label=`${prev} → ${t.status}`; dot=DOT[t.status]||"•"; }
+      cls="busy"; badge=\`<span class="badge-sm b-busy" title="사용 중 · 경과 \${t.elapsed}">👤 \${esc(t.user_name)}</span>\`;
+      btn = ME.is_admin ? \`<button class="btn-sm" onclick="finish('\${tt}')">강제종료</button>\` : \`\`;
     }
-    if(label){
-      const ms=msName[t.milestoneId]||"-";
-      const plan=(t.links && t.links.plan)||"", trello=(t.links && t.links.trello)||"";
-      const segs=[{ text:`${dot} [${ms}] ${t.name} : ${label}\n📄 기획서 ` }];
-      segs.push(plan ? { text:"[LINK]", url:plan } : { text:"링크 없음" });
-      segs.push({ text:`\n📋 Trello ` });
-      segs.push(trello ? { text:"[LINK]", url:trello } : { text:"링크 없음" });
-      if(origin){ segs.push({ text:`\n🔗 ` }); segs.push({ text:"[바로가기]", url:`${origin}/?task=${encodeURIComponent(t.id)}` }); }
-      blocks.push(textBlock(segs));
-      blocks.push({ type:"divider" });
-      preview.push(segs.map(s=>s.text).join(""));
-    }
-  });
-  if(blocks.length>1){
-    if(blocks[blocks.length-1].type==="divider") blocks.pop(); // 마지막 구분선 제거
-    await dmKakao(env, n, preview.join("\n"), blocks);
-  }
+    return \`<div class="cell \${cls}"><div class="top"><div class="nm" title="\${esc(t.table)}">\${fmtNameCell(t.table)}</div></div>
+      <div class="bot">\${badge}\${btn}</div></div>\`;
+  }).join("");
 }
 
-async function createSessionToken(user, env){
-  const payload = { email:user.email, name:user.name||"", exp:Math.floor(Date.now()/1000)+SESSION_TTL };
-  const p = b64urlFromStr(JSON.stringify(payload));
-  const key = await hmacKey(env.SESSION_SECRET);
-  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(p));
-  return p + "." + b64urlFromBytes(sig);
+async function start(table){
+  const r=await fetch("/api/start",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({table})});
+  if(r.status===409){const d=await r.json();
+    toast(\`⚠️ <b>\${esc(table)}</b> 은(는) 이미 <b>\${esc(d.holder.user_name)}</b>님이 사용 중입니다 (경과 \${d.holder.elapsed}).\`);}
+  refresh();
 }
-function sessionCookie(t){ return `session=${t}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL}`; }
-function clearCookie(){ return `session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`; }
-async function verifySession(request, env){
-  const c = request.headers.get("Cookie") || ""; const m = c.match(/(?:^|;\s*)session=([^;]+)/); if(!m) return null;
-  const [p, sig] = m[1].split("."); if(!p||!sig) return null;
-  const key = await hmacKey(env.SESSION_SECRET); let ok = false;
-  try{ ok = await crypto.subtle.verify("HMAC", key, bytesFromB64url(sig), enc.encode(p)); }catch(_){ return null; }
-  if(!ok) return null;
-  let pl; try{ pl = JSON.parse(dec.decode(bytesFromB64url(p))); }catch(_){ return null; }
-  if(!pl.exp || pl.exp < Math.floor(Date.now()/1000)) return null;
-  return { email:pl.email, name:pl.name };
+async function finish(table){
+  const r=await fetch("/api/finish",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({table})});
+  if(!r.ok){const d=await r.json();toast(esc(d.error||"종료 실패"));}
+  refresh();
 }
-
-let JWKS = { keys:null, exp:0 };
-async function googleKeys(){
-  const now = Date.now(); if(JWKS.keys && JWKS.exp > now) return JWKS.keys;
-  const r = await fetch("https://www.googleapis.com/oauth2/v3/certs"); const j = await r.json();
-  JWKS = { keys:j.keys, exp:now + 3600000 }; return j.keys;
+async function saveSvn(){
+  const v=($("#svn").value||"").trim();
+  const r=await fetch("/api/config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({svn_repo_url:v})});
+  const d=await r.json();
+  $("#svnMsg").textContent = r.ok && d.ok ? "저장됨 ✓" : (d.error||"저장 실패");
+  setTimeout(()=>{const m=$("#svnMsg"); if(m) m.textContent="관리자만 수정 가능 · 알림에도 함께 표시";},2600);
 }
-async function verifyGoogleIdToken(idToken, env){
-  const parts = idToken.split("."); if(parts.length !== 3) throw new Error("malformed token");
-  const header = JSON.parse(dec.decode(bytesFromB64url(parts[0])));
-  const payload = JSON.parse(dec.decode(bytesFromB64url(parts[1])));
-  const keys = await googleKeys(); const jwk = keys.find(k=>k.kid===header.kid); if(!jwk) throw new Error("signing key not found");
-  const pub = await crypto.subtle.importKey("jwk", jwk, { name:"RSASSA-PKCS1-v1_5", hash:"SHA-256" }, false, ["verify"]);
-  const ok = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", pub, bytesFromB64url(parts[2]), enc.encode(parts[0]+"."+parts[1]));
-  if(!ok) throw new Error("bad signature");
-  const now = Math.floor(Date.now()/1000);
-  if(payload.exp < now) throw new Error("token expired");
-  if(payload.iss !== "https://accounts.google.com" && payload.iss !== "accounts.google.com") throw new Error("bad iss");
-  if(payload.aud !== env.GOOGLE_CLIENT_ID) throw new Error("bad aud (client id mismatch)");
-  if(payload.email_verified !== true && payload.email_verified !== "true") throw new Error("email not verified");
-  const domain = (env.COMPANY_DOMAIN || "").trim();
-  if(domain){ const ed = (payload.email||"").split("@")[1]; if(payload.hd !== domain && ed !== domain) throw new Error("domain not allowed"); }
-  return { email:payload.email, name:payload.name };
-}
+async function logout(){ await fetch("/api/logout"); ME=null; SVN_LOADED=false; if(window.google&&google.accounts) google.accounts.id.disableAutoSelect(); renderLogin(); }
 
-async function handleApi(request, env, url, ctx){
-  const p = url.pathname;
-
-  if(p === "/api/config" && request.method === "GET"){
-    return json({ googleClientId: env.GOOGLE_CLIENT_ID || "", companyDomain: env.COMPANY_DOMAIN || "" });
-  }
-  try{ await ensureDb(env); }catch(_){}   // 표 자동 생성/보장
-  if(p === "/api/auth/google" && request.method === "POST"){
-    try{
-      const b = await request.json(); const idt = b.credential || b.id_token; if(!idt) return json({ error:"missing credential" }, 400);
-      const user = await verifyGoogleIdToken(idt, env);
-      try{
-        if(isAdminEmail(env, user.email)) await env.DB.prepare("INSERT INTO users (email,name,last_seen,role) VALUES (?,?,datetime('now'),'admin') ON CONFLICT(email) DO UPDATE SET name=excluded.name, last_seen=datetime('now'), role='admin'").bind(user.email, user.name||"").run();
-        else await env.DB.prepare("INSERT INTO users (email,name,last_seen) VALUES (?,?,datetime('now')) ON CONFLICT(email) DO UPDATE SET name=excluded.name, last_seen=datetime('now')").bind(user.email, user.name||"").run();
-      }catch(_){}
-      const tok = await createSessionToken(user, env);
-      return json({ ok:true, user:{ email:user.email, name:user.name } }, 200, { "Set-Cookie": sessionCookie(tok) });
-    }catch(e){ return json({ error:"auth failed", detail:String(e && e.message || e) }, 401); }
-  }
-
-  // 여기부터는 로그인 필요
-  const user = await verifySession(request, env);
-  if(!user) return json({ error:"unauthorized" }, 401);
-
-  if(p === "/api/me" && request.method === "GET"){ const role=await effectiveRole(env, user.email); return json({ user:{ email:user.email, name:user.name, role } }); }
-  if(p === "/api/logout" && request.method === "POST") return json({ ok:true }, 200, { "Set-Cookie": clearCookie() });
-
-  // 편집 권한 요청 / 권한 관리(관리자)
-  if(p === "/api/request-edit" && request.method === "POST"){
-    await env.DB.prepare("INSERT INTO users (email,name,requested) VALUES (?,?,1) ON CONFLICT(email) DO UPDATE SET requested=1, name=excluded.name").bind(user.email, user.name||"").run();
-    return json({ ok:true });
-  }
-  if(p === "/api/access" && request.method === "GET"){
-    if((await effectiveRole(env, user.email)) !== "admin") return json({ error:"forbidden" }, 403);
-    const { results } = await env.DB.prepare("SELECT email,name,role,requested FROM users ORDER BY requested DESC, role DESC, name").all();
-    const list = (results||[]).map(u=>({ email:u.email, name:u.name, requested:u.requested, role: isAdminEmail(env, u.email) ? "admin" : (u.role||"viewer") }));
-    return json({ users: list, adminEmails: env.ADMIN_EMAILS || "" });
-  }
-  if(p === "/api/grant" && request.method === "POST"){
-    if((await effectiveRole(env, user.email)) !== "admin") return json({ error:"forbidden" }, 403);
-    const b = await request.json(); const role = (b.role === "editor") ? "editor" : "viewer";
-    await env.DB.prepare("INSERT INTO users (email,role,requested) VALUES (?,?,0) ON CONFLICT(email) DO UPDATE SET role=?, requested=0").bind(b.email, role, role).run();
-    return json({ ok:true });
-  }
-
-  // 구버전 클라이언트 차단: 상태 동기화(읽기·쓰기) 자체를 막아 데이터 손상을 원천 봉쇄
-  if(p === "/api/state" && clientVersion(request) < APP_BUILD){
-    return json({ error:"version", reason:"upgrade-required", min:APP_BUILD }, 426);
-  }
-  if(p === "/api/state" && request.method === "GET"){
-    const row = await env.DB.prepare("SELECT data, version, updated_at, updated_by FROM app_state WHERE id='main'").first();
-    if(!row) return json({ data:{ tasks:[], milestones:[] }, version:0 });
-    let data; try{ data = JSON.parse(row.data); }catch(_){ data = { tasks:[], milestones:[] }; }
-    return json({ data, version:row.version, updatedAt:row.updated_at, updatedBy:row.updated_by });
-  }
-  if(p === "/api/state" && request.method === "PUT"){
-    const role = await effectiveRole(env, user.email);
-    if(!canEdit(role)) return json({ error:"forbidden", reason:"edit-not-allowed" }, 403);
-    const b = await request.json();
-    const baseVersion = (b.baseVersion===undefined || b.baseVersion===null) ? null : Number(b.baseVersion);
-    const cur = await env.DB.prepare("SELECT data, version FROM app_state WHERE id='main'").first();
-    let incoming = b.data ?? {};
-    // 마일스톤 설정은 관리자 전용: 비관리자 저장 시 마일스톤 목록은 서버 저장본을 유지(변경 무시)
-    if(role !== "admin" && cur && cur.data){
-      try{ const prev = JSON.parse(cur.data); if(prev && Array.isArray(prev.milestones)) incoming = { ...incoming, milestones: prev.milestones }; }catch(_){}
-    }
-    const payload = JSON.stringify(incoming);
-    // 낙관적 잠금(CAS): 기준 버전이 서버 최신과 같을 때만 저장. 어긋나면 409+현재상태 반환 → 클라이언트가 재병합·재시도(동시 저장 롤백 방지).
-    if(baseVersion !== null && Number.isFinite(baseVersion)){
-      const res = await env.DB.prepare("UPDATE app_state SET data=?, version=version+1, updated_at=datetime('now'), updated_by=? WHERE id='main' AND version=?").bind(payload, user.email, baseVersion).run();
-      if(!(res && res.meta && res.meta.changes)){
-        const c2 = await env.DB.prepare("SELECT data, version FROM app_state WHERE id='main'").first();
-        let cd; try{ cd = JSON.parse(c2.data); }catch(_){ cd = { tasks:[], milestones:[] }; }
-        return json({ error:"conflict", reason:"version-mismatch", version: c2 ? c2.version : 0, data: cd }, 409);
-      }
-    } else {
-      await env.DB.prepare("UPDATE app_state SET data=?, version=version+1, updated_at=datetime('now'), updated_by=? WHERE id='main'").bind(payload, user.email).run();
-    }
-    if(ctx && ctx.waitUntil) ctx.waitUntil(notifyStatusChanges(env, cur && cur.data, payload, user.name || user.email, url.origin));
-    const row = await env.DB.prepare("SELECT data, version FROM app_state WHERE id='main'").first();
-    // 히스토리 스냅샷 + 최근 50개만 보관
-    await env.DB.prepare("INSERT INTO history (data,version,saved_by,saved_at) VALUES (?,?,?,datetime('now'))").bind(row.data, row.version, user.email).run();
-    await env.DB.prepare("DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY id DESC LIMIT 50)").run();
-    return json({ ok:true, version: row ? row.version : 1 });
-  }
-
-  // 접속자(presence): 하트비트 + 현재 접속자
-  if(p === "/api/presence" && request.method === "POST"){
-    await env.DB.prepare("INSERT INTO users (email,name,last_seen) VALUES (?,?,datetime('now')) ON CONFLICT(email) DO UPDATE SET last_seen=datetime('now'), name=excluded.name").bind(user.email, user.name||"").run();
-    return json({ ok:true });
-  }
-  if(p === "/api/presence" && request.method === "GET"){
-    const { results } = await env.DB.prepare("SELECT email,name FROM users WHERE last_seen > datetime('now','-45 seconds') ORDER BY name").all();
-    return json({ users: results || [], count: (results||[]).length });
-  }
-
-  // 히스토리 / 롤백
-  if(p === "/api/history" && request.method === "GET"){
-    if((await effectiveRole(env, user.email)) !== "admin") return json({ error:"forbidden", reason:"admin-only" }, 403);   // 히스토리는 관리자 전용
-    const { results } = await env.DB.prepare("SELECT id,version,saved_by,saved_at FROM history ORDER BY id DESC LIMIT 30").all();
-    return json({ items: results || [] });
-  }
-  if(p === "/api/restore" && request.method === "POST"){
-    if((await effectiveRole(env, user.email)) !== "admin") return json({ error:"forbidden", reason:"admin-only" }, 403);   // 되돌리기는 관리자 전용
-    const b = await request.json();
-    const snap = await env.DB.prepare("SELECT data FROM history WHERE id=?").bind(b.id).first();
-    if(!snap) return json({ error:"snapshot not found" }, 404);
-    const cur = await env.DB.prepare("SELECT data,version FROM app_state WHERE id='main'").first();
-    if(cur){ await env.DB.prepare("INSERT INTO history (data,version,saved_by,saved_at) VALUES (?,?,?,datetime('now'))").bind(cur.data, cur.version, user.email+" (되돌리기 직전)").run(); }
-    await env.DB.prepare("UPDATE app_state SET data=?, version=version+1, updated_at=datetime('now'), updated_by=? WHERE id='main'").bind(snap.data, user.email).run();
-    const row = await env.DB.prepare("SELECT version FROM app_state WHERE id='main'").first();
-    await env.DB.prepare("DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY id DESC LIMIT 50)").run();
-    return json({ ok:true, version: row ? row.version : 1 });
-  }
-
-  return json({ error:"not found" }, 404);
-}
+function startPoll(){ stopPoll(); POLL=setInterval(refresh,3000); }
+function stopPoll(){ if(POLL) clearInterval(POLL); POLL=null; }
+boot();
+</script>
+</body></html>
+`;
 
 export default {
-  async fetch(request, env, ctx){
+  async fetch(request, env) {
     const url = new URL(request.url);
-    if(url.pathname.startsWith("/api/")) return handleApi(request, env, url, ctx);
-    // index.html 문서에 현재 빌드 번호 주입(클라이언트 APP_VERSION 자동 설정)
-    if(url.pathname === "/" || url.pathname === "/index.html"){
-      const res = await env.ASSETS.fetch(request);
-      const ct = res.headers.get("content-type") || "";
-      if(res.ok && ct.includes("text/html")){
-        const html = (await res.text()).replaceAll("__APP_BUILD__", String(APP_BUILD));
-        const h = new Headers(res.headers); h.set("cache-control", "no-cache, must-revalidate");
-        return new Response(html, { status: res.status, headers: h });
+    const path = url.pathname;
+
+    try {
+      if (path === "/api/public-config") return json({ google_client_id: env.GOOGLE_CLIENT_ID || "" });
+      if (path === "/api/auth/google" && request.method === "POST") return authGoogle(request, env, url);
+      if (path === "/api/logout") return logout(url);
+      if (path === "/api/me") return apiMe(request, env);
+      // 사내 동기화 스크립트용(사용자 로그인 아님, SYNC_TOKEN 으로 인증)
+      if (path === "/api/tables/sync" && request.method === "POST") return apiTablesSync(request, env);
+
+      if (path.startsWith("/api/")) {
+        const user = await getUser(request, env);
+        if (!user) return json({ ok: false, error: "인증이 필요합니다." }, 401);
+        const admin = isAdmin(env, user);
+
+        if (path === "/api/status") return apiStatus(env);
+        if (path === "/api/start" && request.method === "POST") return apiStart(request, env, user, url);
+        if (path === "/api/finish" && request.method === "POST") return apiFinish(request, env, user, url, admin);
+        if (path === "/api/config" && request.method === "GET") return apiGetConfig(env);
+
+        // ---- 관리자 전용 ----
+        if (path === "/api/config" && request.method === "POST") {
+          if (!admin) return json({ ok: false, error: "관리자만 변경할 수 있습니다." }, 403);
+          return apiSetConfig(request, env);
+        }
+        if (path === "/api/tables/add" && request.method === "POST") {
+          if (!admin) return json({ ok: false, error: "관리자만 변경할 수 있습니다." }, 403);
+          return apiTableAdd(request, env);
+        }
+        if (path === "/api/tables/remove" && request.method === "POST") {
+          if (!admin) return json({ ok: false, error: "관리자만 변경할 수 있습니다." }, 403);
+          return apiTableRemove(request, env);
+        }
+        return json({ ok: false, error: "not found" }, 404);
       }
-      return res;
+    } catch (e) {
+      return json({ ok: false, error: String(e && e.message || e) }, 500);
     }
-    return env.ASSETS.fetch(request); // 정적 파일(index.html, cloud.js 등)
-  }
+
+    if (env.ASSETS) return env.ASSETS.fetch(request);
+    return new Response(INDEX_HTML, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  },
 };
+
+/* ---------------- 공통 ---------------- */
+function json(obj, status = 200, headers = {}) {
+  return new Response(JSON.stringify(obj), {
+    status, headers: { "Content-Type": "application/json; charset=utf-8", ...headers },
+  });
+}
+function b64urlEncode(bytes) {
+  let bin = ""; const arr = new Uint8Array(bytes);
+  for (let i = 0; i < arr.length; i++) bin += String.fromCharCode(arr[i]);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function b64urlDecodeToString(str) {
+  str = str.replace(/-/g, "+").replace(/_/g, "/");
+  while (str.length % 4) str += "=";
+  const bin = atob(str); const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+async function hmac(secret, data) {
+  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(data));
+  return b64urlEncode(sig);
+}
+function nowSec() { return Math.floor(Date.now() / 1000); }
+function nowIso() { return new Date().toISOString(); }
+
+function adminList(env) {
+  return (env.ADMIN_EMAILS || "").toLowerCase().split(",").map(s => s.trim()).filter(Boolean);
+}
+function isAdmin(env, user) {
+  return adminList(env).includes((user.email || "").toLowerCase());
+}
+
+/* ---------------- 세션 ---------------- */
+async function makeSession(user, secret) {
+  const payload = { email: user.email, name: user.name, exp: nowSec() + 60 * 60 * 12 };
+  const body = b64urlEncode(enc.encode(JSON.stringify(payload)));
+  return `${body}.${await hmac(secret, body)}`;
+}
+async function readSession(token, secret) {
+  if (!token || token.indexOf(".") < 0) return null;
+  const [body, sig] = token.split(".");
+  if (sig !== await hmac(secret, body)) return null;
+  try {
+    const p = JSON.parse(b64urlDecodeToString(body));
+    if (!p.exp || p.exp < nowSec()) return null;
+    return p;
+  } catch { return null; }
+}
+function getCookie(request, name) {
+  const c = request.headers.get("Cookie") || "";
+  const m = c.match(new RegExp("(?:^|; )" + name + "=([^;]+)"));
+  return m ? decodeURIComponent(m[1]) : null;
+}
+function sessionCookie(value, url, maxAge) {
+  const secure = url.protocol === "https:" ? " Secure;" : "";
+  return `sess=${encodeURIComponent(value)}; Path=/; HttpOnly;${secure} SameSite=Lax; Max-Age=${maxAge}`;
+}
+async function getUser(request, env) {
+  return await readSession(getCookie(request, "sess"), env.SESSION_SECRET || "dev-secret");
+}
+
+/* ---------------- 인증 ---------------- */
+async function authGoogle(request, env, url) {
+  const body = await request.json().catch(() => ({}));
+  const cred = body.credential;
+  if (!cred) return json({ ok: false, error: "credential 없음" }, 400);
+  const resp = await fetch("https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(cred));
+  if (!resp.ok) return json({ ok: false, error: "토큰 검증 실패" }, 401);
+  const info = await resp.json();
+  if (env.GOOGLE_CLIENT_ID && info.aud !== env.GOOGLE_CLIENT_ID) return json({ ok: false, error: "클라이언트 불일치" }, 401);
+  if (info.email_verified !== "true" && info.email_verified !== true) return json({ ok: false, error: "이메일 미인증" }, 401);
+  const domain = (env.ALLOWED_DOMAIN || "").toLowerCase();
+  const email = (info.email || "").toLowerCase();
+  if (domain && !(email.endsWith("@" + domain) || (info.hd || "").toLowerCase() === domain))
+    return json({ ok: false, error: `회사(${domain}) 계정만 접속할 수 있습니다.` }, 403);
+  const user = { email, name: info.name || email.split("@")[0] };
+  const token = await makeSession(user, env.SESSION_SECRET || "dev-secret");
+  return json({ ok: true, user }, 200, { "Set-Cookie": sessionCookie(token, url, 60 * 60 * 12) });
+}
+function logout(url) { return json({ ok: true }, 200, { "Set-Cookie": sessionCookie("", url, 0) }); }
+async function apiMe(request, env) {
+  const user = await getUser(request, env);
+  if (!user) return json({ authed: false });
+  return json({ authed: true, email: user.email, name: user.name, is_admin: isAdmin(env, user) });
+}
+
+/* ---------------- 현황 ---------------- */
+async function apiStatus(env) {
+  const tables = (await env.DB.prepare("SELECT table_name, memo FROM tables ORDER BY sort_order, table_name").all()).results || [];
+  const editing = (await env.DB.prepare("SELECT table_name, user_email, user_name, started_at, note FROM editing").all()).results || [];
+  const emap = {}; for (const e of editing) emap[e.table_name] = e;
+  const names = new Set(tables.map(t => t.table_name));
+  const rows = tables.map(t => rowOf(t.table_name, t.memo, emap[t.table_name]));
+  for (const e of editing) if (!names.has(e.table_name)) rows.push(rowOf(e.table_name, "", e));
+  return json({ tables: rows, svn_repo_url: await getSetting(env, "svn_repo_url", "") });
+}
+function rowOf(name, memo, e) {
+  return {
+    table: name, memo: memo || "", in_use: !!e,
+    user_email: e ? e.user_email : null,
+    user_name: e ? (e.user_name || e.user_email) : null,
+    started_at: e ? e.started_at : null,
+    elapsed: e ? humanDuration(e.started_at) : null,
+    note: e ? (e.note || "") : "",
+  };
+}
+async function apiStart(request, env, user, url) {
+  const body = await request.json().catch(() => ({}));
+  const table = (body.table || "").trim();
+  const note = (body.note || "").trim();
+  if (!table) return json({ ok: false, error: "table 필수" }, 400);
+  const ins = await env.DB.prepare(
+    "INSERT INTO editing(table_name,user_email,user_name,started_at,note) VALUES(?,?,?,?,?) ON CONFLICT(table_name) DO NOTHING"
+  ).bind(table, user.email, user.name, nowIso(), note).run();
+  if (ins.meta.changes === 1) {
+    await logHistory(env, table, user.email, "start");
+    await notify(env, url, `✏️ [시작] ${table} · ${user.name} · ${hhmm()}`);
+    return json({ ok: true });
+  }
+  const row = await env.DB.prepare("SELECT * FROM editing WHERE table_name=?").bind(table).first();
+  if (row && row.user_email === user.email) return json({ ok: true, already_mine: true });
+  await logHistory(env, table, user.email, "conflict");
+  await notify(env, url, `⚠️ [중복] ${table} · 이미 ${row.user_name || row.user_email}님 사용 중(${humanDuration(row.started_at)}) · 시도 ${user.name}`);
+  return json({ ok: false, conflict: true, holder: { user_name: row.user_name || row.user_email, elapsed: humanDuration(row.started_at) } }, 409);
+}
+async function apiFinish(request, env, user, url, admin) {
+  const body = await request.json().catch(() => ({}));
+  const table = (body.table || "").trim();
+  const row = await env.DB.prepare("SELECT * FROM editing WHERE table_name=?").bind(table).first();
+  if (!row) return json({ ok: false, error: "현재 편집 중이 아닙니다." }, 400);
+  if (row.user_email !== user.email && !admin)
+    return json({ ok: false, error: `${row.user_name || row.user_email}님이 편집 중입니다. 본인 것만 종료할 수 있습니다.` }, 403);
+  await env.DB.prepare("DELETE FROM editing WHERE table_name=?").bind(table).run();
+  await logHistory(env, table, user.email, "finish");
+  await notify(env, url, `✅ [완료] ${table} · ${row.user_name || row.user_email} · 소요 ${humanDuration(row.started_at)}`);
+  return json({ ok: true });
+}
+
+/* ---------------- 설정/테이블(관리자) ---------------- */
+async function apiGetConfig(env) { return json({ svn_repo_url: await getSetting(env, "svn_repo_url", "") }); }
+async function apiSetConfig(request, env) {
+  const body = await request.json().catch(() => ({}));
+  if (typeof body.svn_repo_url === "string") await setSetting(env, "svn_repo_url", body.svn_repo_url.trim());
+  return json({ ok: true, svn_repo_url: await getSetting(env, "svn_repo_url", "") });
+}
+async function apiTableAdd(request, env) {
+  const body = await request.json().catch(() => ({}));
+  const name = (body.table_name || "").trim();
+  const memo = (body.memo || "").trim();
+  if (!name) return json({ ok: false, error: "table_name 필수" }, 400);
+  const max = await env.DB.prepare("SELECT COALESCE(MAX(sort_order),0) AS m FROM tables").first();
+  await env.DB.prepare("INSERT INTO tables(table_name,memo,sort_order) VALUES(?,?,?) ON CONFLICT(table_name) DO UPDATE SET memo=excluded.memo")
+    .bind(name, memo, (max.m || 0) + 1).run();
+  return json({ ok: true });
+}
+async function apiTableRemove(request, env) {
+  const body = await request.json().catch(() => ({}));
+  const name = (body.table_name || "").trim();
+  if (!name) return json({ ok: false, error: "table_name 필수" }, 400);
+  await env.DB.prepare("DELETE FROM tables WHERE table_name=?").bind(name).run();
+  await env.DB.prepare("DELETE FROM editing WHERE table_name=?").bind(name).run();
+  return json({ ok: true });
+}
+
+// 사내 동기화 스크립트가 svn list 결과를 올리는 통로. SYNC_TOKEN 으로 인증.
+async function apiTablesSync(request, env) {
+  const auth = request.headers.get("Authorization") || "";
+  const token = auth.replace(/^Bearer\s+/i, "");
+  if (!env.SYNC_TOKEN || token !== env.SYNC_TOKEN) return json({ ok: false, error: "인증 실패" }, 401);
+  const body = await request.json().catch(() => ({}));
+  const items = Array.isArray(body.tables) ? body.tables : null;
+  if (!items) return json({ ok: false, error: "tables 배열 필요" }, 400);
+  // 목록 전체 교체(편집 중 상태는 보존)
+  await env.DB.prepare("DELETE FROM tables").run();
+  let i = 0;
+  for (const it of items) {
+    const name = typeof it === "string" ? it : (it && it.table_name);
+    const memo = typeof it === "string" ? "" : ((it && it.memo) || "");
+    if (!name) continue;
+    i++;
+    await env.DB.prepare("INSERT OR IGNORE INTO tables(table_name,memo,sort_order) VALUES(?,?,?)").bind(name, memo, i).run();
+  }
+  if (typeof body.svn_repo_url === "string") await setSetting(env, "svn_repo_url", body.svn_repo_url.trim());
+  return json({ ok: true, count: i });
+}
+
+async function getSetting(env, key, dflt) {
+  const r = await env.DB.prepare("SELECT value FROM settings WHERE key=?").bind(key).first();
+  return r ? r.value : dflt;
+}
+async function setSetting(env, key, value) {
+  await env.DB.prepare("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(key, value).run();
+}
+async function logHistory(env, table, email, action) {
+  try { await env.DB.prepare("INSERT INTO history(table_name,user_email,action,at) VALUES(?,?,?,?)").bind(table, email, action, nowIso()).run(); } catch {}
+}
+
+/* ---------------- 카카오워크 ---------------- */
+async function notify(env, url, text) {
+  const hook = env.KAKAOWORK_WEBHOOK_URL;
+  if (!hook) return;
+  try {
+    await fetch(hook, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+  } catch {}
+}
+
+/* ---------------- 시간 ---------------- */
+function hhmm() { return new Date(Date.now() + 9 * 3600 * 1000).toISOString().substr(11, 5); }
+function humanDuration(startIso) {
+  if (!startIso) return "-";
+  const secs = Math.max(0, Math.floor((Date.now() - Date.parse(startIso)) / 1000));
+  if (secs < 60) return secs + "초";
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return mins + "분";
+  return Math.floor(mins / 60) + "시간 " + (mins % 60) + "분";
+}
