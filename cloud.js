@@ -34,7 +34,7 @@
           try{
             const r = await fetch("/api/auth/google", { method:"POST", credentials:"same-origin",
               headers:{ "content-type":"application/json" }, body: JSON.stringify({ credential: resp.credential }) });
-            if(r.ok){ try{ sessionStorage.setItem("ms_authed_tab","1"); }catch(_){}  try{ const u=new URL(location.href); u.searchParams.set("v", String(Date.now())); location.replace(u.toString()); }catch(_){ location.reload(); } }
+            if(r.ok){ location.reload(); }
             else { const e = await r.json(); document.getElementById("loginErr").textContent = "로그인 실패: " + (e.detail || e.error || ""); }
           }catch(_){ document.getElementById("loginErr").textContent = "네트워크 오류"; }
         }
@@ -97,23 +97,16 @@
       if(maxTimer){ clearTimeout(maxTimer); maxTimer=null; }
       if(!canEdit() || _blocked){ dirty=false; return; }
       try{
-        for(let attempt=0; attempt<5; attempt++){
-          const r0 = await fetch("/api/state", { credentials:"same-origin", headers:{ "X-App-Version": APPVER() } });   // 저장 직전 서버 최신
-          if(r0.status===426){ blockOldVersion(); return; }
-          if(r0.ok){ const j0 = await r0.json(); if(j0 && j0.data){ state = (typeof mergeState3==="function") ? mergeState3(remote.base, state, j0.data) : state; remote.base = clone(j0.data); remote.version = j0.version; } }
-          const merged = state;
-          const r = await fetch("/api/state", { method:"PUT", credentials:"same-origin",
-            headers:{ "content-type":"application/json", "X-App-Version": APPVER() }, body: JSON.stringify({ data: merged, baseVersion: remote.version }) });
-          if(r.status===426){ blockOldVersion(); return; }
-          if(r.status===409){   // 충돌: 서버 최신으로 재병합 후 재시도(내 변경·남의 변경 모두 보존)
-            let cj=null; try{ cj = await r.json(); }catch(_){}
-            if(cj && cj.data){ state = (typeof mergeState3==="function") ? mergeState3(remote.base, state, cj.data) : state; remote.base = clone(cj.data); remote.version = cj.version; }
-            continue;
-          }
-          if(r.ok){ const j = await r.json(); remote.version = j.version; state = merged; remote.base = clone(merged); dirty=false; buildTimeline(); if(!focusedControl()) render(); return; }
-          dirty=false; return;   // 기타 오류
-        }
-        dirty=false;   // 재시도 소진 — 다음 편집/폴링에서 다시 반영
+        const r0 = await fetch("/api/state", { credentials:"same-origin", headers:{ "X-App-Version": APPVER() } });   // 저장 직전 서버 최신
+        if(r0.status===426){ blockOldVersion(); return; }
+        const j0 = r0.ok ? await r0.json() : null;
+        const remoteData = (j0 && j0.data && j0.data.milestones) ? j0.data : (remote.base || { milestones:[], tasks:[] });
+        const merged = (typeof mergeState3==="function") ? mergeState3(remote.base, state, remoteData) : state;
+        const r = await fetch("/api/state", { method:"PUT", credentials:"same-origin",
+          headers:{ "content-type":"application/json", "X-App-Version": APPVER() }, body: JSON.stringify({ data: merged }) });
+        if(r.status===426){ blockOldVersion(); return; }
+        if(r.ok){ const j = await r.json(); remote.version = j.version; state = merged; remote.base = clone(merged); dirty=false; buildTimeline(); if(!focusedControl()) render(); }
+        else dirty=false;
       }catch(_){ dirty=false; }
     };
     remote.push = function(){
@@ -219,22 +212,4 @@
     const head = t => `<div style="font-size:12px;font-weight:800;color:var(--muted);margin:12px 0 6px">${t}</div>`;
     const empty = `<div class="dm-empty">없음</div>`;
     let h = "";
-    h += head(`🔔 승인 대기 (${pending.length})`) + (pending.map(u=>row(u,approve(u))).join("") || empty);
-    h += head(`관리자 (${admins.length})`) + (admins.map(u=>row(u,"")).join("") || empty);
-    h += head(`편집 가능 (${editors.length})`) + (editors.map(u=>row(u,revoke(u))).join("") || empty);
-    h += `<div id="viewersToggle" style="font-size:12px;font-weight:800;color:var(--muted);margin:12px 0 6px;cursor:pointer">읽기 전용 (${viewers.length}) ${viewersOpen?"▾":"▸"}</div>`;
-    if(viewersOpen) h += (viewers.map(u=>row(u,approve(u))).join("") || empty);
-    el.innerHTML = h;
-  }
-  function openAccess(){ accessQuery=""; viewersOpen=false; ensureAccessModal().classList.add("show"); const si=document.getElementById("accessSearch"); if(si) si.value=""; renderAccess(); }
-
-  (async function(){
-    const me = await getMe();
-    // 편집 전 매 접속(탭) 1회 로그인 요구 — 세션이 살아있어도 이 탭에서 로그인해야 진입. 로그인 시 최신 버전으로 새로고침.
-    let authedTab=false; try{ authedTab = sessionStorage.getItem("ms_authed_tab")==="1"; }catch(_){}
-    if(me && authedTab){ ROLE = me.role || "viewer"; setupSync(); applyRoleUI(); return; }
-    let cfg = {};
-    try{ cfg = await (await fetch("/api/config")).json(); }catch(_){}
-    showLogin(cfg);
-  })();
-})();
+    h += head(`🔔 승인 대기 (${pending.length})`) + (pending.map(u=>row(u,ap
