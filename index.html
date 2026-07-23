@@ -1044,7 +1044,7 @@ function renderHead(){
     return `<div class="ms-bar" style="left:${left}px;width:${w}px;background:${m.color}22;border-color:${m.color}" title="${escapeHtml(m.name)} (${m.start} ~ ${m.end||'미정'})"><span style="color:${m.color}">${escapeHtml(m.name)}</span></div>`; }).join("");
   const DLK=["resource","dev","qa"];
   const dlmarks=msList.map(m=>DLK.map(k=>{ if(!m[k]) return ""; const mk=MARKERS.find(x=>x.k===k);
-    return `<div class="dl-mark" style="left:${nearestWorkdayIndex(m[k])*DAY_W}px" title="${escapeHtml(m.name)} · ${mk.label} ${m[k]}"><i style="background:${mk.color}"></i>${multi?escapeHtml(m.name)+' ':''}${mk.label}</div>`; }).join("")).join("");
+    return `<div class="dl-mark" style="left:${nearestWorkdayIndex(m[k])*DAY_W + DAY_W/2}px" title="${escapeHtml(m.name)} · ${mk.label} ${m[k]}"><i style="background:${mk.color}"></i>${multi?escapeHtml(m.name)+' ':''}${mk.label}</div>`; }).join("")).join("");
   head.innerHTML=`<div class="ms-lane">${msbars}</div><div class="dl-lane">${dlmarks}</div><div class="month-row">${months}</div><div class="day-row">${days}</div>`;
 }
 
@@ -1111,7 +1111,7 @@ function renderBody(){
   const body=document.getElementById("tlBody"); const todayIdx=indexOfToday(); const groups=groupsToRender();
   let grid="";
   for(let i=0;i<N;i++){ const mon=WORKDAYS[i].getDay()===1; grid+=`<div class="grid-col ${mon?'mon':''} ${i===todayIdx?'today':''}" style="left:${i*DAY_W}px"></div>`; }
-  const mlines=markerEntries().map(({mk,v})=>`<div class="mline" style="left:${nearestWorkdayIndex(v)*DAY_W}px;background:${mk.color}"></div>`).join("");
+  const mlines=markerEntries().map(({mk,v})=>`<div class="mline" style="left:${nearestWorkdayIndex(v)*DAY_W + DAY_W/2}px;background:${mk.color}"></div>`).join("");
   let rows="";
   if(state.tasks.length) groups.forEach(({s,tasks})=>{
     rows+=`<div class="tl-group"></div>`;
