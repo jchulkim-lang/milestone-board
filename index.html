@@ -13,7 +13,7 @@
   :root{
     --bg:#0e1014; --panel:#161922; --panel2:#1d2129; --line:#272c36; --grid:#1b1f27;
     --text:#e7eaf0; --muted:#8b93a3; --accent:#6366f1;
-    --day-w:34px; --row-h:40px; --task-h:46px; --meta-h:40px; --dept-band-h:34px; --group-h:34px; --left-w:370px; --head-h:104px;
+    --day-w:34px; --row-h:40px; --task-h:46px; --meta-h:40px; --group-h:34px; --left-w:660px; --head-h:104px;
     --rowhead:#1a1e27; --rowhead-h:#1f2430; --mon:#2b313c; --scroll:#2f3441;
   }
   body.light{
@@ -178,12 +178,10 @@
   .tl-task-head{height:var(--task-h);position:relative;}
   .tl-dept-lane{height:var(--row-h);position:relative;border-top:1px solid var(--grid);}
   .tl-meta-lane{height:var(--meta-h);border-top:1px solid var(--grid);}
-  .dept-band{height:var(--dept-band-h);display:flex;align-items:center;gap:5px;padding:0 8px 0 24px;background:var(--rowhead);border-top:1px dashed var(--line);overflow:hidden;}
-  .dept-band .dbl{font-size:10.5px;font-weight:800;color:var(--muted);letter-spacing:.3px;margin-right:3px;flex:0 0 auto;}
-  .dband-chip{flex:0 0 auto;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:999px;cursor:pointer;user-select:none;border:1px solid var(--line);background:transparent;color:var(--muted);white-space:nowrap;}
+  .dept-inline{display:flex;align-items:center;gap:4px;overflow:hidden;min-width:0;}
+  .dband-chip{flex:0 0 auto;font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;cursor:pointer;user-select:none;border:1px solid var(--line);background:transparent;color:var(--muted);white-space:nowrap;}
   .dband-chip:hover{border-color:var(--accent);color:var(--text);}
   .dband-chip.on{color:#fff;border-color:transparent;}
-  .tl-dept-band{height:var(--dept-band-h);border-top:1px solid var(--grid);}
 
   .bar{position:absolute;top:6px;height:calc(var(--row-h) - 12px);border-radius:6px;display:flex;align-items:center;font-size:10.5px;font-weight:600;color:#fff;cursor:grab;user-select:none;box-shadow:0 1px 2px rgba(0,0,0,.22);overflow:hidden;white-space:nowrap;touch-action:none;filter:saturate(.72) brightness(.97);}
   .bar.mbar{cursor:pointer;}
@@ -1059,11 +1057,11 @@ function deptGridHtml(t){
     const ow=(on&&seg.assignees&&seg.assignees.length)?' · 담당: '+escapeHtml(seg.assignees.join(', ')):'';
     return `<span class="dept-slot ${on?'on':'off'}" title="${escapeHtml(d.key)}${on?' · 지정됨':' · 미지정'}${ow}"><i ${on?`style="background:${d.color}"`:''}></i></span>`; }).join("");
 }
-function deptBandHtml(t){
+function deptChipsInline(t){
   if((t.track||"개발")!=="개발") return "";   // 개발 분류 전용 — 타 분류엔 미노출
   const chips=depsFor("개발").map(d=>{ const seg=t.depts[d.key]; const on=seg&&seg.on;
     return `<span class="dband-chip ${on?'on':''}" data-deptpick="${escapeHtml(d.key)}" style="${on?'background:'+d.color:''}" title="${escapeHtml(d.key)} · ${on?'참여 해제':'참여 추가'}">${escapeHtml(d.key)}</span>`; }).join("");
-  return `<div class="dept-band"><span class="dbl">부서</span>${chips}</div>`;
+  return `<span class="dept-inline">${chips}</span>`;
 }
 function taskHeadHtml(t){
   const ms=findMs(t.milestoneId);
@@ -1079,9 +1077,9 @@ function taskHeadHtml(t){
       <span class="caret">▶</span>
       <span class="ms-tag"><i class="bd" style="background:${ms.color}"></i>${escapeHtml(ms.name)}</span>
       <span class="task-name">${escapeHtml(t.name)}</span>${t.mirrorOf?'<span class="mirror-badge" title="아트에서 미러된 Task (아트 수정 시 갱신)">🔗 아트</span>':''}
-      ${links}${asg}
+      ${links}${(t.track||"개발")==="개발"?"":asg}
       <span class="th-spacer"></span>
-      ${(t.track||"개발")==="개발"?"":`<span class="dept-grid">${deptGridHtml(t)}</span>`}
+      ${(t.track||"개발")==="개발"?deptChipsInline(t):`<span class="dept-grid">${deptGridHtml(t)}</span>`}
       <span class="th-right"><span class="kf-chip" data-kf="${t.id}" style="background:${kf.color}" title="킥오프: ${t.kickoff} (클릭하여 변경)">${kf.icon}</span>
       ${doneChip}<select class="st-sel" data-status="${t.id}" title="${isArt?'종류':'진행 상태'}">${stOpts}</select>
       <span class="task-del" data-del="${t.id}" title="삭제">✕</span></span></div>`;
@@ -1112,7 +1110,7 @@ function renderLeft(){
         const trelloBtn=t.links.trello?`<a class="meta-btn set" href="${escapeHtml(t.links.trello)}" target="_blank" rel="noopener" title="Trello 열기">📋 Trello</a>`:`<button class="meta-btn dim" data-openedit="${t.id}" title="Trello 링크 추가">📋 Trello +</button>`;
         const trOpts=TRACKS.map(tr=>`<option value="${tr}" ${tr===t.track?'selected':''}>${tr}</option>`).join("");
         const meta=`<div class="meta-rows"><div class="meta-row"><button class="meta-btn" data-openpicker="${t.id}">＋ 부서</button><button class="meta-btn" data-openedit="${t.id}">✏️ 편집</button><button class="meta-btn" data-dup="${t.id}" title="이 Task 복제">⧉ 복제</button><button class="meta-btn" data-copylink="${t.id}" title="이 Task 링크 복사(전달용)">🔗 링크</button>${planBtn}${trelloBtn}<select class="meta-sel" data-settrack="${t.id}" title="분류">${trOpts}</select><select class="meta-sel" data-setms="${t.id}" title="마일스톤">${msOpts}</select></div></div>`;
-        html+=`<div class="task ${isOpen(t.id)?'open':''} ${t.kickoff==='Skip'?'skip':''} ${isCatTrack(t.track)&&t.done?'tdone':''} ${t.id===selectedId?'selected':''}" data-task="${t.id}" draggable="true">${taskHeadHtml(t)}${deptBandHtml(t)}${inner}${meta}</div>`;
+        html+=`<div class="task ${isOpen(t.id)?'open':''} ${t.kickoff==='Skip'?'skip':''} ${isCatTrack(t.track)&&t.done?'tdone':''} ${t.id===selectedId?'selected':''}" data-task="${t.id}" draggable="true">${taskHeadHtml(t)}${inner}${meta}</div>`;
       });
     }
   });
@@ -1130,12 +1128,11 @@ function renderBody(){
     if(!groupCollapsed.has(s.k)){
       tasks.forEach(t=>{
         const active=activeDepts(t); const skip=t.kickoff==='Skip'?'skip':''; const kf=kfOf(t.kickoff);
-        const bandSp=(t.track||"개발")==="개발"?'<div class="tl-dept-band"></div>':'';   // 좌측 부서 밴드와 행 높이 맞춤
         if(isOpen(t.id)){
           const lanes=active.map(d=>{ const seg=t.depts[d.key];
             const kfm = d.key==="기획" ? `<span class="kf" style="left:${Math.max(0,seg.start*DAY_W-7)}px;top:50%;background:${kf.color}">${kf.icon}</span>` : "";
             return `<div class="tl-dept-lane">${kfm}<div class="bar" data-bar="${t.id}:${d.key}" style="left:${seg.start*DAY_W}px;width:${(seg.end-seg.start+1)*DAY_W}px;background:${d.color}"><div class="handle l"></div><span class="lbl">${d.key} · ${seg.end-seg.start+1}일</span><span class="lbl-r">${(seg.assignees&&seg.assignees.length)?escapeHtml(seg.assignees.join(', ')):'미정'}</span><div class="handle r"></div></div></div>`; }).join("");
-          rows+=`<div class="tl-task ${skip}"><div class="tl-task-head"></div>${bandSp}${lanes}<div class="tl-meta-lane"></div></div>`;
+          rows+=`<div class="tl-task ${skip}"><div class="tl-task-head"></div>${lanes}<div class="tl-meta-lane"></div></div>`;
         } else {
           let merged="";
           active.slice().reverse().forEach(d=>{ const seg=t.depts[d.key];
@@ -1143,7 +1140,7 @@ function renderBody(){
             merged+=`<div class="bar mbar" data-mbar="${t.id}" data-mdep="${escapeHtml(d.key)}" style="left:${seg.start*DAY_W}px;width:${(seg.end-seg.start+1)*DAY_W}px;top:10px;background:${d.color}" title="${d.key} · 담당: ${escapeHtml(sa)} (가운데 드래그: 이동 · 끝 드래그: 기간 조절 · 클릭: 펼치기)"><div class="handle l"></div><span class="mbar-r">${escapeHtml(sa)}</span><div class="handle r"></div></div>`; });
           const planSeg = (t.depts["기획"]&&t.depts["기획"].on) ? t.depts["기획"] : null;
           const kfMark = planSeg ? `<span class="kf" data-mbar="${t.id}" style="left:${Math.max(0,planSeg.start*DAY_W-7)}px;top:23px;background:${kf.color}">${kf.icon}</span>` : "";
-          rows+=`<div class="tl-task ${skip}"><div class="tl-task-head">${merged}${kfMark}</div>${bandSp}</div>`;
+          rows+=`<div class="tl-task ${skip}"><div class="tl-task-head">${merged}${kfMark}</div></div>`;
         }
       });
     }
@@ -1742,6 +1739,6 @@ focusTaskFromUrl();
 showNoticeWithRetry();
 </script>
 <!-- 클라우드(http/https) 배포 시에만 cloud.js 로드 — 로컬 파일(file://)에서는 자동 무시 -->
-<script>if(location.protocol==='http:'||location.protocol==='https:'){var _c=document.createElement('script');_c.src='cloud.js';document.body.appendChild(_c);}</script>
+<script>if(location.protocol==='http:'||location.protocol==='https:'){var _c=document.createElement('script');_c.src='cloud.js?v=__APP_BUILD__';document.body.appendChild(_c);}</script>
 </body>
 </html>
