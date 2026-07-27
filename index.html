@@ -122,7 +122,8 @@
   .drag-handle:hover{color:var(--text);}
   .caret{width:12px;color:var(--muted);font-size:11px;transition:transform .15s;flex:0 0 auto;}
   .task.open .caret{transform:rotate(90deg);}
-  .task-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:34px;}
+  .task-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0;}
+  .task-info{flex:1 1 0;min-width:0;display:flex;align-items:center;gap:5px;overflow:hidden;}
   .ms-tag{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;color:var(--muted);white-space:nowrap;flex:0 0 auto;}
   .ms-tag .bd{width:7px;height:7px;border-radius:2px;}
   .tbadge .bd{width:8px;height:8px;border-radius:50%;}
@@ -178,7 +179,7 @@
   .tl-task-head{height:var(--task-h);position:relative;}
   .tl-dept-lane{height:var(--row-h);position:relative;border-top:1px solid var(--grid);}
   .tl-meta-lane{height:var(--meta-h);border-top:1px solid var(--grid);}
-  .dept-inline{display:flex;align-items:center;gap:4px;overflow:hidden;min-width:0;}
+  .dept-inline{display:flex;align-items:center;gap:4px;overflow:hidden;min-width:0;flex:0 0 auto;}
   .dband-chip{flex:0 0 auto;font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;cursor:pointer;user-select:none;border:1px solid var(--line);background:transparent;color:var(--muted);white-space:nowrap;}
   .dband-chip:hover{border-color:var(--accent);color:var(--text);}
   .dband-chip.on{color:#fff;border-color:transparent;}
@@ -734,9 +735,10 @@ function nearestWorkdayIndex(ymdStr){ if(!ymdStr) return -1; const t=parseYmd(ym
 
 const uid=()=>Math.random().toString(36).slice(2,9);
 let state = { milestones:[{ id:"m1", name:"마일스톤 1", color:MS_PALETTE[0], start:"2026-06-01", end:"", resource:"", dev:"", qa:"" }], tasks:[] };
-let deptFilter=new Set(), statusFilter=new Set(), msFilter=new Set(), assigneeFilter=new Set();
+let deptFilter=new Set(), statusFilter=new Set(), msFilter=new Set(), assigneeFilter=new Set(), kfFilter=new Set();
 let trackFilter="개발";   // 분류 탭(개발/아트) — '전체' 없음
 let filterOpen=false;
+let sortMode="manual";   // 정렬: manual(수동 드래그순) | name-asc | name-desc
 let groupCollapsed=new Set();   // 접힌 상태 그룹(개인)
 /* Task 펼침 상태 — 개인 브라우저에만 저장(공유 안 됨). 기본은 모두 접힘 */
 let openTasks=new Set();
@@ -907,6 +909,7 @@ function passFilter(t){
   if(msFilter.size && !msFilter.has(t.milestoneId)) return false;
   if(trackFilter!=="__all" && t.track!==trackFilter) return false;
   if(statusFilter.size && !statusFilter.has(t.status)) return false;
+  if(kfFilter.size && !kfFilter.has(t.kickoff)) return false;
   if(assigneeFilter.size){
     let m=false;
     if(assigneeFilter.has("__unassigned") && taskHasUnassigned(t)) m=true;
@@ -917,8 +920,10 @@ function passFilter(t){
 }
 function groupsToRender(){
   const vis=state.tasks.filter(passFilter);
+  const cmp=sortMode==="name-asc"?(a,b)=>(a.name||"").localeCompare(b.name||"","ko",{numeric:true})
+    :sortMode==="name-desc"?(a,b)=>(b.name||"").localeCompare(a.name||"","ko",{numeric:true}):null;
   return statusesFor(headTrack()).filter(s=> statusFilter.size===0 || statusFilter.has(s.k))
-    .map(s=>({ s, tasks: vis.filter(t=>t.status===s.k) }));
+    .map(s=>{ let tasks=vis.filter(t=>t.status===s.k); if(cmp) tasks=tasks.slice().sort(cmp); return { s, tasks }; });
 }
 
 function renderTitle(){ const t=state.title||"본부 마일스톤 관리"; const el=document.getElementById("appTitle"); if(el) el.textContent=t; document.title=t; }
@@ -991,7 +996,9 @@ function renderFilter(){
   const mstabs=`<span class="mstab ${allM?'on':''}" data-mstab="__all">전체</span>`+state.milestones.map(m=>{ const on=msFilter.size===1&&msFilter.has(m.id);
     return `<span class="mstab ${on?'on':''}" data-mstab="${m.id}" style="${on?'background:'+m.color+';border-color:transparent;color:#fff':''}"><i class="dot" style="background:${on?'#fff':m.color}"></i>${escapeHtml(m.name)}</span>`; }).join("");
   const trackTabs=TRACKS.map(tr=>`<span class="trtab ${trackFilter===tr?'on':''}" data-track="${tr}"><i class="trdot" style="background:${TRACK_COLORS[tr]||'#888'}"></i>${escapeHtml(tr)}</span>`).join("");
-  const cnt=deptFilter.size+statusFilter.size+assigneeFilter.size;
+  const kfchips=KICKOFFS.map(k=>{ const on=kfFilter.has(k.k);
+    return `<span class="fchip ${on?'on':''}" style="${on?'background:'+k.color:''}" data-fkf="${k.k}"><span class="dot" style="background:${on?'#fff':k.color}"></span>${k.k}</span>`; }).join("");
+  const cnt=deptFilter.size+statusFilter.size+assigneeFilter.size+kfFilter.size;
   const allA=assigneeFilter.size===0;
   const aSec=`<div class="fsec"><span class="lh-label">담당자</span>
        <div class="fchips"><span class="fchip all ${allA?'on':''}" data-fa="__all">${allA?'✓ ':''}전체</span><span class="fchip ${assigneeFilter.has('__unassigned')?'on':''}" data-fa="__unassigned">${assigneeFilter.has('__unassigned')?'✓ ':''}미정</span></div>
@@ -1012,12 +1019,14 @@ function renderFilter(){
        <button class="btn sm" id="addTaskBtn">＋ Task</button>
        <span class="lh-label" style="margin-left:4px">TASK · 부서 · 킥오프</span>
        <button class="filter-btn" id="toggleAllBtn" style="margin-left:auto" title="모두 펼침/접기 (개인 화면)">${_allOpen?'⊖ 모두 접기':'⊕ 모두 펼치기'}</button>
+       <button class="filter-btn ${sortMode!=='manual'?'active':''}" id="sortBtn" title="이름순 정렬 (클릭: 수동 → 이름↑ → 이름↓)">${sortMode==='name-asc'?'이름 ↑':sortMode==='name-desc'?'이름 ↓':'↕ 이름순'}</button>
        <button class="filter-btn ${cnt?'active':''}" id="filterBtn">필터${cnt?' ('+cnt+')':''} ▾</button>
      </div>
      <div class="lh-row dept-head-row"><button class="lh-label legend-edit" id="deptGridToggle" title="부서 체크 색상 표시/숨김">부서 색상 ${showDeptGrid?'▾':'▸'}</button>${showDeptGrid?`<span class="th-spacer"></span><span class="dept-grid">${depsFor(headTrack()).map(d=>`<span class="dept-slot on" title="${escapeHtml(d.key)}${(d.owners&&d.owners.length)?' · 담당: '+escapeHtml(d.owners.join(', ')):''}"><i style="background:${d.color}"></i></span>`).join("")}</span><span class="th-right-spacer"></span>`:''}</div>
      <div class="filter-pop ${filterOpen?'show':''}" id="filterPop">
        <div class="fsec"><span class="lh-label">부서</span><div class="fchips"><span class="fchip all ${allD?'on':''}" data-fd="__all">전체</span>${dchips}</div></div>
        <div class="fsec"><span class="lh-label">진행 상태</span><div class="fchips"><span class="fchip all ${allS?'on':''}" data-fs="__all">전체</span>${schips}</div></div>
+       <div class="fsec"><span class="lh-label">킥오프</span><div class="fchips"><span class="fchip all ${kfFilter.size===0?'on':''}" data-fkf="__all">전체</span>${kfchips}</div></div>
        ${aSec}
      </div>`;
 }
@@ -1076,10 +1085,7 @@ function taskHeadHtml(t){
   return `<div class="task-head" data-toggleopen="${t.id}">
       <span class="drag-handle" data-drag="${t.id}" title="드래그하여 이동">⠿</span>
       <span class="caret">▶</span>
-      <span class="ms-tag"><i class="bd" style="background:${ms.color}"></i>${escapeHtml(ms.name)}</span>
-      <span class="task-name">${escapeHtml(t.name)}</span>${t.mirrorOf?'<span class="mirror-badge" title="아트에서 미러된 Task (아트 수정 시 갱신)">🔗 아트</span>':''}
-      ${links}${(t.track||"개발")==="개발"?"":asg}
-      <span class="th-spacer"></span>
+      <span class="task-info"><span class="ms-tag"><i class="bd" style="background:${ms.color}"></i>${escapeHtml(ms.name)}</span><span class="task-name">${escapeHtml(t.name)}</span>${t.mirrorOf?'<span class="mirror-badge" title="아트에서 미러된 Task (아트 수정 시 갱신)">🔗 아트</span>':''}${links}${(t.track||"개발")==="개발"?"":asg}</span>
       ${(t.track||"개발")==="개발"?deptChipsInline(t):`<span class="dept-grid">${deptGridHtml(t)}</span>`}
       <span class="th-right"><span class="kf-chip" data-kf="${t.id}" style="background:${kf.color}" title="킥오프: ${t.kickoff} (클릭하여 변경)">${kf.icon}</span>
       ${doneChip}<select class="st-sel" data-status="${t.id}" title="${isArt?'종류':'진행 상태'}">${stOpts}</select>
@@ -1155,13 +1161,15 @@ const leftBody=document.getElementById("leftBody"), leftHead=document.getElement
 leftHead.addEventListener("click", e=>{
   if(e.target.closest("#addTaskBtn")){ openTaskModal(); return; }
   if(e.target.closest("#filterBtn")){ filterOpen=!filterOpen; renderFilter(); return; }
+  if(e.target.closest("#sortBtn")){ sortMode=sortMode==="manual"?"name-asc":sortMode==="name-asc"?"name-desc":"manual"; try{localStorage.setItem("ms_sortmode",sortMode);}catch(_){}  render(); return; }
   if(e.target.closest("#toggleAllBtn")){ const vis=state.tasks.filter(passFilter); const allOpen=vis.length>0 && vis.every(t=>isOpen(t.id)); vis.forEach(t=>{ if(allOpen) openTasks.delete(t.id); else openTasks.add(t.id); }); saveOpen(); render(); return; }
   if(e.target.closest("#deptGridToggle")){ showDeptGrid=!showDeptGrid; try{localStorage.setItem("milestone_deptgrid_v1",showDeptGrid?"1":"0");}catch(_){}  applyDeptGridClass(); renderFilter(); return; }
   const tab=e.target.closest("[data-mstab]"); if(tab){ const k=tab.dataset.mstab; msFilter.clear(); if(k!=="__all") msFilter.add(k); render(); return; }
-  const trk=e.target.closest("[data-track]"); if(trk){ trackFilter=trk.dataset.track; deptFilter.clear(); assigneeFilter.clear(); statusFilter.clear(); groupCollapsed.clear(); render(); return; }
-  const fd=e.target.closest("[data-fd]"), fs=e.target.closest("[data-fs]"), fa=e.target.closest("[data-fa]");
+  const trk=e.target.closest("[data-track]"); if(trk){ trackFilter=trk.dataset.track; deptFilter.clear(); assigneeFilter.clear(); statusFilter.clear(); kfFilter.clear(); groupCollapsed.clear(); render(); return; }
+  const fd=e.target.closest("[data-fd]"), fs=e.target.closest("[data-fs]"), fa=e.target.closest("[data-fa]"), fkf=e.target.closest("[data-fkf]");
   if(fd){ const k=fd.dataset.fd; if(k==="__all")deptFilter.clear(); else deptFilter.has(k)?deptFilter.delete(k):deptFilter.add(k); render(); return; }
   if(fs){ const k=fs.dataset.fs; if(k==="__all")statusFilter.clear(); else statusFilter.has(k)?statusFilter.delete(k):statusFilter.add(k); render(); return; }
+  if(fkf){ const k=fkf.dataset.fkf; if(k==="__all")kfFilter.clear(); else kfFilter.has(k)?kfFilter.delete(k):kfFilter.add(k); render(); return; }
   if(fa){ const k=fa.dataset.fa; if(k==="__all")assigneeFilter.clear(); else assigneeFilter.has(k)?assigneeFilter.delete(k):assigneeFilter.add(k); render(); return; }
 });
 document.addEventListener("click", e=>{ if(filterOpen && !e.target.closest("#filterPop") && !e.target.closest("#filterBtn")){ filterOpen=false; renderFilter(); } });
@@ -1169,7 +1177,7 @@ document.addEventListener("click", e=>{ if(filterOpen && !e.target.closest("#fil
 /* ===== 컨텍스트 바 / 파이프라인 상호작용 ===== */
 const contextBar=document.getElementById("contextBar"), pipelineEl=document.getElementById("pipeline");
 contextBar.addEventListener("change", e=>{ const s=e.target.closest("#ctxMs"); if(s){ msFilter.clear(); if(s.value!=="__all") msFilter.add(s.value); render(); } });
-contextBar.addEventListener("click", e=>{ const trk=e.target.closest("[data-track]"); if(trk){ trackFilter=trk.dataset.track; deptFilter.clear(); assigneeFilter.clear(); statusFilter.clear(); groupCollapsed.clear(); render(); } });
+contextBar.addEventListener("click", e=>{ const trk=e.target.closest("[data-track]"); if(trk){ trackFilter=trk.dataset.track; deptFilter.clear(); assigneeFilter.clear(); statusFilter.clear(); kfFilter.clear(); groupCollapsed.clear(); render(); } });
 pipelineEl.addEventListener("click", e=>{ const st=e.target.closest("[data-pstep]"); if(st){ const k=st.dataset.pstep; statusFilter.has(k)?statusFilter.delete(k):statusFilter.add(k); render(); } });
 
 leftBody.addEventListener("change", e=>{
@@ -1196,7 +1204,7 @@ leftBody.addEventListener("click", e=>{
 let dragId=null, selectedId=null;
 function taskStartIdx(t){ let mn=null; for(const k in t.depts){ const s=t.depts[k]; if(s&&s.on) mn = (mn===null)?s.start:Math.min(mn,s.start); } return mn; }
 function scrollToTask(t){ const i=taskStartIdx(t); if(i===null) return; rightBody.scrollTo({left:Math.max(0,(i-2)*DAY_W), behavior:"smooth"}); }
-leftBody.addEventListener("dragstart", e=>{ const tk=e.target.closest("[data-task]"); if(!tk) return; dragId=tk.dataset.task; e.dataTransfer.effectAllowed="move"; try{e.dataTransfer.setData("text/plain",dragId);}catch(_){} });
+leftBody.addEventListener("dragstart", e=>{ if(sortMode!=="manual"){ e.preventDefault(); return; } const tk=e.target.closest("[data-task]"); if(!tk) return; dragId=tk.dataset.task; e.dataTransfer.effectAllowed="move"; try{e.dataTransfer.setData("text/plain",dragId);}catch(_){} });
 leftBody.addEventListener("dragover", e=>{ if(dragId) e.preventDefault(); });
 leftBody.addEventListener("drop", e=>{
   if(!dragId) return; e.preventDefault();
@@ -1662,6 +1670,7 @@ document.getElementById("themeBtn").onclick=()=>{ const nxt=document.body.classL
 
 /* ===== init (v7) ===== */
 const savedW=localStorage.getItem("ms_leftw"); if(savedW) document.documentElement.style.setProperty("--left-w",savedW);
+try{ const _sm=localStorage.getItem("ms_sortmode"); if(_sm) sortMode=_sm; }catch(_){}
 /* ===== 관리자 강제 새로고침 (구버전 클라이언트 일괄 갱신) ===== */
 const RELOAD_KEY="milestone_reload_seen_v1";
 let reloadSeen=0, reloadPending=false;
