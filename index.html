@@ -1637,7 +1637,7 @@ const divider=document.getElementById("divider");
 divider.addEventListener("pointerdown", e=>{ e.preventDefault(); divider.classList.add("drag");
   const startX=e.clientX, startW=parseInt(getComputedStyle(document.documentElement).getPropertyValue("--left-w"))||370;
   try{ divider.setPointerCapture(e.pointerId);}catch(_){}
-  function mv(ev){ let w=Math.min(Math.max(260,startW+(ev.clientX-startX)),760); document.documentElement.style.setProperty("--left-w",w+"px"); }
+  function mv(ev){ const maxW=Math.max(900,window.innerWidth-240); let w=Math.min(Math.max(260,startW+(ev.clientX-startX)),maxW); document.documentElement.style.setProperty("--left-w",w+"px"); }
   function up(){ divider.classList.remove("drag"); divider.removeEventListener("pointermove",mv); divider.removeEventListener("pointerup",up);
     localStorage.setItem("ms_leftw", getComputedStyle(document.documentElement).getPropertyValue("--left-w").trim()); }
   divider.addEventListener("pointermove",mv); divider.addEventListener("pointerup",up); });
