@@ -77,6 +77,8 @@
   .filter-btn.active{border-color:var(--accent);color:#c7c9ff;}
   .filter-pop{position:absolute;top:var(--head-h);left:10px;right:10px;z-index:30;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px;display:none;box-shadow:0 8px 24px rgba(0,0,0,.4);max-height:60vh;overflow:auto;}
   .filter-pop.show{display:block;}
+  .filter-search{width:100%;box-sizing:border-box;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit;margin-top:6px;}
+  .filter-search:focus{outline:none;border-color:var(--accent);}
   .filter-pop .fsec{margin-bottom:10px;}
   .fa-dept{display:flex;align-items:flex-start;gap:7px;margin-top:7px;}
   .fa-deptname{flex:0 0 52px;font-size:11px;font-weight:700;color:var(--muted);display:flex;align-items:center;gap:4px;padding-top:4px;}
@@ -739,6 +741,7 @@ let deptFilter=new Set(), statusFilter=new Set(), msFilter=new Set(), assigneeFi
 let trackFilter="개발";   // 분류 탭(개발/아트) — '전체' 없음
 let filterOpen=false;
 let sortMode="manual";   // 정렬: manual(수동 드래그순) | name-asc | name-desc
+let searchQuery="";   // 필터 텍스트 검색(제목·담당자)
 let groupCollapsed=new Set();   // 접힌 상태 그룹(개인)
 /* Task 펼침 상태 — 개인 브라우저에만 저장(공유 안 됨). 기본은 모두 접힘 */
 let openTasks=new Set();
@@ -905,6 +908,7 @@ const taskDeps=t=>t.mirrorOf ? DEPARTMENTS : depsFor(t.track||"개발");
 const activeDepts=t=>taskDeps(t).filter(d=>t.depts[d.key]&&t.depts[d.key].on);
 function taskHasUnassigned(t){ const ad=activeDepts(t); if(!ad.length) return true; return ad.some(d=>!((t.depts[d.key].assignees)||[]).length); }
 function passFilter(t){
+  if(searchQuery.trim()){ const q=searchQuery.trim().toLowerCase(); const hay=((t.name||"")+" "+taskAssignees(t).join(" ")).toLowerCase(); if(!hay.includes(q)) return false; }
   if(deptFilter.size && !activeDepts(t).some(d=>deptFilter.has(d.key))) return false;
   if(msFilter.size && !msFilter.has(t.milestoneId)) return false;
   if(trackFilter!=="__all" && t.track!==trackFilter) return false;
@@ -998,7 +1002,7 @@ function renderFilter(){
   const trackTabs=TRACKS.map(tr=>`<span class="trtab ${trackFilter===tr?'on':''}" data-track="${tr}"><i class="trdot" style="background:${TRACK_COLORS[tr]||'#888'}"></i>${escapeHtml(tr)}</span>`).join("");
   const kfchips=KICKOFFS.map(k=>{ const on=kfFilter.has(k.k);
     return `<span class="fchip ${on?'on':''}" style="${on?'background:'+k.color:''}" data-fkf="${k.k}"><span class="dot" style="background:${on?'#fff':k.color}"></span>${k.k}</span>`; }).join("");
-  const cnt=deptFilter.size+statusFilter.size+assigneeFilter.size+kfFilter.size;
+  const cnt=deptFilter.size+statusFilter.size+assigneeFilter.size+kfFilter.size+(searchQuery.trim()?1:0);
   const allA=assigneeFilter.size===0;
   const aSec=`<div class="fsec"><span class="lh-label">담당자</span>
        <div class="fchips"><span class="fchip all ${allA?'on':''}" data-fa="__all">${allA?'✓ ':''}전체</span><span class="fchip ${assigneeFilter.has('__unassigned')?'on':''}" data-fa="__unassigned">${assigneeFilter.has('__unassigned')?'✓ ':''}미정</span></div>
@@ -1024,6 +1028,7 @@ function renderFilter(){
      </div>
      <div class="lh-row dept-head-row"><button class="lh-label legend-edit" id="deptGridToggle" title="부서 체크 색상 표시/숨김">부서 색상 ${showDeptGrid?'▾':'▸'}</button>${showDeptGrid?`<span class="th-spacer"></span><span class="dept-grid">${depsFor(headTrack()).map(d=>`<span class="dept-slot on" title="${escapeHtml(d.key)}${(d.owners&&d.owners.length)?' · 담당: '+escapeHtml(d.owners.join(', ')):''}"><i style="background:${d.color}"></i></span>`).join("")}</span><span class="th-right-spacer"></span>`:''}</div>
      <div class="filter-pop ${filterOpen?'show':''}" id="filterPop">
+       <div class="fsec"><span class="lh-label">검색</span><input type="text" id="filterSearch" class="filter-search" placeholder="제목·담당자 단어 검색…" value="${escapeHtml(searchQuery)}"></div>
        <div class="fsec"><span class="lh-label">부서</span><div class="fchips"><span class="fchip all ${allD?'on':''}" data-fd="__all">전체</span>${dchips}</div></div>
        <div class="fsec"><span class="lh-label">진행 상태</span><div class="fchips"><span class="fchip all ${allS?'on':''}" data-fs="__all">전체</span>${schips}</div></div>
        <div class="fsec"><span class="lh-label">킥오프</span><div class="fchips"><span class="fchip all ${kfFilter.size===0?'on':''}" data-fkf="__all">전체</span>${kfchips}</div></div>
@@ -1172,6 +1177,7 @@ leftHead.addEventListener("click", e=>{
   if(fkf){ const k=fkf.dataset.fkf; if(k==="__all")kfFilter.clear(); else kfFilter.has(k)?kfFilter.delete(k):kfFilter.add(k); render(); return; }
   if(fa){ const k=fa.dataset.fa; if(k==="__all")assigneeFilter.clear(); else assigneeFilter.has(k)?assigneeFilter.delete(k):assigneeFilter.add(k); render(); return; }
 });
+leftHead.addEventListener("input", e=>{ const si=e.target.closest("#filterSearch"); if(si){ searchQuery=si.value; renderContext(); renderPipeline(); renderLegend(); renderLeft(); renderBody(); } });
 document.addEventListener("click", e=>{ if(filterOpen && !e.target.closest("#filterPop") && !e.target.closest("#filterBtn")){ filterOpen=false; renderFilter(); } });
 
 /* ===== 컨텍스트 바 / 파이프라인 상호작용 ===== */
