@@ -126,6 +126,11 @@
   .task.open .caret{transform:rotate(90deg);}
   .task-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0;}
   .task-info{flex:1 1 0;min-width:0;display:flex;align-items:center;gap:5px;overflow:hidden;}
+  .prio-badge{flex:0 0 auto;width:18px;height:18px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;cursor:pointer;user-select:none;border:1px solid var(--line);color:var(--muted);background:transparent;}
+  .prio-badge.p1{background:#ef4444;color:#fff;border-color:transparent;}
+  .prio-badge.p2{background:#f59e0b;color:#fff;border-color:transparent;}
+  .prio-badge.p3{background:#3b82f6;color:#fff;border-color:transparent;}
+  .prio-badge.p4{background:#64748b;color:#fff;border-color:transparent;}
   .ms-tag{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;color:var(--muted);white-space:nowrap;flex:0 0 auto;}
   .ms-tag .bd{width:7px;height:7px;border-radius:2px;}
   .tbadge .bd{width:8px;height:8px;border-radius:50%;}
@@ -521,6 +526,8 @@
       <label>Task 이름</label><input id="taskInput" placeholder="예: 로그인 기능" />
       <label>마일스톤</label><select id="taskMs"></select>
       <label>분류</label><select id="taskTrack"><option value="개발">개발</option><option value="아트">아트</option><option value="전투">전투</option><option value="네러티브">네러티브</option><option value="콘텐츠">콘텐츠</option></select>
+      <label>기획서 링크 (선택)</label><input id="taskPlan" placeholder="https://... (비워도 됩니다)" />
+      <label>Trello 링크 (선택)</label><input id="taskTrello" placeholder="https://... (비워도 됩니다)" />
       <div class="msub" style="margin:6px 0 0">다음 단계에서 부서를 지정하고, 부서별로 담당자를 배정합니다.</div>
       <div class="modal-actions"><span></span><div class="right"><button class="btn ghost" data-close>취소</button><button class="btn" id="taskAddOk">다음: 부서 지정</button></div></div></div>
   </div>
@@ -1090,7 +1097,7 @@ function taskHeadHtml(t){
   return `<div class="task-head" data-toggleopen="${t.id}">
       <span class="drag-handle" data-drag="${t.id}" title="드래그하여 이동">⠿</span>
       <span class="caret">▶</span>
-      <span class="task-info"><span class="ms-tag"><i class="bd" style="background:${ms.color}"></i>${escapeHtml(ms.name)}</span><span class="task-name">${escapeHtml(t.name)}</span>${t.mirrorOf?'<span class="mirror-badge" title="아트에서 미러된 Task (아트 수정 시 갱신)">🔗 아트</span>':''}${links}${(t.track||"개발")==="개발"?"":asg}</span>
+      <span class="task-info"><span class="prio-badge p${t.priority||0}" data-prio="${t.id}" title="우선순위 (클릭: 없음→1→2→3→4)">${t.priority||'–'}</span><span class="ms-tag"><i class="bd" style="background:${ms.color}"></i>${escapeHtml(ms.name)}</span><span class="task-name">${escapeHtml(t.name)}</span>${t.mirrorOf?'<span class="mirror-badge" title="아트에서 미러된 Task (아트 수정 시 갱신)">🔗 아트</span>':''}${links}${(t.track||"개발")==="개발"?"":asg}</span>
       ${(t.track||"개발")==="개발"?deptChipsInline(t):`<span class="dept-grid">${deptGridHtml(t)}</span>`}
       <span class="th-right"><span class="kf-chip" data-kf="${t.id}" style="background:${kf.color}" title="킥오프: ${t.kickoff} (클릭하여 변경)">${kf.icon}</span>
       ${doneChip}<select class="st-sel" data-status="${t.id}" title="${isArt?'종류':'진행 상태'}">${stOpts}</select>
@@ -1196,6 +1203,7 @@ leftBody.addEventListener("click", e=>{
   if(e.target.closest("[data-status]")||e.target.closest("[data-setms]")||e.target.closest("[data-settrack]")) return;
   const grp=e.target.closest("[data-group]"); if(grp){ const k=grp.dataset.group; groupCollapsed.has(k)?groupCollapsed.delete(k):groupCollapsed.add(k); render(); return; }
   const kf=e.target.closest("[data-kf]"); if(kf){ e.stopPropagation(); const t=findTask(kf.dataset.kf); const i=KICKOFFS.findIndex(x=>x.k===t.kickoff); t.kickoff=KICKOFFS[(i+1)%KICKOFFS.length].k; save(); render(); return; }
+  const pr=e.target.closest("[data-prio]"); if(pr){ e.stopPropagation(); const t=findTask(pr.dataset.prio); if(!t.priority) t.priority=1; else if(t.priority>=4) delete t.priority; else t.priority++; save(); render(); return; }
   const dn=e.target.closest("[data-done]"); if(dn){ e.stopPropagation(); const t=findTask(dn.dataset.done); t.done=!t.done; save(); render(); return; }
   const del=e.target.closest("[data-del]"); if(del){ e.stopPropagation(); const id=del.dataset.del; if(confirm("이 Task를 삭제할까요?")){ state.tasks=state.tasks.filter(t=>t.id!==id); save(); render(); } return; }
   const pick=e.target.closest("[data-openpicker]"); if(pick){ e.stopPropagation(); openDeptModal(pick.dataset.openpicker); return; }
@@ -1545,7 +1553,7 @@ function deptAssigneeChips(t, key){ const dept=state.departments.find(d=>d.key==
 function toggleDeptAssignee(t, key, name){ const seg=t.depts[key]; if(!seg) return; if(!Array.isArray(seg.assignees)) seg.assignees=[]; const i=seg.assignees.indexOf(name); if(i>=0) seg.assignees.splice(i,1); else seg.assignees.push(name); }
 
 function fillTaskMs(track, keep){ const cur=keep||taskMs.value; taskMs.innerHTML=msFor(track).map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join(""); if(cur && msFor(track).some(m=>m.id===cur)) taskMs.value=cur; }
-function openTaskModal(){ taskInput.value=""; const tt=document.getElementById("taskTrack"); let trk=TRACKS.includes(trackFilter)?trackFilter:"개발";
+function openTaskModal(){ taskInput.value=""; { const _p=document.getElementById("taskPlan"),_t=document.getElementById("taskTrello"); if(_p)_p.value=""; if(_t)_t.value=""; } const tt=document.getElementById("taskTrack"); let trk=TRACKS.includes(trackFilter)?trackFilter:"개발";
   const selT = selectedId && findTask(selectedId);   // 선택한 Task 기준: 같은 마일스톤·분류로 시작
   if(selT && TRACKS.includes(selT.track)) trk=selT.track;
   if(tt) tt.value=trk;
@@ -1562,7 +1570,8 @@ function addTask(){ const name=taskInput.value.trim(); if(!name) return;
   if(isCatTrack(trk)){ status = listFor(trk).some(c=>c.key==="대기") ? "대기" : ((listFor(trk)[0]&&listFor(trk)[0].key)||"대기"); }   // 아트·전투는 항상 '대기'로 시작
   else if(selT && selT.track===trk && statusesFor(trk).some(s=>s.k===selT.status)) status=selT.status;
   else { const _s0=statusesFor(trk)[0]; status=(_s0&&_s0.k)||"대기"; }
-  const tk={ id:uid(), name, milestoneId:taskMs.value||state.milestones[0].id, track:trk, kickoff:"예정", status, done:false, links:{plan:"",trello:""}, depts:{} };
+  const _plan=((document.getElementById("taskPlan")||{}).value||"").trim(), _trello=((document.getElementById("taskTrello")||{}).value||"").trim();
+  const tk={ id:uid(), name, milestoneId:taskMs.value||state.milestones[0].id, track:trk, kickoff:"예정", status, done:false, links:{plan:_plan,trello:_trello}, depts:{} };
   const si = selT ? state.tasks.findIndex(x=>x.id===selectedId) : -1;   // 선택한 Task 바로 아래에 삽입
   if(si>=0) state.tasks.splice(si+1,0,tk); else state.tasks.push(tk);
   selectedId=tk.id; setOpen(tk.id,true);   // 만든 사람 화면에서만 펼침
