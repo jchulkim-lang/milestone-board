@@ -126,11 +126,12 @@
   .task.open .caret{transform:rotate(90deg);}
   .task-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0;}
   .task-info{flex:1 1 0;min-width:0;display:flex;align-items:center;gap:5px;overflow:hidden;}
-  .prio-badge{flex:0 0 auto;width:18px;height:18px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;cursor:pointer;user-select:none;border:1px solid var(--line);color:var(--muted);background:transparent;}
-  .prio-badge.p1{background:#ef4444;color:#fff;border-color:transparent;}
-  .prio-badge.p2{background:#f59e0b;color:#fff;border-color:transparent;}
-  .prio-badge.p3{background:#3b82f6;color:#fff;border-color:transparent;}
-  .prio-badge.p4{background:#64748b;color:#fff;border-color:transparent;}
+  .prio-sel{flex:0 0 auto;-webkit-appearance:none;appearance:none;width:22px;height:19px;border-radius:5px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:11px;font-weight:800;text-align:center;text-align-last:center;cursor:pointer;padding:0;}
+  .prio-sel.p1{background:#ef4444;color:#fff;border-color:transparent;}
+  .prio-sel.p2{background:#f59e0b;color:#fff;border-color:transparent;}
+  .prio-sel.p3{background:#3b82f6;color:#fff;border-color:transparent;}
+  .prio-sel.p4{background:#64748b;color:#fff;border-color:transparent;}
+  .prio-sel option{background:var(--panel);color:var(--text);}
   .ms-tag{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;color:var(--muted);white-space:nowrap;flex:0 0 auto;}
   .ms-tag .bd{width:7px;height:7px;border-radius:2px;}
   .tbadge .bd{width:8px;height:8px;border-radius:50%;}
@@ -1098,7 +1099,7 @@ function taskHeadHtml(t){
   return `<div class="task-head" data-toggleopen="${t.id}">
       <span class="drag-handle" data-drag="${t.id}" title="드래그하여 이동">⠿</span>
       <span class="caret">▶</span>
-      <span class="task-info"><span class="prio-badge p${t.priority||0}" data-prio="${t.id}" title="우선순위 (클릭: 없음→1→2→3→4)">${t.priority||'–'}</span><span class="ms-tag"><i class="bd" style="background:${ms.color}"></i>${escapeHtml(ms.name)}</span><span class="task-name">${escapeHtml(t.name)}</span>${t.mirrorOf?'<span class="mirror-badge" title="아트에서 미러된 Task (아트 수정 시 갱신)">🔗 아트</span>':''}${links}${(t.track||"개발")==="개발"?"":asg}</span>
+      <span class="task-info"><select class="prio-sel p${t.priority||0}" data-prio="${t.id}" title="우선순위 선택 (없음·1~4)">${['','1','2','3','4'].map(v=>`<option value="${v}" ${String(t.priority||'')===v?'selected':''}>${v||'–'}</option>`).join('')}</select><span class="ms-tag"><i class="bd" style="background:${ms.color}"></i>${escapeHtml(ms.name)}</span><span class="task-name">${escapeHtml(t.name)}</span>${t.mirrorOf?'<span class="mirror-badge" title="아트에서 미러된 Task (아트 수정 시 갱신)">🔗 아트</span>':''}${links}${(t.track||"개발")==="개발"?"":asg}</span>
       ${(t.track||"개발")==="개발"?deptChipsInline(t):`<span class="dept-grid">${deptGridHtml(t)}</span>`}
       <span class="th-right"><span class="kf-chip" data-kf="${t.id}" style="background:${kf.color}" title="킥오프: ${t.kickoff} (클릭하여 변경)">${kf.icon}</span>
       ${doneChip}<select class="st-sel" data-status="${t.id}" title="${isArt?'종류':'진행 상태'}">${stOpts}</select>
@@ -1195,16 +1196,16 @@ contextBar.addEventListener("click", e=>{ const trk=e.target.closest("[data-trac
 pipelineEl.addEventListener("click", e=>{ const st=e.target.closest("[data-pstep]"); if(st){ const k=st.dataset.pstep; statusFilter.has(k)?statusFilter.delete(k):statusFilter.add(k); render(); } });
 
 leftBody.addEventListener("change", e=>{
+  const pr=e.target.closest("[data-prio]"); if(pr){ const t=findTask(pr.dataset.prio); const v=parseInt(pr.value,10); if(v>=1&&v<=4) t.priority=v; else delete t.priority; save(); render(); return; }
   const st=e.target.closest("[data-status]"); if(st){ findTask(st.dataset.status).status=st.value; save(); render(); return; }
   const sm=e.target.closest("[data-setms]"); if(sm){ findTask(sm.dataset.setms).milestoneId=sm.value; buildTimeline(); save(); render(); return; }
   const str=e.target.closest("[data-settrack]"); if(str){ const tk=findTask(str.dataset.settrack); tk.track=str.value; const ss=statusesFor(tk.track); if(!ss.some(s=>s.k===tk.status)) tk.status=ss[0].k; if(tk.milestoneId===FREE_MS && !trackAllowsFree(tk.track)){ const rm=state.milestones.find(m=>!m.free); if(rm) tk.milestoneId=rm.id; } save(); render(); return; }
 });
 leftBody.addEventListener("click", e=>{
   if(e.target.closest("a")) return;
-  if(e.target.closest("[data-status]")||e.target.closest("[data-setms]")||e.target.closest("[data-settrack]")) return;
+  if(e.target.closest("[data-status]")||e.target.closest("[data-setms]")||e.target.closest("[data-settrack]")||e.target.closest("[data-prio]")) return;
   const grp=e.target.closest("[data-group]"); if(grp){ const k=grp.dataset.group; groupCollapsed.has(k)?groupCollapsed.delete(k):groupCollapsed.add(k); render(); return; }
   const kf=e.target.closest("[data-kf]"); if(kf){ e.stopPropagation(); const t=findTask(kf.dataset.kf); const i=KICKOFFS.findIndex(x=>x.k===t.kickoff); t.kickoff=KICKOFFS[(i+1)%KICKOFFS.length].k; save(); render(); return; }
-  const pr=e.target.closest("[data-prio]"); if(pr){ e.stopPropagation(); const t=findTask(pr.dataset.prio); if(!t.priority) t.priority=1; else if(t.priority>=4) delete t.priority; else t.priority++; save(); render(); return; }
   const dn=e.target.closest("[data-done]"); if(dn){ e.stopPropagation(); const t=findTask(dn.dataset.done); t.done=!t.done; save(); render(); return; }
   const del=e.target.closest("[data-del]"); if(del){ e.stopPropagation(); const id=del.dataset.del; if(confirm("이 Task를 삭제할까요?")){ state.tasks=state.tasks.filter(t=>t.id!==id); save(); render(); } return; }
   const pick=e.target.closest("[data-openpicker]"); if(pick){ e.stopPropagation(); openDeptModal(pick.dataset.openpicker); return; }
