@@ -13,7 +13,7 @@
   :root{
     --bg:#0e1014; --panel:#161922; --panel2:#1d2129; --line:#272c36; --grid:#1b1f27;
     --text:#e7eaf0; --muted:#8b93a3; --accent:#6366f1;
-    --day-w:34px; --row-h:40px; --task-h:46px; --meta-h:40px; --group-h:34px; --left-w:660px; --head-h:104px;
+    --day-w:34px; --row-h:40px; --mini-h:15px; --task-h:46px; --meta-h:40px; --group-h:34px; --left-w:660px; --head-h:104px;
     --rowhead:#1a1e27; --rowhead-h:#1f2430; --mon:#2b313c; --scroll:#2f3441;
   }
   body.light{
@@ -191,6 +191,27 @@
   .dband-chip{flex:0 0 auto;font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;cursor:pointer;user-select:none;border:1px solid var(--line);background:transparent;color:var(--muted);white-space:nowrap;}
   .dband-chip:hover{border-color:var(--accent);color:var(--text);}
   .dband-chip.on{color:#fff;border-color:transparent;}
+
+  /* ===== 상단 부서 포커스(ALL/부서 단일 선택) ===== */
+  .dfocus{display:inline-flex;align-items:center;gap:2px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:3px;flex:0 0 auto;}
+  .dfocus .dfbtn{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;color:var(--muted);background:transparent;border:0;border-radius:6px;padding:4px 10px;cursor:pointer;user-select:none;white-space:nowrap;line-height:1.25;font-family:inherit;}
+  .dfocus .dfbtn i{width:7px;height:7px;border-radius:50%;flex:0 0 auto;}
+  .dfocus .dfbtn:hover{color:var(--text);background:var(--rowhead-h);}
+  .dfocus .dfbtn.on{color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.28);}
+  .dfocus .dfbtn.on i{background:rgba(255,255,255,.9)!important;}
+  .dfocus .dfbtn.all.on{background:var(--accent);}
+
+  /* 포커스 시 비대상 부서 행 최소화 */
+  .dept-row.mini{height:var(--mini-h);min-height:var(--mini-h);display:flex;align-items:center;gap:5px;padding:0 12px 0 34px;border-top:1px solid var(--grid);font-size:9.5px;line-height:1;color:var(--muted);opacity:.72;overflow:hidden;}
+  .dept-row.mini .mdot{width:6px;height:6px;border-radius:50%;flex:0 0 auto;}
+  .dept-row.mini .mname{font-weight:700;letter-spacing:-.2px;}
+  .dept-row.mini .mdate{margin-left:auto;opacity:.85;}
+  .task.open .dept-row.mini:hover{opacity:1;}
+  .tl-dept-lane.mini{height:var(--mini-h);}
+  .tl-dept-lane.mini .bar{top:3px;height:9px;border-radius:4px;opacity:.5;box-shadow:none;cursor:pointer;}
+  .tl-dept-lane.mini .bar:hover{opacity:.9;}
+  .bar.mbar.dim{opacity:.25;}
+  .dband-chip.focus{box-shadow:0 0 0 2px rgba(255,255,255,.45);}
 
   .bar{position:absolute;top:6px;height:calc(var(--row-h) - 12px);border-radius:6px;display:flex;align-items:center;font-size:10.5px;font-weight:600;color:#fff;cursor:grab;user-select:none;box-shadow:0 1px 2px rgba(0,0,0,.22);overflow:hidden;white-space:nowrap;touch-action:none;filter:saturate(.72) brightness(.97);}
   .bar.mbar{cursor:pointer;}
@@ -489,6 +510,8 @@
     <button class="title-edit" id="titleEditBtn" title="제목 편집">✎</button>
     <span class="sub">영업일 기준 · 부서별 일정</span>
     <span class="spacer" style="flex:1"></span>
+    <span class="dfocus" id="deptFocus"></span>
+    <span class="spacer" style="flex:1"></span>
     <span id="syncStatus" class="status-dot"><b></b><span>로컬 (이 브라우저에 저장)</span></span>
     <button class="btn ghost sm" id="dashBtn">📊 대시보드</button>
     <button class="btn ghost sm" id="historyBtn">🕘 히스토리</button>
@@ -747,6 +770,12 @@ const uid=()=>Math.random().toString(36).slice(2,9);
 let state = { milestones:[{ id:"m1", name:"마일스톤 1", color:MS_PALETTE[0], start:"2026-06-01", end:"", resource:"", dev:"", qa:"" }], tasks:[] };
 let deptFilter=new Set(), statusFilter=new Set(), msFilter=new Set(), assigneeFilter=new Set(), kfFilter=new Set();
 let trackFilter="개발";   // 분류 탭(개발/아트) — '전체' 없음
+/* 부서 포커스: "__all" 또는 부서 key. 단일 선택. 개인 로컬 설정(공유 안 함) */
+let focusDept="__all";
+try{ const _fdp=localStorage.getItem("ms_focusdept"); if(_fdp) focusDept=_fdp; }catch(_){}
+function setFocusDept(k){ focusDept=k||"__all"; try{ localStorage.setItem("ms_focusdept", focusDept); }catch(_){} }
+function normalizeFocusDept(){ if(focusDept!=="__all" && !depsFor(headTrack()).some(d=>d.key===focusDept)) setFocusDept("__all"); }
+const isMiniDept = k => focusDept!=="__all" && k!==focusDept;
 let filterOpen=false;
 let sortMode="manual";   // 정렬: manual(수동 드래그순) | name-asc | name-desc
 let searchQuery="";   // 필터 텍스트 검색(제목·담당자)
@@ -916,6 +945,7 @@ const taskDeps=t=>t.mirrorOf ? DEPARTMENTS : depsFor(t.track||"개발");
 const activeDepts=t=>taskDeps(t).filter(d=>t.depts[d.key]&&t.depts[d.key].on);
 function taskHasUnassigned(t){ const ad=activeDepts(t); if(!ad.length) return true; return ad.some(d=>!((t.depts[d.key].assignees)||[]).length); }
 function passFilter(t){
+  if(focusDept!=="__all"){ const _sg=t.depts&&t.depts[focusDept]; if(!(_sg&&_sg.on)) return false; }   // 해당 부서 일정이 박힌 Task만
   if(searchQuery.trim()){ const q=searchQuery.trim().toLowerCase(); const hay=((t.name||"")+" "+taskAssignees(t).join(" ")).toLowerCase(); if(!hay.includes(q)) return false; }
   if(deptFilter.size && !activeDepts(t).some(d=>deptFilter.has(d.key))) return false;
   if(msFilter.size && !msFilter.has(t.milestoneId)) return false;
@@ -939,8 +969,16 @@ function groupsToRender(){
     .map(s=>{ let tasks=vis.filter(t=>t.status===s.k); if(cmp) tasks=tasks.slice().sort(cmp); return { s, tasks }; });
 }
 
+function renderDeptFocus(){
+  const el=document.getElementById("deptFocus"); if(!el) return;
+  const deps=depsFor(headTrack());
+  const all=`<button type="button" class="dfbtn all ${focusDept==="__all"?"on":""}" data-dfocus="__all" title="모든 부서 표시(포커스 해제)">ALL</button>`;
+  el.innerHTML = all + deps.map(d=>{ const on=focusDept===d.key;
+    return `<button type="button" class="dfbtn ${on?"on":""}" data-dfocus="${escapeHtml(d.key)}" style="${on?"background:"+d.color:""}" title="${escapeHtml(d.key)} 일정이 있는 Task만 보기 · 나머지 부서 행은 최소화">`+
+      `<i style="background:${d.color}"></i>${escapeHtml(d.key)}</button>`; }).join("");
+}
 function renderTitle(){ const t=state.title||"본부 마일스톤 관리"; const el=document.getElementById("appTitle"); if(el) el.textContent=t; document.title=t; }
-function render(){ renderTitle(); renderContext(); renderPipeline(); renderLegend(); renderFilter(); renderHead(); renderLeft(); renderBody(); }
+function render(){ normalizeFocusDept(); renderTitle(); renderDeptFocus(); renderContext(); renderPipeline(); renderLegend(); renderFilter(); renderHead(); renderLeft(); renderBody(); }
 
 // 다가오는 마감(D-N). msFilter가 있으면 그 마일스톤만, 없으면 전체
 function ddayHtml(){
@@ -1084,7 +1122,7 @@ function deptGridHtml(t){
 function deptChipsInline(t){
   if((t.track||"개발")!=="개발") return "";   // 개발 분류 전용 — 타 분류엔 미노출
   const chips=depsFor("개발").map(d=>{ const seg=t.depts[d.key]; const on=seg&&seg.on;
-    return `<span class="dband-chip ${on?'on':''}" data-deptpick="${escapeHtml(d.key)}" style="${on?'background:'+d.color:''}" title="${escapeHtml(d.key)} · ${on?'참여 해제':'참여 추가'}">${escapeHtml(d.key)}</span>`; }).join("");
+    return `<span class="dband-chip ${on?'on':''} ${(on&&focusDept===d.key)?'focus':''}" data-deptpick="${escapeHtml(d.key)}" style="${on?'background:'+d.color:''}" title="${escapeHtml(d.key)} · ${on?'참여 해제':'참여 추가'}">${escapeHtml(d.key)}</span>`; }).join("");
   return `<span class="dept-inline">${chips}</span>`;
 }
 function taskHeadHtml(t){
@@ -1121,6 +1159,10 @@ function renderLeft(){
         let inner="";
         if(isOpen(t.id)){
           const deptRows=activeDepts(t).map(d=>{ const seg=t.depts[d.key];
+            if(isMiniDept(d.key)){   // 부서 포커스 중 — 비대상 부서는 한 줄 최소화
+              const _sa=(seg.assignees&&seg.assignees.length)?seg.assignees.join(', '):'담당 미정';
+              return `<div class="dept-row mini" title="${escapeHtml(d.key)} · ${escapeHtml(_sa)} · ${fmt(dateOf(seg.start))} ~ ${fmt(dateOf(seg.end))} · ${seg.end-seg.start+1}영업일"><i class="mdot" style="background:${d.color}"></i><span class="mname">${escapeHtml(d.key)}</span><span class="mdate">${fmt(dateOf(seg.start))}~${fmt(dateOf(seg.end))}</span></div>`;
+            }
             const sa=(seg.assignees&&seg.assignees.length)?seg.assignees:[];
             const ow=sa.length?`<span class="dept-owner" title="담당: ${escapeHtml(sa.join(', '))}">👤 ${escapeHtml(sa.join(', '))}</span>`:'<span class="dept-owner" style="opacity:.6">담당 미정</span>';
             return `<div class="dept-row"><span class="dept-chip on" style="background:${d.color}"><span class="swatch" style="background:#fff"></span>${d.key}</span>${ow}<span class="dept-dates">${fmt(dateOf(seg.start))} ~ ${fmt(dateOf(seg.end))} · ${seg.end-seg.start+1}영업일</span></div>`; }).join("");
@@ -1151,6 +1193,9 @@ function renderBody(){
         const active=activeDepts(t); const skip=t.kickoff==='Skip'?'skip':''; const kf=kfOf(t.kickoff);
         if(isOpen(t.id)){
           const lanes=active.map(d=>{ const seg=t.depts[d.key];
+            if(isMiniDept(d.key)){   // 부서 포커스 중 — 비대상 부서 레인은 얇은 막대만
+              return `<div class="tl-dept-lane mini"><div class="bar" data-minibar="${t.id}:${d.key}" style="left:${seg.start*DAY_W}px;width:${(seg.end-seg.start+1)*DAY_W}px;background:${d.color}" title="${escapeHtml(d.key)} · ${seg.end-seg.start+1}일 (클릭: 일정 수정)"></div></div>`;
+            }
             const kfm = d.key==="기획" ? `<span class="kf" style="left:${Math.max(0,seg.start*DAY_W-7)}px;top:50%;background:${kf.color}">${kf.icon}</span>` : "";
             return `<div class="tl-dept-lane">${kfm}<div class="bar" data-bar="${t.id}:${d.key}" style="left:${seg.start*DAY_W}px;width:${(seg.end-seg.start+1)*DAY_W}px;background:${d.color}"><div class="handle l"></div><span class="lbl">${d.key} · ${seg.end-seg.start+1}일</span><span class="lbl-r">${(seg.assignees&&seg.assignees.length)?escapeHtml(seg.assignees.join(', ')):'미정'}</span><div class="handle r"></div></div></div>`; }).join("");
           rows+=`<div class="tl-task ${skip}"><div class="tl-task-head"></div>${lanes}<div class="tl-meta-lane"></div></div>`;
@@ -1158,7 +1203,7 @@ function renderBody(){
           let merged="";
           active.slice().reverse().forEach(d=>{ const seg=t.depts[d.key];
             const sa=(seg.assignees&&seg.assignees.length)?seg.assignees.join(', '):'미정';
-            merged+=`<div class="bar mbar" data-mbar="${t.id}" data-mdep="${escapeHtml(d.key)}" style="left:${seg.start*DAY_W}px;width:${(seg.end-seg.start+1)*DAY_W}px;top:10px;background:${d.color}" title="${d.key} · 담당: ${escapeHtml(sa)} (가운데 드래그: 이동 · 끝 드래그: 기간 조절 · 클릭: 펼치기)"><div class="handle l"></div><span class="mbar-r">${escapeHtml(sa)}</span><div class="handle r"></div></div>`; });
+            merged+=`<div class="bar mbar ${isMiniDept(d.key)?'dim':''}" data-mbar="${t.id}" data-mdep="${escapeHtml(d.key)}" style="left:${seg.start*DAY_W}px;width:${(seg.end-seg.start+1)*DAY_W}px;top:10px;background:${d.color}" title="${d.key} · 담당: ${escapeHtml(sa)} (가운데 드래그: 이동 · 끝 드래그: 기간 조절 · 클릭: 펼치기)"><div class="handle l"></div><span class="mbar-r">${escapeHtml(sa)}</span><div class="handle r"></div></div>`; });
           const planSeg = (t.depts["기획"]&&t.depts["기획"].on) ? t.depts["기획"] : null;
           const kfMark = planSeg ? `<span class="kf" data-mbar="${t.id}" style="left:${Math.max(0,planSeg.start*DAY_W-7)}px;top:23px;background:${kf.color}">${kf.icon}</span>` : "";
           rows+=`<div class="tl-task ${skip}"><div class="tl-task-head">${merged}${kfMark}</div></div>`;
@@ -1188,6 +1233,14 @@ leftHead.addEventListener("click", e=>{
 });
 leftHead.addEventListener("input", e=>{ const si=e.target.closest("#filterSearch"); if(si){ searchQuery=si.value; renderContext(); renderPipeline(); renderLegend(); renderLeft(); renderBody(); } });
 document.addEventListener("click", e=>{ if(filterOpen && !e.target.closest("#filterPop") && !e.target.closest("#filterBtn")){ filterOpen=false; renderFilter(); } });
+
+/* ===== 상단 부서 포커스 상호작용 ===== */
+document.querySelector(".topbar").addEventListener("click", e=>{
+  const b=e.target.closest("[data-dfocus]"); if(!b) return;
+  const k=b.dataset.dfocus;
+  setFocusDept(focusDept===k ? "__all" : k);   // 같은 버튼 다시 누르면 해제
+  render();
+});
 
 /* ===== 컨텍스트 바 / 파이프라인 상호작용 ===== */
 const contextBar=document.getElementById("contextBar"), pipelineEl=document.getElementById("pipeline");
@@ -1241,6 +1294,9 @@ function toggleTaskDept(t,k){ if(!t.depts[k]) t.depts[k]={on:false,start:0,end:0
 
 /* ===== 막대 드래그/리사이즈 + 클릭 편집 / 접힘 막대 클릭 펼침 ===== */
 function attachBarHandlers(){
+  document.querySelectorAll("[data-minibar]").forEach(b=>{
+    b.addEventListener("click", e=>{ e.stopPropagation(); const i=b.dataset.minibar.lastIndexOf(":"); openSchedModal(b.dataset.minibar.slice(0,i), b.dataset.minibar.slice(i+1)); });
+  });
   document.querySelectorAll(".bar[data-bar]").forEach(bar=>{
     bar.addEventListener("pointerdown", e=>{
       if(e.button&&e.button!==0) return; e.preventDefault();

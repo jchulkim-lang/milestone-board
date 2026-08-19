@@ -12,7 +12,7 @@ const SESSION_TTL = 60 * 60 * 12; // 12시간
  * - 서버는 index.html 을 서빙할 때 __APP_BUILD__ 자리에 이 값을 자동 주입 → 클라이언트 APP_VERSION.
  * - 이 값보다 낮은(=오래된) 클라이언트는 /api/state 접속이 차단됩니다.
  * 사소한/비호환 없는 배포에서는 올리지 않아도 됨(불필요한 강제 새로고침 방지). */
-const APP_BUILD = 20260803;
+const APP_BUILD = 20260819;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
