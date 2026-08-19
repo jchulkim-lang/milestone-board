@@ -13,7 +13,7 @@
   :root{
     --bg:#0e1014; --panel:#161922; --panel2:#1d2129; --line:#272c36; --grid:#1b1f27;
     --text:#e7eaf0; --muted:#8b93a3; --accent:#6366f1;
-    --day-w:34px; --row-h:40px; --mini-h:15px; --task-h:46px; --meta-h:40px; --group-h:34px; --left-w:660px; --head-h:104px;
+    --day-w:34px; --row-h:40px; --task-h:46px; --meta-h:40px; --group-h:34px; --left-w:660px; --head-h:104px;
     --rowhead:#1a1e27; --rowhead-h:#1f2430; --mon:#2b313c; --scroll:#2f3441;
   }
   body.light{
@@ -155,6 +155,17 @@
   .dept-chip .swatch{width:9px;height:9px;border-radius:50%;}
   .dept-chip.on{color:#fff;border-color:transparent;background:var(--accent);}
   .dept-dates{flex:1;text-align:right;font-size:11px;color:var(--muted);}
+  /* 일정 미정(부서만 켜진 상태) */
+  .dept-dates.nosched{color:#f59e0b;font-weight:700;}
+  .dept-row.nosched{cursor:pointer;}
+  .dept-row.nosched:hover{background:var(--panel2);}
+  .dept-row.nosched .dept-chip{filter:saturate(.5);opacity:.85;}
+  .set-sched{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;border:1px dashed var(--line);color:var(--muted);background:transparent;cursor:pointer;white-space:nowrap;}
+  .dept-row.nosched:hover .set-sched{border-color:var(--accent);color:var(--text);}
+  .tl-dept-lane.nosched{display:flex;align-items:center;}
+  .tl-nosched{position:sticky;left:8px;font-size:10px;font-weight:700;color:#f59e0b;opacity:.5;letter-spacing:-.2px;pointer-events:none;white-space:nowrap;}
+  .dband-chip.nosched{border-style:dashed;border-color:currentColor;background:transparent!important;}
+  .dept-slot.nosched i{opacity:.45;}
   .meta-rows{display:none;}
   .task.open .meta-rows{display:block;}
   .meta-row{height:var(--meta-h);display:flex;align-items:center;gap:6px;padding:0 12px 0 34px;border-top:1px solid var(--grid);}
@@ -201,15 +212,7 @@
   .dfocus .dfbtn.on i{background:rgba(255,255,255,.9)!important;}
   .dfocus .dfbtn.all.on{background:var(--accent);}
 
-  /* 포커스 시 비대상 부서 행 최소화 */
-  .dept-row.mini{height:var(--mini-h);min-height:var(--mini-h);display:flex;align-items:center;gap:5px;padding:0 12px 0 34px;border-top:1px solid var(--grid);font-size:9.5px;line-height:1;color:var(--muted);opacity:.72;overflow:hidden;}
-  .dept-row.mini .mdot{width:6px;height:6px;border-radius:50%;flex:0 0 auto;}
-  .dept-row.mini .mname{font-weight:700;letter-spacing:-.2px;}
-  .dept-row.mini .mdate{margin-left:auto;opacity:.85;}
-  .task.open .dept-row.mini:hover{opacity:1;}
-  .tl-dept-lane.mini{height:var(--mini-h);}
-  .tl-dept-lane.mini .bar{top:3px;height:9px;border-radius:4px;opacity:.5;box-shadow:none;cursor:pointer;}
-  .tl-dept-lane.mini .bar:hover{opacity:.9;}
+  /* 포커스 시: 비대상 부서 행은 아예 렌더하지 않음(공간 확보). 접힌 Task의 합침 막대만 흐리게 */
   .bar.mbar.dim{opacity:.25;}
   .dband-chip.focus{box-shadow:0 0 0 2px rgba(255,255,255,.45);}
 
@@ -285,6 +288,9 @@
   .pickgrid{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;}
   .pickgrid .dept-chip{font-size:12.5px;padding:6px 12px;}
   .linkrow{color:#ff7a7a;background:none;border:0;font-size:12px;cursor:pointer;}
+  .linkrow.neutral{color:var(--muted);}
+  .linkrow.neutral:hover{color:var(--text);}
+  .modal-actions .left{display:flex;gap:12px;align-items:center;}
   hr{border:0;border-top:1px solid var(--line);margin:16px 0;}
   .ms-list-wrap{max-height:170px;overflow:auto;}
   .ms-item{display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:7px;cursor:pointer;}
@@ -502,6 +508,70 @@
   .dm-add #newDeptName{ flex:1 1 220px; min-width:200px; width:auto; background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:8px; padding:9px 12px; font-size:13.5px; }
   .dm-add #newDeptName::placeholder{ color:var(--muted); }
   .dm-add #newDeptTrack{ flex:0 0 auto; }
+
+  /* ===================================================================
+     상단 영역 압축 — Task 목록이 최대한 많이 보이도록 헤더 높이 축소
+     (이 블록은 마지막에 와야 앞의 규칙을 덮어씁니다)
+     =================================================================== */
+  :root{ --head-h:70px; --group-h:28px; }
+
+  /* 최상단 바 50 → 38 */
+  .topbar{ height:38px; padding:0 12px; gap:8px; }
+  .topbar h1{ font-size:13.5px; }
+  .topbar .sub{ font-size:11px; }
+  .title-edit{ font-size:12px; padding:1px 4px; }
+  .topbar .btn.sm{ padding:4px 9px; font-size:11.5px; border-radius:7px; }
+  .topbar .status-dot{ font-size:10.5px; gap:5px; }
+  .topbar .status-dot b{ width:7px; height:7px; }
+  .dfocus{ padding:2px; border-radius:8px; }
+  .dfocus .dfbtn{ padding:3px 9px; font-size:11px; gap:4px; }
+  .dfocus .dfbtn i{ width:6px; height:6px; }
+
+  /* 컨텍스트 바(마일스톤·분류·진행·D-day) */
+  .ctxbar{ padding:4px 12px; gap:8px; }
+  .ctxbar .lh-label{ font-size:10px; }
+  .ctx-ms{ padding:3px 7px; font-size:11.5px; border-radius:7px; }
+  .ctx-prog{ gap:7px; margin-left:6px; }
+  .ctx-track{ width:150px; height:7px; }
+  .ctx-num{ font-size:11.5px; }
+  .ctx-dday{ font-size:11px; gap:6px; }
+  .dday-badge{ font-size:11px; padding:2px 8px; }
+  .seg-group{ padding:2px; border-radius:9px; gap:2px; }
+  .seg-group .mstab, .seg-group .trtab{ padding:3px 10px; font-size:11px; }
+
+  /* 파이프라인 스테퍼 */
+  .pipebar{ padding:1px 8px; }
+  .pstep{ padding:2px 8px; gap:5px; }
+  .pstep .pnm{ font-size:11px; }
+  .pstep .pcnt{ font-size:10.5px; padding:0 6px; min-width:16px; }
+  .parrow{ font-size:11px; }
+
+  /* 좌측 헤드(＋Task·정렬·필터·부서 색상) */
+  .left-head{ gap:3px; padding:0 8px; }
+  .lh-row{ gap:6px; }
+  .filter-btn{ font-size:11.5px; padding:4px 9px; border-radius:6px; }
+  .lh-label{ font-size:10px; }
+
+  /* 우측 타임라인 헤드 18+22+28 = 68(+테두리) */
+  .ms-lane{ height:18px; }
+  .ms-bar{ top:2px; height:14px; }
+  .ms-bar span{ font-size:10px; }
+  .month-row{ height:22px; }
+  .month-cell{ height:22px; font-size:10.5px; }
+  .day-row{ height:28px; }
+  .day-cell{ height:28px; font-size:10px; }
+  .day-cell .dow{ font-size:8.5px; }
+  .mcap{ top:2px; height:5px; }
+
+  /* 상태 그룹 헤더 34 → 28 */
+  .group-head{ padding:0 8px; gap:6px; }
+  .group-name{ font-size:12px; }
+
+  /* 하단 바 38 → 30 */
+  .footbar{ height:30px; padding:0 12px; gap:10px; font-size:10.5px; }
+  .footbar .btn.sm{ padding:3px 8px; font-size:11px; }
+  .footbar i{ width:9px; height:9px; }
+
 </style>
 </head>
 <body>
@@ -574,7 +644,7 @@
       <label>종료일</label><input type="date" id="schedEnd" />
       <div class="dur" id="schedDur"></div>
       <label>담당자 (이 부서)</label><div class="pickgrid" id="schedAssignees"></div>
-      <div class="modal-actions"><button class="linkrow" id="schedRemove">이 부서 제거</button>
+      <div class="modal-actions"><span class="left"><button class="linkrow" id="schedRemove">이 부서 제거</button><button class="linkrow neutral" id="schedUnset">일정 미정으로 두기</button></span>
         <div class="right"><button class="btn ghost" data-close>취소</button><button class="btn" id="schedSaveOk">저장</button></div></div></div>
   </div>
   <div class="modal-bg" id="msModal">
@@ -752,7 +822,7 @@ function buildTimeline(){
   const ends = state.milestones.filter(m=>m.end).map(m=>parseYmd(m.end));
   if(ends.length){ const maxEnd=new Date(Math.max(...ends.map(d=>d.getTime()))); let cnt=0,d=new Date(ORIGIN);
     while(d<=maxEnd){ if(d.getDay()!==0&&d.getDay()!==6) cnt++; d.setDate(d.getDate()+1); } len=Math.max(len,cnt+15); }
-  let maxSeg=0; state.tasks.forEach(t=>taskDeps(t).forEach(d=>{ const s=t.depts[d.key]; if(s&&s.on) maxSeg=Math.max(maxSeg,s.end); }));
+  let maxSeg=0; state.tasks.forEach(t=>taskDeps(t).forEach(d=>{ const s=t.depts[d.key]; if(hasSched(s)) maxSeg=Math.max(maxSeg,s.end); }));
   len=Math.max(len, maxSeg+6);
   WORKDAYS=[]; let d=new Date(ORIGIN);
   while(WORKDAYS.length<len){ const w=d.getDay(); if(w!==0&&w!==6) WORKDAYS.push(new Date(d)); d.setDate(d.getDate()+1); }
@@ -821,6 +891,8 @@ function migrate(){
   // 아트 전용 부서 1회 시드(기존 데이터에 추가)
   if(!state.artSeeded){ ART_DEPARTMENTS.forEach(ad=>{ if(!state.departments.some(d=>d.key===ad.key)) state.departments.push({...ad, owners:[]}); }); state.artSeeded=true; }
   // 이전에 '클라이언트'로 추가됐던 경우 '스킬 개발'로 이름 정정(배포 전 임시 데이터 대비)
+  /* 기존 데이터 호환: on 인데 sched 플래그가 없으면 '일정 확정'으로 간주 */
+  (state.tasks||[]).forEach(t=>{ const dp=t.depts||{}; Object.keys(dp).forEach(k=>{ const sg=dp[k]; if(sg&&sg.on&&sg.sched===undefined) sg.sched=true; }); });
   { const c=state.departments.find(d=>d.key==="클라이언트"); if(c){ c.key="스킬 개발"; (state.tasks||[]).forEach(t=>{ if(t.depts && t.depts["클라이언트"]){ t.depts["스킬 개발"]=t.depts["클라이언트"]; delete t.depts["클라이언트"]; } }); } }
   // 아트 개발 부서 1회 시드(스킬/아웃게임/콘텐츠 개발). 삭제 후 재추가 방지 위해 플래그 사용.
   if(!state.devDeptsSeeded){ [["스킬 개발","#0ea5e9"],["아웃 게임 개발","#a78bfa"],["콘텐츠 개발","#fb923c"]].forEach(([k,c])=>{ if(!state.departments.some(d=>d.key===k)) state.departments.push({ key:k, color:c, tracks:["아트"], owners:[] }); }); state.devDeptsSeeded=true; }
@@ -943,9 +1015,14 @@ const escapeHtml=s=>(s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&
 // 미러(전투)는 아트의 모든 부서를 그대로 보여줌 → 전투 참여부서로 제한하지 않고 전체 부서에서 찾음
 const taskDeps=t=>t.mirrorOf ? DEPARTMENTS : depsFor(t.track||"개발");
 const activeDepts=t=>taskDeps(t).filter(d=>t.depts[d.key]&&t.depts[d.key].on);
+/* 일정이 실제로 박힌 부서인지. seg.sched===false 면 '일정 미정'(부서만 켜진 상태) */
+const hasSched = seg => !!(seg && seg.on && seg.sched!==false);
+const deptSched = (t,k) => hasSched(t&&t.depts&&t.depts[k]);
+/* 부서 포커스 중이면 대상 부서 행만 렌더(나머지는 아예 표시하지 않음 — 세로 공간 확보) */
+const visibleDepts = t => activeDepts(t).filter(d => focusDept==="__all" || d.key===focusDept);
 function taskHasUnassigned(t){ const ad=activeDepts(t); if(!ad.length) return true; return ad.some(d=>!((t.depts[d.key].assignees)||[]).length); }
 function passFilter(t){
-  if(focusDept!=="__all"){ const _sg=t.depts&&t.depts[focusDept]; if(!(_sg&&_sg.on)) return false; }   // 해당 부서 일정이 박힌 Task만
+  if(focusDept!=="__all"){ if(!deptSched(t,focusDept)) return false; }   // 해당 부서 일정이 박힌 Task만
   if(searchQuery.trim()){ const q=searchQuery.trim().toLowerCase(); const hay=((t.name||"")+" "+taskAssignees(t).join(" ")).toLowerCase(); if(!hay.includes(q)) return false; }
   if(deptFilter.size && !activeDepts(t).some(d=>deptFilter.has(d.key))) return false;
   if(msFilter.size && !msFilter.has(t.milestoneId)) return false;
@@ -1117,12 +1194,13 @@ const TRELLO_ICON='<svg width="13" height="13" viewBox="0 0 24 24" style="vertic
 function deptGridHtml(t){
   return taskDeps(t).map(d=>{ const seg=t.depts[d.key]; const on=seg&&seg.on;
     const ow=(on&&seg.assignees&&seg.assignees.length)?' · 담당: '+escapeHtml(seg.assignees.join(', ')):'';
-    return `<span class="dept-slot ${on?'on':'off'}" title="${escapeHtml(d.key)}${on?' · 지정됨':' · 미지정'}${ow}"><i ${on?`style="background:${d.color}"`:''}></i></span>`; }).join("");
+    return `<span class="dept-slot ${on?'on':'off'} ${(on&&!hasSched(seg))?'nosched':''}" title="${escapeHtml(d.key)}${on?(hasSched(seg)?' · 지정됨':' · 일정 미정'):' · 미지정'}${ow}"><i ${on?`style="background:${d.color}"`:''}></i></span>`; }).join("");
 }
 function deptChipsInline(t){
   if((t.track||"개발")!=="개발") return "";   // 개발 분류 전용 — 타 분류엔 미노출
   const chips=depsFor("개발").map(d=>{ const seg=t.depts[d.key]; const on=seg&&seg.on;
-    return `<span class="dband-chip ${on?'on':''} ${(on&&focusDept===d.key)?'focus':''}" data-deptpick="${escapeHtml(d.key)}" style="${on?'background:'+d.color:''}" title="${escapeHtml(d.key)} · ${on?'참여 해제':'참여 추가'}">${escapeHtml(d.key)}</span>`; }).join("");
+    const ns=on&&!hasSched(seg);
+    return `<span class="dband-chip ${on?'on':''} ${ns?'nosched':''} ${(on&&focusDept===d.key)?'focus':''}" data-deptpick="${escapeHtml(d.key)}" style="${on?'background:'+d.color:''}" title="${escapeHtml(d.key)} · ${on?(ns?'일정 미정 · 클릭 시 참여 해제':'참여 해제'):'참여 추가'}">${escapeHtml(d.key)}</span>`; }).join("");
   return `<span class="dept-inline">${chips}</span>`;
 }
 function taskHeadHtml(t){
@@ -1158,13 +1236,11 @@ function renderLeft(){
       tasks.forEach(t=>{
         let inner="";
         if(isOpen(t.id)){
-          const deptRows=activeDepts(t).map(d=>{ const seg=t.depts[d.key];
-            if(isMiniDept(d.key)){   // 부서 포커스 중 — 비대상 부서는 한 줄 최소화
-              const _sa=(seg.assignees&&seg.assignees.length)?seg.assignees.join(', '):'담당 미정';
-              return `<div class="dept-row mini" title="${escapeHtml(d.key)} · ${escapeHtml(_sa)} · ${fmt(dateOf(seg.start))} ~ ${fmt(dateOf(seg.end))} · ${seg.end-seg.start+1}영업일"><i class="mdot" style="background:${d.color}"></i><span class="mname">${escapeHtml(d.key)}</span><span class="mdate">${fmt(dateOf(seg.start))}~${fmt(dateOf(seg.end))}</span></div>`;
-            }
+          const deptRows=visibleDepts(t).map(d=>{ const seg=t.depts[d.key];
+            const _ok=hasSched(seg);
             const sa=(seg.assignees&&seg.assignees.length)?seg.assignees:[];
             const ow=sa.length?`<span class="dept-owner" title="담당: ${escapeHtml(sa.join(', '))}">👤 ${escapeHtml(sa.join(', '))}</span>`:'<span class="dept-owner" style="opacity:.6">담당 미정</span>';
+            if(!_ok) return `<div class="dept-row nosched" data-setsched="${t.id}|${escapeHtml(d.key)}" title="클릭하여 일정 지정"><span class="dept-chip on" style="background:${d.color}"><span class="swatch" style="background:#fff"></span>${d.key}</span>${ow}<span class="dept-dates nosched">일정 미정</span><button class="set-sched" data-setsched="${t.id}|${escapeHtml(d.key)}">＋ 일정 지정</button></div>`;
             return `<div class="dept-row"><span class="dept-chip on" style="background:${d.color}"><span class="swatch" style="background:#fff"></span>${d.key}</span>${ow}<span class="dept-dates">${fmt(dateOf(seg.start))} ~ ${fmt(dateOf(seg.end))} · ${seg.end-seg.start+1}영업일</span></div>`; }).join("");
           inner=`<div class="dept-list">${deptRows}</div>`;
         }
@@ -1192,19 +1268,18 @@ function renderBody(){
       tasks.forEach(t=>{
         const active=activeDepts(t); const skip=t.kickoff==='Skip'?'skip':''; const kf=kfOf(t.kickoff);
         if(isOpen(t.id)){
-          const lanes=active.map(d=>{ const seg=t.depts[d.key];
-            if(isMiniDept(d.key)){   // 부서 포커스 중 — 비대상 부서 레인은 얇은 막대만
-              return `<div class="tl-dept-lane mini"><div class="bar" data-minibar="${t.id}:${d.key}" style="left:${seg.start*DAY_W}px;width:${(seg.end-seg.start+1)*DAY_W}px;background:${d.color}" title="${escapeHtml(d.key)} · ${seg.end-seg.start+1}일 (클릭: 일정 수정)"></div></div>`;
-            }
+          const lanes=visibleDepts(t).map(d=>{ const seg=t.depts[d.key];
+            const ok=hasSched(seg);
+            if(!ok) return `<div class="tl-dept-lane nosched"><span class="tl-nosched">${escapeHtml(d.key)} · 일정 미정</span></div>`;
             const kfm = d.key==="기획" ? `<span class="kf" style="left:${Math.max(0,seg.start*DAY_W-7)}px;top:50%;background:${kf.color}">${kf.icon}</span>` : "";
             return `<div class="tl-dept-lane">${kfm}<div class="bar" data-bar="${t.id}:${d.key}" style="left:${seg.start*DAY_W}px;width:${(seg.end-seg.start+1)*DAY_W}px;background:${d.color}"><div class="handle l"></div><span class="lbl">${d.key} · ${seg.end-seg.start+1}일</span><span class="lbl-r">${(seg.assignees&&seg.assignees.length)?escapeHtml(seg.assignees.join(', ')):'미정'}</span><div class="handle r"></div></div></div>`; }).join("");
           rows+=`<div class="tl-task ${skip}"><div class="tl-task-head"></div>${lanes}<div class="tl-meta-lane"></div></div>`;
         } else {
           let merged="";
-          active.slice().reverse().forEach(d=>{ const seg=t.depts[d.key];
+          active.slice().reverse().forEach(d=>{ const seg=t.depts[d.key]; if(!hasSched(seg)) return;
             const sa=(seg.assignees&&seg.assignees.length)?seg.assignees.join(', '):'미정';
             merged+=`<div class="bar mbar ${isMiniDept(d.key)?'dim':''}" data-mbar="${t.id}" data-mdep="${escapeHtml(d.key)}" style="left:${seg.start*DAY_W}px;width:${(seg.end-seg.start+1)*DAY_W}px;top:10px;background:${d.color}" title="${d.key} · 담당: ${escapeHtml(sa)} (가운데 드래그: 이동 · 끝 드래그: 기간 조절 · 클릭: 펼치기)"><div class="handle l"></div><span class="mbar-r">${escapeHtml(sa)}</span><div class="handle r"></div></div>`; });
-          const planSeg = (t.depts["기획"]&&t.depts["기획"].on) ? t.depts["기획"] : null;
+          const planSeg = hasSched(t.depts["기획"]) ? t.depts["기획"] : null;
           const kfMark = planSeg ? `<span class="kf" data-mbar="${t.id}" style="left:${Math.max(0,planSeg.start*DAY_W-7)}px;top:23px;background:${kf.color}">${kf.icon}</span>` : "";
           rows+=`<div class="tl-task ${skip}"><div class="tl-task-head">${merged}${kfMark}</div></div>`;
         }
@@ -1262,7 +1337,11 @@ leftBody.addEventListener("click", e=>{
   const dn=e.target.closest("[data-done]"); if(dn){ e.stopPropagation(); const t=findTask(dn.dataset.done); t.done=!t.done; save(); render(); return; }
   const del=e.target.closest("[data-del]"); if(del){ e.stopPropagation(); const id=del.dataset.del; if(confirm("이 Task를 삭제할까요?")){ state.tasks=state.tasks.filter(t=>t.id!==id); save(); render(); } return; }
   const pick=e.target.closest("[data-openpicker]"); if(pick){ e.stopPropagation(); openDeptModal(pick.dataset.openpicker); return; }
-  const dbp=e.target.closest("[data-deptpick]"); if(dbp){ e.stopPropagation(); const tk=e.target.closest("[data-task]"); if(tk){ const t=findTask(tk.dataset.task); toggleTaskDept(t, dbp.dataset.deptpick); save(); render(); } return; }
+  const ss=e.target.closest("[data-setsched]"); if(ss){ e.stopPropagation(); const [tid,dep]=ss.dataset.setsched.split("|"); openSchedModal(tid,dep,false); return; }
+  const dbp=e.target.closest("[data-deptpick]"); if(dbp){ e.stopPropagation(); const tk=e.target.closest("[data-task]");
+    if(tk){ const t=findTask(tk.dataset.task); const k=dbp.dataset.deptpick; const turnedOn=toggleTaskDept(t,k); save(); render();
+      if(turnedOn) openSchedModal(t.id, k, true);   // 켤 때는 일정 입력창을 바로 띄운다(취소하면 부서도 해제)
+    } return; }
   const dup=e.target.closest("[data-dup]"); if(dup){ e.stopPropagation(); duplicateTask(dup.dataset.dup); return; }
   const cpl=e.target.closest("[data-copylink]"); if(cpl){ e.stopPropagation(); copyTaskLink(cpl.dataset.copylink, cpl); return; }
   const lnk=e.target.closest("[data-openedit]"); if(lnk){ e.stopPropagation(); openEditModal(lnk.dataset.openedit); return; }
@@ -1271,7 +1350,7 @@ leftBody.addEventListener("click", e=>{
 
 /* ===== 드래그앤드랍 정렬 / 그룹 이동 ===== */
 let dragId=null, selectedId=null;
-function taskStartIdx(t){ let mn=null; for(const k in t.depts){ const s=t.depts[k]; if(s&&s.on) mn = (mn===null)?s.start:Math.min(mn,s.start); } return mn; }
+function taskStartIdx(t){ let mn=null; for(const k in t.depts){ const s=t.depts[k]; if(hasSched(s)) mn = (mn===null)?s.start:Math.min(mn,s.start); } return mn; }
 function scrollToTask(t){ const i=taskStartIdx(t); if(i===null) return; rightBody.scrollTo({left:Math.max(0,(i-2)*DAY_W), behavior:"smooth"}); }
 leftBody.addEventListener("dragstart", e=>{ if(sortMode!=="manual"){ e.preventDefault(); return; } const tk=e.target.closest("[data-task]"); if(!tk) return; dragId=tk.dataset.task; e.dataTransfer.effectAllowed="move"; try{e.dataTransfer.setData("text/plain",dragId);}catch(_){} });
 leftBody.addEventListener("dragover", e=>{ if(dragId) e.preventDefault(); });
@@ -1290,13 +1369,17 @@ function moveTask(id, beforeId, newStatus){
 }
 
 function defaultSegment(){ let start=Math.min(Math.max(0,nearestIndex()),Math.max(0,N-5)); return { start, end:Math.min(start+4,N-1) }; }
-function toggleTaskDept(t,k){ if(!t.depts[k]) t.depts[k]={on:false,start:0,end:0,assignees:[]}; const seg=t.depts[k]; if(seg.on){ seg.on=false; } else { seg.on=true; if(!Array.isArray(seg.assignees)) seg.assignees=[]; const b=defaultSegment(); seg.start=b.start; seg.end=b.end; } }
+/* 부서를 켤 때 기본 5일 일정을 자동으로 잡지 않는다 → '일정 미정'(sched:false) 상태로 추가.
+   반환값 true = 이번 호출로 새로 켜짐(호출부에서 일정 입력창을 띄우는 데 사용) */
+function toggleTaskDept(t,k){ if(!t.depts[k]) t.depts[k]={on:false,start:0,end:0,assignees:[]}; const seg=t.depts[k];
+  if(seg.on){ seg.on=false; return false; }
+  seg.on=true; seg.sched=false; if(!Array.isArray(seg.assignees)) seg.assignees=[];
+  const b=defaultSegment(); seg.start=b.start; seg.end=b.end;   // 입력창 기본값용(확정 전까지 화면엔 안 그려짐)
+  return true; }
 
 /* ===== 막대 드래그/리사이즈 + 클릭 편집 / 접힘 막대 클릭 펼침 ===== */
 function attachBarHandlers(){
-  document.querySelectorAll("[data-minibar]").forEach(b=>{
-    b.addEventListener("click", e=>{ e.stopPropagation(); const i=b.dataset.minibar.lastIndexOf(":"); openSchedModal(b.dataset.minibar.slice(0,i), b.dataset.minibar.slice(i+1)); });
-  });
+
   document.querySelectorAll(".bar[data-bar]").forEach(bar=>{
     bar.addEventListener("pointerdown", e=>{
       if(e.button&&e.button!==0) return; e.preventDefault();
@@ -1336,7 +1419,14 @@ function attachBarHandlers(){
 let editing=null;
 const taskModal=document.getElementById("taskModal"), taskInput=document.getElementById("taskInput"), taskMs=document.getElementById("taskMs");
 const deptModal=document.getElementById("deptModal"), linkModal=document.getElementById("linkModal"), schedModal=document.getElementById("schedModal"), msModal=document.getElementById("msModal"), deptMgrModal=document.getElementById("deptMgrModal"), catMgrModal=document.getElementById("catMgrModal"), titleModal=document.getElementById("titleModal"), dashModal=document.getElementById("dashModal"), historyModal=document.getElementById("historyModal"), notifyModal=document.getElementById("notifyModal"), noticePopup=document.getElementById("noticePopup"), noticeEditModal=document.getElementById("noticeEditModal");
-function closeModals(){ [taskModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.classList.remove("show")); }
+/* 부서 칩 클릭으로 막 켠 부서인데 일정을 정하지 않고 닫으면 → 부서를 다시 끈다 */
+function cancelPendingDept(){
+  if(!editing || !editing.justOn) return;
+  const t=findTask(editing.tid); const sg=t&&t.depts&&t.depts[editing.dep];
+  editing.justOn=false;
+  if(sg && sg.on && sg.sched===false){ sg.on=false; save(); render(); }
+}
+function closeModals(){ cancelPendingDept(); [taskModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.classList.remove("show")); }
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=closeModals);
 [taskModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
 
@@ -1645,8 +1735,7 @@ function openDeptModal(tid){ editing={tid}; const t=findTask(tid);
   deptModal.classList.add("show"); }
 document.getElementById("deptPickGrid").addEventListener("click",e=>{ const c=e.target.closest("[data-pick]"); if(!c) return;
   const t=findTask(editing.tid); const k=c.dataset.pick;
-  if(!t.depts[k]) t.depts[k]={on:false,start:0,end:0,assignees:[]}; const seg=t.depts[k];
-  if(seg.on){ seg.on=false; } else { seg.on=true; if(!Array.isArray(seg.assignees)) seg.assignees=[]; const b=defaultSegment(); seg.start=b.start; seg.end=b.end; }
+  toggleTaskDept(t,k);   // 여기서도 기본 5일 자동 생성 없음 → '일정 미정'으로 추가
   save(); openDeptModal(editing.tid); render(); });
 document.getElementById("deptAssignArea").addEventListener("click",e=>{ const c=e.target.closest("[data-aassign]"); if(!c) return;
   const t=findTask(editing.tid); toggleDeptAssignee(t, c.dataset.aassign, c.dataset.aname); save(); openDeptModal(editing.tid); render(); });
@@ -1660,8 +1749,10 @@ document.getElementById("linkSaveOk").onclick=()=>{ const t=findTask(editing.tid
   const nm=document.getElementById("editName").value.trim(); if(nm) t.name=nm;
   t.links.plan=document.getElementById("linkPlan").value.trim(); t.links.trello=document.getElementById("linkTrello").value.trim(); closeModals(); save(); render(); };
 
-function openSchedModal(tid,dep){ editing={tid,dep}; const t=findTask(tid); const seg=t.depts[dep];
-  document.getElementById("schedTitle").textContent=`${dep} 일정·담당자`; document.getElementById("schedSub").textContent=t.name;
+function openSchedModal(tid,dep,justOn){ editing={tid,dep,justOn:!!justOn}; const t=findTask(tid); const seg=t.depts[dep];
+  document.getElementById("schedTitle").textContent=`${dep} 일정·담당자`;
+  document.getElementById("schedSub").textContent = hasSched(seg) ? t.name : t.name+" — 아직 일정이 없습니다. 날짜를 정하거나 ‘일정 미정으로 두기’를 누르세요.";
+  document.getElementById("schedUnset").style.display = hasSched(seg) ? "" : "none";
   const sIn=document.getElementById("schedStart"), eIn=document.getElementById("schedEnd");
   sIn.min=eIn.min=ymd(WORKDAYS[0]); sIn.max=eIn.max=ymd(WORKDAYS[N-1]);
   sIn.value=ymd(dateOf(seg.start)); eIn.value=ymd(dateOf(seg.end));
@@ -1676,8 +1767,10 @@ document.getElementById("schedStart").addEventListener("change",updateSchedDur);
 document.getElementById("schedEnd").addEventListener("change",updateSchedDur);
 document.getElementById("schedSaveOk").onclick=()=>{ const t=findTask(editing.tid); const seg=t.depts[editing.dep];
   let si=nearestWorkdayIndex(document.getElementById("schedStart").value); let ei=nearestWorkdayIndex(document.getElementById("schedEnd").value); if(ei<si){ const tmp=si; si=ei; ei=tmp; }
-  seg.start=si; seg.end=ei; closeModals(); save(); render(); };
-document.getElementById("schedRemove").onclick=()=>{ const t=findTask(editing.tid); t.depts[editing.dep].on=false; closeModals(); save(); render(); };
+  seg.start=si; seg.end=ei; seg.sched=true; editing.justOn=false; closeModals(); save(); render(); };
+document.getElementById("schedRemove").onclick=()=>{ const t=findTask(editing.tid); const sg=t.depts[editing.dep]; sg.on=false; sg.sched=false; editing.justOn=false; closeModals(); save(); render(); };
+/* 부서만 켜 두고 일정은 비워 두기 */
+document.getElementById("schedUnset").onclick=()=>{ const t=findTask(editing.tid); const sg=t.depts[editing.dep]; sg.on=true; sg.sched=false; editing.justOn=false; closeModals(); save(); render(); };
 
 /* ===== 마일스톤 관리 ===== */
 function renderMsList(){

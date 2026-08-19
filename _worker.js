@@ -11,8 +11,10 @@ const SESSION_TTL = 60 * 60 * 12; // 12시간
  * 이 숫자 하나만 올리면 됩니다. 호환을 깨는(구버전이 데이터를 망칠 수 있는) 배포일 때만 올리세요.
  * - 서버는 index.html 을 서빙할 때 __APP_BUILD__ 자리에 이 값을 자동 주입 → 클라이언트 APP_VERSION.
  * - 이 값보다 낮은(=오래된) 클라이언트는 /api/state 접속이 차단됩니다.
- * 사소한/비호환 없는 배포에서는 올리지 않아도 됨(불필요한 강제 새로고침 방지). */
-const APP_BUILD = 20260819;
+ * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
+ *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
+ * 기능이 추가/변경될 때마다 올린다. */
+const APP_BUILD = 2026081903;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
