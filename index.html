@@ -290,7 +290,12 @@
   .linkrow{color:#ff7a7a;background:none;border:0;font-size:12px;cursor:pointer;}
   .linkrow.neutral{color:var(--muted);}
   .linkrow.neutral:hover{color:var(--text);}
-  .modal-actions .left{display:flex;gap:12px;align-items:center;}
+  /* 모달 하단 버튼 줄 — .right/.left 는 좌우 패널용 클래스와 이름이 겹치므로 여기서 명시적으로 되돌린다
+     (기존엔 .right{flex-direction:column} 이 새어 들어와 취소·저장 버튼이 세로로 쌓여 있었다) */
+  .modal-actions{flex-wrap:wrap;row-gap:10px;}
+  .modal-actions > .right{flex:0 0 auto;flex-direction:row;align-items:center;justify-content:flex-end;margin-left:auto;overflow:visible;}
+  .modal-actions .linkrow{flex:0 0 auto;white-space:nowrap;}
+  .modal{overflow-x:hidden;}
   hr{border:0;border-top:1px solid var(--line);margin:16px 0;}
   .ms-list-wrap{max-height:170px;overflow:auto;}
   .ms-item{display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:7px;cursor:pointer;}
@@ -644,8 +649,9 @@
       <label>종료일</label><input type="date" id="schedEnd" />
       <div class="dur" id="schedDur"></div>
       <label>담당자 (이 부서)</label><div class="pickgrid" id="schedAssignees"></div>
-      <div class="modal-actions"><span class="left"><button class="linkrow" id="schedRemove">이 부서 제거</button><button class="linkrow neutral" id="schedUnset">일정 미정으로 두기</button></span>
-        <div class="right"><button class="btn ghost" data-close>취소</button><button class="btn" id="schedSaveOk">저장</button></div></div></div>
+      <div class="modal-actions">
+        <button class="linkrow" id="schedRemove" title="이 Task에서 이 부서를 아예 빼냅니다 (일정·담당자도 함께 사라집니다)">✕ 이 Task에서 부서 빼기</button>
+        <div class="right"><button class="btn ghost" data-close>취소</button><button class="btn ghost" id="schedUnset" title="부서는 그대로 두고 날짜만 비워 둡니다 (목록에 ‘일정 미정’으로 표시)">일정 미정</button><button class="btn" id="schedSaveOk">저장</button></div></div></div>
   </div>
   <div class="modal-bg" id="msModal">
     <div class="modal">
@@ -1751,8 +1757,7 @@ document.getElementById("linkSaveOk").onclick=()=>{ const t=findTask(editing.tid
 
 function openSchedModal(tid,dep,justOn){ editing={tid,dep,justOn:!!justOn}; const t=findTask(tid); const seg=t.depts[dep];
   document.getElementById("schedTitle").textContent=`${dep} 일정·담당자`;
-  document.getElementById("schedSub").textContent = hasSched(seg) ? t.name : t.name+" — 아직 일정이 없습니다. 날짜를 정하거나 ‘일정 미정으로 두기’를 누르세요.";
-  document.getElementById("schedUnset").style.display = hasSched(seg) ? "" : "none";
+  document.getElementById("schedSub").textContent = hasSched(seg) ? t.name : t.name+" — 아직 일정이 없습니다. 날짜를 정해 저장하거나, 나중에 정하려면 ‘일정 미정’을 누르세요.";
   const sIn=document.getElementById("schedStart"), eIn=document.getElementById("schedEnd");
   sIn.min=eIn.min=ymd(WORKDAYS[0]); sIn.max=eIn.max=ymd(WORKDAYS[N-1]);
   sIn.value=ymd(dateOf(seg.start)); eIn.value=ymd(dateOf(seg.end));
