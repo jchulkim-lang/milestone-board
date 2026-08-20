@@ -147,15 +147,18 @@
 
   /* ----- 역할별 UI ----- */
   function applyRoleUI(){
+    window.APP_ROLE = ROLE;   // index.html 이 읽는 역할값 (마일스톤 설정 읽기전용 판단 등)
+    document.body.classList.toggle("role-admin", ROLE==="admin");
     if(!canEdit()){ document.body.classList.add("readonly"); injectReadonlyStyle(); injectRequestButton(); }
     if(ROLE==="admin"){ injectAccessButton(); const fr=document.getElementById("forceReloadBtn"); if(fr) fr.style.display=""; }
-    else { const hb=document.getElementById("historyBtn"); if(hb) hb.style.display="none"; const fr=document.getElementById("forceReloadBtn"); if(fr) fr.style.display="none"; const mb=document.getElementById("msBtn"); if(mb) mb.style.display="none"; }   // 히스토리·강제새로고침·마일스톤 설정은 관리자 전용
+    else { const hb=document.getElementById("historyBtn"); if(hb) hb.style.display="none"; const fr=document.getElementById("forceReloadBtn"); if(fr) fr.style.display="none"; }   // 히스토리·강제새로고침은 관리자 전용
+    // 마일스톤 설정(#msBtn)은 전원 열람 가능 — 편집 컨트롤만 index.html 쪽에서 관리자에게만 열어 준다
   }
   function injectReadonlyStyle(){
     if(document.getElementById("ro-style")) return;
     const s = document.createElement("style"); s.id = "ro-style";
     s.textContent =
-      `body.readonly #addTaskBtn,body.readonly #msBtn,body.readonly #importBtn,body.readonly #titleEditBtn,body.readonly #historyBtn,body.readonly #notifyBtn,body.readonly #noticeBtn{display:none!important;}
+      `body.readonly #addTaskBtn,body.readonly #importBtn,body.readonly #titleEditBtn,body.readonly #historyBtn,body.readonly #notifyBtn,body.readonly #noticeBtn{display:none!important;}
        body.readonly .kf-chip,body.readonly .st-sel,body.readonly .done-chip,body.readonly .task-del,body.readonly .drag-handle,body.readonly .meta-row,body.readonly .legend-edit,body.readonly .grp.clickable{pointer-events:none!important;opacity:.5;}
        body.readonly .bar{pointer-events:none!important;}`;
     document.head.appendChild(s);

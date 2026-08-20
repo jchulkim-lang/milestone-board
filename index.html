@@ -304,6 +304,12 @@
   .linkrow.neutral:hover{color:var(--text);}
   /* 모달 하단 버튼 줄 — .right/.left 는 좌우 패널용 클래스와 이름이 겹치므로 여기서 명시적으로 되돌린다
      (기존엔 .right{flex-direction:column} 이 새어 들어와 취소·저장 버튼이 세로로 쌓여 있었다) */
+  /* 읽기 전용 안내 배너 + 마일스톤 설정 읽기전용 모드 */
+  .ro-note{display:none;font-size:11.5px;font-weight:700;color:#fbbf24;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);border-radius:9px;padding:8px 11px;margin:0 0 12px;line-height:1.5;}
+  .ms-readonly .ro-note{display:block;}
+  .ms-readonly #msAddNew,.ms-readonly #msSaveOk,.ms-readonly #msDelete,.ms-readonly #msEditHead{display:none!important;}
+  .ms-readonly input[disabled]{opacity:.75;cursor:default;background:var(--panel);}
+  .ms-readonly hr{opacity:.4;}
   .modal-actions{flex-wrap:wrap;row-gap:10px;}
   .modal-actions > .right{flex:0 0 auto;flex-direction:row;align-items:center;justify-content:flex-end;margin-left:auto;overflow:visible;}
   .modal-actions .linkrow{flex:0 0 auto;white-space:nowrap;}
@@ -667,11 +673,12 @@
   </div>
   <div class="modal-bg" id="msModal">
     <div class="modal">
-      <h3>마일스톤 설정</h3><div class="msub">여러 마일스톤을 만들고 각 Task에 배정합니다. 목록에서 선택해 편집하세요.</div>
+      <h3>마일스톤 설정</h3><div class="msub" id="msModalSub">여러 마일스톤을 만들고 각 Task에 배정합니다. 목록에서 선택해 편집하세요.</div>
+      <div class="ro-note" id="msRoNote">🔒 읽기 전용 — 마일스톤 편집은 관리자만 할 수 있습니다. 내용 확인은 자유롭게 하세요.</div>
       <div class="ms-list-wrap" id="msList"></div>
       <button class="meta-btn" id="msAddNew" style="margin-top:2px">＋ 새 마일스톤 추가</button>
       <hr/>
-      <h3 style="font-size:13px">선택한 마일스톤 편집</h3>
+      <h3 style="font-size:13px" id="msEditHead">선택한 마일스톤 편집</h3>
       <label>마일스톤 이름</label><input id="msName" placeholder="예: 1차 빌드" />
       <label><i style="background:#22c55e"></i>마일스톤 시작일</label><input type="date" id="msStart" />
       <label><i style="background:#ef4444"></i>마일스톤 종료일</label><input type="date" id="msEnd" />
@@ -1828,14 +1835,25 @@ function loadMsEditor(id){ const m=findMs(id);
   document.getElementById("msName").value=m.name||""; document.getElementById("msStart").value=m.start||"";
   document.getElementById("msEnd").value=m.end||""; document.getElementById("msResource").value=m.resource||"";
   document.getElementById("msDev").value=m.dev||""; document.getElementById("msQa").value=m.qa||""; }
-function openMsModal(){ msSelId=(state.milestones.find(m=>!m.free)||state.milestones[0]).id; renderMsList(); loadMsEditor(msSelId); msModal.classList.add("show"); }
+/* 마일스톤 설정: 열람은 전원, 편집은 관리자만.
+   window.APP_ROLE 은 cloud.js 가 로그인 후 채운다. 값이 없으면 = 클라우드 미사용(로컬 단독) → 제한 없음 */
+const msCanEdit = () => !window.APP_ROLE || window.APP_ROLE === "admin";
+function applyMsRole(){
+  const ro = !msCanEdit();
+  msModal.querySelector(".modal").classList.toggle("ms-readonly", ro);
+  ["msName","msStart","msEnd","msResource","msDev","msQa"].forEach(id=>{ const el=document.getElementById(id); if(el) el.disabled=ro; });
+  const sub=document.getElementById("msModalSub");
+  if(sub) sub.textContent = ro ? "각 마일스톤의 기간과 마감일을 확인합니다. 목록에서 선택하세요."
+                               : "여러 마일스톤을 만들고 각 Task에 배정합니다. 목록에서 선택해 편집하세요.";
+}
+function openMsModal(){ msSelId=(state.milestones.find(m=>!m.free)||state.milestones[0]).id; applyMsRole(); renderMsList(); loadMsEditor(msSelId); msModal.classList.add("show"); }
 document.getElementById("msBtn").onclick=openMsModal;
 document.getElementById("msList").addEventListener("click", e=>{ const it=e.target.closest("[data-msitem]"); if(!it) return;
   msSelId=it.dataset.msitem; renderMsList(); loadMsEditor(msSelId); });
-document.getElementById("msAddNew").onclick=()=>{ const id=uid();
+document.getElementById("msAddNew").onclick=()=>{ if(!msCanEdit()) return; const id=uid();
   state.milestones.push({ id, name:"마일스톤 "+(state.milestones.length+1), color:MS_PALETTE[state.milestones.length%MS_PALETTE.length], start:"2026-06-01", end:"", resource:"", dev:"", qa:"" });
   msSelId=id; buildTimeline(); save(); render(); renderMsList(); loadMsEditor(id); };
-document.getElementById("msSaveOk").onclick=()=>{ const m=findMs(msSelId);
+document.getElementById("msSaveOk").onclick=()=>{ if(!msCanEdit()) return; const m=findMs(msSelId);
   const rv=document.getElementById("msResource").value||"", dv=document.getElementById("msDev").value||"", qv=document.getElementById("msQa").value||"";
   const dls=[["리소스 마감",rv],["개발 마감",dv],["QA 마감",qv]].filter(x=>x[1]);
   for(let i=1;i<dls.length;i++){ if(parseYmd(dls[i][1])<=parseYmd(dls[i-1][1])){ alert(`마감일은 겹칠 수 없습니다.\n리소스 마감 < 개발 마감 < QA 마감 순서로 설정하세요.\n(${dls[i-1][0]} ${dls[i-1][1]} → ${dls[i][0]} ${dls[i][1]})`); return; } }
@@ -1844,7 +1862,7 @@ document.getElementById("msSaveOk").onclick=()=>{ const m=findMs(msSelId);
   m.resource=rv; m.dev=dv; m.qa=qv;
   buildTimeline(); save(); render(); renderMsList();
   const ni=nearestIndex(); rightBody.scrollLeft=ni>3?(ni-3)*DAY_W:0; };
-document.getElementById("msDelete").onclick=()=>{ if(state.milestones.length<=1){ alert("마일스톤이 하나뿐이라 삭제할 수 없습니다."); return; }
+document.getElementById("msDelete").onclick=()=>{ if(!msCanEdit()) return; if(state.milestones.length<=1){ alert("마일스톤이 하나뿐이라 삭제할 수 없습니다."); return; }
   const used=state.tasks.filter(t=>t.milestoneId===msSelId).length;
   if(!confirm(`이 마일스톤을 삭제할까요?${used?` 소속 Task ${used}개는 첫 마일스톤으로 이동합니다.`:''}`)) return;
   state.milestones=state.milestones.filter(m=>m.id!==msSelId); const first=state.milestones[0].id;
