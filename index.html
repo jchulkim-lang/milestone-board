@@ -343,6 +343,10 @@
   .rm-pop.show{ display:block; }
   .rm-pop label{ display:block; font-size:10.5px; font-weight:800; color:var(--muted); margin:0 0 4px; }
   .rm-pop input,.rm-pop select{ width:100%; background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:7px; padding:6px 8px; font-size:12.5px; font-family:inherit; margin-bottom:9px; }
+  .rm-pop.wide{ width:340px; }
+  .rm-pop textarea{ width:100%; background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:7px; padding:7px 9px; font-size:12.5px; font-family:inherit; line-height:1.6; resize:vertical; min-height:96px; margin-bottom:6px; }
+  .rm-pop textarea:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(99,102,241,.22); }
+  .rm-pop .rmp-hint{ font-size:10px; color:var(--muted); line-height:1.5; margin-bottom:9px; }
   .rm-pop .rmp-act{ display:flex; align-items:center; gap:6px; }
   .rm-pop .rmp-act .btn{ padding:5px 11px; font-size:12px; }
   .rm-pop .rmp-del{ margin-left:auto; background:none; border:0; color:#ff7a7a; font-size:11.5px; font-weight:700; cursor:pointer; }
@@ -2003,10 +2007,13 @@ function rmPopEl(){ let p=document.getElementById("rmPop");
   if(!p){ p=document.createElement("div"); p.id="rmPop"; p.className="rm-pop"; document.body.appendChild(p);
     p.addEventListener("click", ev=>{ const b=ev.target.closest("button"); if(!b) return; ev.stopPropagation();
       if(b.dataset.rmp==="save") rmPopSave(); else if(b.dataset.rmp==="del") rmPopDelete(); else if(b.dataset.rmp==="cancel") closeRmPop(); });
-    p.addEventListener("keydown", ev=>{ if(ev.key==="Enter"){ ev.preventDefault(); rmPopSave(); } });
+    p.addEventListener("keydown", ev=>{
+      if(ev.key!=="Enter") return;
+      if(ev.target.tagName==="TEXTAREA" && !(ev.ctrlKey||ev.metaKey)) return;   // 메모는 Enter=줄바꿈, Ctrl/⌘+Enter=저장
+      ev.preventDefault(); rmPopSave(); });
   }
   return p; }
-function placeRmPop(anchor){ const p=rmPopEl(); p.classList.add("show");
+function placeRmPop(anchor, wide){ const p=rmPopEl(); p.classList.add("show"); p.classList.toggle("wide", !!wide);
   const r=anchor.getBoundingClientRect(), pw=p.offsetWidth, ph=p.offsetHeight;
   let left=Math.min(r.left, window.innerWidth-pw-8); if(left<8) left=8;
   let top=r.bottom+6; if(top+ph>window.innerHeight-8) top=Math.max(8, r.top-ph-6);
@@ -2039,15 +2046,17 @@ function openRmGroupPop(anchor, gid){
 function openRmNotePop(anchor){
   rmPopMode="notes"; rmPopRef={};
   rmPopEl().innerHTML =
-    `<label>표준 소요일 메모 (쉼표로 구분)</label><input id="rmpText" value="${escapeHtml((state.roadmap.notes||[]).join(", "))}" placeholder="캐릭터 컨셉 문서 : 5일, ...">`+
+    `<label>표준 소요일 메모 — 한 줄에 하나씩</label>`+
+    `<textarea id="rmpText" rows="6" placeholder="캐릭터 컨셉 문서 : 5일&#10;캐릭터 가조립 : 7일">${escapeHtml((state.roadmap.notes||[]).join("\n"))}</textarea>`+
+    `<div class="rmp-hint">Enter 로 줄바꿈 · Ctrl(⌘)+Enter 로 저장 · 빈 줄은 무시됩니다</div>`+
     `<div class="rmp-act"><button class="btn" data-rmp="save">저장</button><button class="btn ghost" data-rmp="cancel">취소</button></div>`;
-  placeRmPop(anchor); const t=document.getElementById("rmpText"); if(t){ t.focus(); t.select(); }
+  placeRmPop(anchor, true); const t=document.getElementById("rmpText"); if(t){ t.focus(); t.setSelectionRange(t.value.length, t.value.length); }
 }
 function closeRmPop(){ const p=document.getElementById("rmPop"); if(p) p.classList.remove("show"); rmPopMode=null; rmPopRef=null; }
 function rmPopSave(){
   if(!rmPopMode || !rmCanEdit()) return closeRmPop();
   const txt=(document.getElementById("rmpText")||{}).value||"";
-  if(rmPopMode==="notes"){ state.roadmap.notes = txt.split(",").map(x=>x.trim()).filter(Boolean); }
+  if(rmPopMode==="notes"){ state.roadmap.notes = txt.split(/\r?\n/).map(x=>x.trim()).filter(Boolean); }
   else if(rmPopMode==="group"){
     const name=txt.trim(); if(!name) return closeRmPop();
     const color=(document.getElementById("rmpColor")||{}).value||"#6366f1";
