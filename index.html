@@ -420,13 +420,11 @@
   .seg-group .trtab.on[data-track="아트"]{ background:linear-gradient(135deg,#ec4899,#a855f7); box-shadow:0 2px 9px rgba(236,72,153,.45); }
   .seg-group .trtab.on[data-track="전투"]{ background:linear-gradient(135deg,#ef4444,#f97316); box-shadow:0 2px 9px rgba(239,68,68,.45); }
   .seg-group .trtab.on[data-track="네러티브"]{ background:linear-gradient(135deg,#14b8a6,#06b6d4); box-shadow:0 2px 9px rgba(20,184,166,.45); }
-  .seg-group .trtab.on[data-track="콘텐츠"]{ background:linear-gradient(135deg,#f59e0b,#f97316); box-shadow:0 2px 9px rgba(245,158,11,.45); }
   .seg-group .trtab.on .trdot{ background:#fff !important; }
   .seg-group .trtab:not(.on)[data-track="개발"]{ color:#7ea8f0; }
   .seg-group .trtab:not(.on)[data-track="아트"]{ color:#f08fc2; }
   .seg-group .trtab:not(.on)[data-track="전투"]{ color:#f0a08f; }
   .seg-group .trtab:not(.on)[data-track="네러티브"]{ color:#7fd9cc; }
-  .seg-group .trtab:not(.on)[data-track="콘텐츠"]{ color:#f0c880; }
 
   /* 필터 담당자 — 아트 부서 표시 + 부서명 칸 넓힘(잘림 방지) */
   .fa-trk{ font-size:9px; font-weight:800; color:#fff; background:linear-gradient(135deg,#a855f7,#ec4899); border-radius:999px; padding:1px 6px; margin-left:3px; vertical-align:middle; }
@@ -536,7 +534,7 @@
      상단 영역 압축 — Task 목록이 최대한 많이 보이도록 헤더 높이 축소
      (이 블록은 마지막에 와야 앞의 규칙을 덮어씁니다)
      =================================================================== */
-  :root{ --head-h:70px; --group-h:28px; }
+  :root{ --head-h:72px; --group-h:28px; }
 
   /* 최상단 바 50 → 38 */
   .topbar{ height:38px; padding:0 12px; gap:8px; }
@@ -575,16 +573,21 @@
   .filter-btn{ font-size:11.5px; padding:4px 9px; border-radius:6px; }
   .lh-label{ font-size:10px; }
 
-  /* 우측 타임라인 헤드 18+22+28 = 68(+테두리) */
-  .ms-lane{ height:18px; }
-  .ms-bar{ top:2px; height:14px; }
-  .ms-bar span{ font-size:10px; }
-  .month-row{ height:22px; }
-  .month-cell{ height:22px; font-size:10.5px; }
-  .day-row{ height:28px; }
-  .day-cell{ height:28px; font-size:10px; }
+  /* 우측 타임라인 헤드 — 4개 레인(마일스톤 / 마감마커 / 월 / 일) 16+16+16+24 = 72
+     flex-shrink 를 꺼야 레인이 찌그러지거나 위가 잘리지 않는다 */
+  .tl-head-inner > *{ flex:0 0 auto; }
+  .ms-lane{ height:16px; }
+  .ms-bar{ top:1px; height:13px; padding:0 6px; }
+  .ms-bar span{ font-size:9.5px; }
+  .dl-lane{ height:16px; }
+  .dl-mark{ top:1px; height:14px; font-size:9px; gap:3px; }
+  .dl-mark i{ width:6px; height:6px; }
+  .month-row{ height:16px; }
+  .month-cell{ height:16px; font-size:10px; }
+  .day-row{ height:24px; }
+  .day-cell{ height:24px; font-size:10px; }
   .day-cell .dow{ font-size:8.5px; }
-  .mcap{ top:2px; height:5px; }
+  .mcap{ top:1px; height:5px; }
 
   /* 상태 그룹 헤더 34 → 28 */
   .group-head{ padding:0 8px; gap:6px; }
@@ -642,7 +645,7 @@
     <div class="modal"><h3>새 Task 추가</h3><div class="msub">업무 단위와 소속 마일스톤을 정합니다.</div>
       <label>Task 이름</label><input id="taskInput" placeholder="예: 로그인 기능" />
       <label>마일스톤</label><select id="taskMs"></select>
-      <label>분류</label><select id="taskTrack"><option value="개발">개발</option><option value="아트">아트</option><option value="전투">전투</option><option value="네러티브">네러티브</option><option value="콘텐츠">콘텐츠</option></select>
+      <label>분류</label><select id="taskTrack"><option value="개발">개발</option><option value="아트">아트</option><option value="전투">전투</option><option value="네러티브">네러티브</option></select>
       <label>기획서 링크 (선택)</label><input id="taskPlan" placeholder="https://... (비워도 됩니다)" />
       <label>Trello 링크 (선택)</label><input id="taskTrello" placeholder="https://... (비워도 됩니다)" />
       <div class="msub" style="margin:6px 0 0">다음 단계에서 부서를 지정하고, 부서별로 담당자를 배정합니다.</div>
@@ -682,6 +685,7 @@
       <label>마일스톤 이름</label><input id="msName" placeholder="예: 1차 빌드" />
       <label><i style="background:#22c55e"></i>마일스톤 시작일</label><input type="date" id="msStart" />
       <label><i style="background:#ef4444"></i>마일스톤 종료일</label><input type="date" id="msEnd" />
+      <label><i style="background:#6366f1"></i>기획서 마감일</label><input type="date" id="msPlan" />
       <label><i style="background:#f59e0b"></i>리소스 마감일</label><input type="date" id="msResource" />
       <label><i style="background:#0ea5e9"></i>개발 마감일</label><input type="date" id="msDev" />
       <label><i style="background:#a855f7"></i>QA 마감일</label><input type="date" id="msQa" />
@@ -785,14 +789,14 @@ const KICKOFFS = [
   { k:"Skip",   icon:"⏭️", color:"#9aa3b2", desc:"이 Task는 건너뜀" },
 ];
 const kfOf = k => KICKOFFS.find(x=>x.k===k) || KICKOFFS[0];
-/* 상태 방식(개발·네러티브·콘텐츠): 트랙별로 편집 가능한 상태 목록(state.trackStatuses). 완료는 상태의 done 플래그 */
+/* 상태 방식(개발·네러티브): 트랙별로 편집 가능한 상태 목록(state.trackStatuses). 완료는 상태의 done 플래그 */
 const DEFAULT_STATUS_LIST = [
   { key:"대기", color:"#64748b" },
   { key:"진행 중", color:"#3b82f6" },
   { key:"검토·이슈", color:"#f59e0b" },
   { key:"완료", color:"#10b981", done:true },
 ];
-const STATUS_TRACKS = ["개발","네러티브","콘텐츠"];
+const STATUS_TRACKS = ["개발","네러티브"];
 /* 종류 방식 분류(아트·전투): 사용자 편집, 완료는 t.done 플래그 */
 const DEFAULT_ART_CATEGORIES = [
   { key:"대기", color:"#64748b" },
@@ -807,24 +811,25 @@ const DEFAULT_COMBAT_CATEGORIES = [
 ];
 const CATEGORY_TRACKS = ["아트","전투"];               // done을 t.done 플래그로 관리(종류)
 const isCatTrack = tr => CATEGORY_TRACKS.includes(tr);
-// 트랙별 편집 가능한 묶음 목록: 아트·전투=종류, 개발·네러티브·콘텐츠=상태
+// 트랙별 편집 가능한 묶음 목록: 아트·전투=종류, 개발·네러티브=상태
 function listFor(track){ if(track==="아트") return state.artCategories||[]; if(track==="전투") return state.combatCategories||[]; return (state.trackStatuses&&state.trackStatuses[track])||[]; }
 function setList(track, arr){ if(track==="아트") state.artCategories=arr; else if(track==="전투") state.combatCategories=arr; else { if(!state.trackStatuses) state.trackStatuses={}; state.trackStatuses[track]=arr; } }
 const catsFor = listFor, setCats = setList;   // 기존 이름 호환
 const statusesFor = track => listFor(track).map(c=>({k:c.key,color:c.color,done:c.done}));
-function allStatusDefs(){ let all=[]; ["개발","아트","전투","네러티브","콘텐츠"].forEach(tr=>{ all=all.concat(listFor(tr).map(c=>({k:c.key,color:c.color}))); }); return all.filter((s,i,a)=>a.findIndex(x=>x.k===s.k)===i); }
+function allStatusDefs(){ let all=[]; ["개발","아트","전투","네러티브"].forEach(tr=>{ all=all.concat(listFor(tr).map(c=>({k:c.key,color:c.color}))); }); return all.filter((s,i,a)=>a.findIndex(x=>x.k===s.k)===i); }
 const tsOf = k => allStatusDefs().find(x=>x.k===k) || { k, color:"#64748b" };
 const isDone = t => { if(isCatTrack(t.track)) return !!t.done; const s=listFor(t.track).find(x=>x.key===t.status); return !!(s&&s.done); };
 // 전투 종류 중 아트에서 미러된(아트 종류와 같은 이름) 것인지
 const catIsArtMirror = key => (state.artCategories||[]).some(c=>c.key===key);
-const TRACKS = ["개발","아트","전투","네러티브","콘텐츠"];   // 분류 탭
-const TRACK_COLORS = { "개발":"#3b82f6", "아트":"#ec4899", "전투":"#ef4444", "네러티브":"#14b8a6", "콘텐츠":"#f59e0b" };   // 분류 구분 색
-const FREE_MS="__free";   // 자유(마일스톤 미지정) 버킷 — 네러티브·콘텐츠에서만 노출
-const trackAllowsFree = track => track==="네러티브" || track==="콘텐츠";
+const TRACKS = ["개발","아트","전투","네러티브"];   // 분류 탭 ('콘텐츠'는 2026-08-21 제거)
+const TRACK_COLORS = { "개발":"#3b82f6", "아트":"#ec4899", "전투":"#ef4444", "네러티브":"#14b8a6" };   // 분류 구분 색
+const FREE_MS="__free";   // 자유(마일스톤 미지정) 버킷 — 네러티브에서만 노출
+const trackAllowsFree = track => track==="네러티브";
 const msFor = track => state.milestones.filter(m=> !m.free || trackAllowsFree(track));   // 트랙에서 보이는 마일스톤
 const MARKERS = [
   { k:"start", label:"시작", color:"#22c55e" },
   { k:"end", label:"종료", color:"#ef4444" },
+  { k:"plan", label:"기획서", color:"#6366f1" },
   { k:"resource", label:"리소스", color:"#f59e0b" },
   { k:"dev", label:"개발", color:"#0ea5e9" },
   { k:"qa", label:"QA", color:"#a855f7" },
@@ -862,7 +867,7 @@ function nearestWorkdayIndex(ymdStr){ if(!ymdStr) return -1; const t=parseYmd(ym
   let best=0,bd=Infinity; for(let i=0;i<N;i++){ const diff=Math.abs(WORKDAYS[i].getTime()-t); if(diff<bd){bd=diff;best=i;} } return best; }
 
 const uid=()=>Math.random().toString(36).slice(2,9);
-let state = { milestones:[{ id:"m1", name:"마일스톤 1", color:MS_PALETTE[0], start:"2026-06-01", end:"", resource:"", dev:"", qa:"" }], tasks:[] };
+let state = { milestones:[{ id:"m1", name:"마일스톤 1", color:MS_PALETTE[0], start:"2026-06-01", end:"", plan:"", resource:"", dev:"", qa:"" }], tasks:[] };
 let deptFilter=new Set(), statusFilter=new Set(), msFilter=new Set(), assigneeFilter=new Set(), kfFilter=new Set();
 let trackFilter="개발";   // 분류 탭(개발/아트) — '전체' 없음
 /* 부서 포커스: "__all" 또는 부서 key. 단일 선택. 개인 로컬 설정(공유 안 함) */
@@ -911,8 +916,8 @@ function migrate(){
   if(!Array.isArray(state.notifyEmails)) state.notifyEmails = [];
   if(!state.notice || typeof state.notice!=="object") state.notice = { text:"", updatedAt:"" };
   if(!state.departments || !state.departments.length) state.departments = DEFAULT_DEPARTMENTS.concat(ART_DEPARTMENTS).map(d=>({...d}));
-  state.departments.forEach(d=>{ if(!Array.isArray(d.owners)) d.owners=[]; if(!Array.isArray(d.tracks)||!d.tracks.length) d.tracks = (d.key==="기획")?["개발","아트","전투","네러티브","콘텐츠"]:["개발"]; if(!Array.isArray(d.subgroups)) d.subgroups=[]; if(!d.memberGroup||typeof d.memberGroup!=="object") d.memberGroup={}; });
-  { const plan=state.departments.find(d=>d.key==="기획"); if(plan) ["아트","전투","네러티브","콘텐츠"].forEach(tr=>{ if(!plan.tracks.includes(tr)) plan.tracks.push(tr); }); }
+  state.departments.forEach(d=>{ if(!Array.isArray(d.owners)) d.owners=[]; if(!Array.isArray(d.tracks)||!d.tracks.length) d.tracks = (d.key==="기획")?["개발","아트","전투","네러티브"]:["개발"]; if(!Array.isArray(d.subgroups)) d.subgroups=[]; if(!d.memberGroup||typeof d.memberGroup!=="object") d.memberGroup={}; });
+  { const plan=state.departments.find(d=>d.key==="기획"); if(plan) ["아트","전투","네러티브"].forEach(tr=>{ if(!plan.tracks.includes(tr)) plan.tracks.push(tr); }); }
   // 아트 전용 부서 1회 시드(기존 데이터에 추가)
   if(!state.artSeeded){ ART_DEPARTMENTS.forEach(ad=>{ if(!state.departments.some(d=>d.key===ad.key)) state.departments.push({...ad, owners:[]}); }); state.artSeeded=true; }
   // 이전에 '클라이언트'로 추가됐던 경우 '스킬 개발'로 이름 정정(배포 전 임시 데이터 대비)
@@ -941,10 +946,17 @@ function migrate(){
     state.tasks=all; delete state.activeId;
   }
   if(!state.tasks) state.tasks=[];
-  if(!state.milestones.length) state.milestones=[{ id:"m1", name:"마일스톤 1", color:MS_PALETTE[0], start:"2026-06-01", end:"", resource:"", dev:"", qa:"" }];
+  if(!state.milestones.length) state.milestones=[{ id:"m1", name:"마일스톤 1", color:MS_PALETTE[0], start:"2026-06-01", end:"", plan:"", resource:"", dev:"", qa:"" }];
   state.milestones.forEach((m,i)=>{ if(!m.id)m.id=uid(); if(!m.color)m.color=MS_PALETTE[i%MS_PALETTE.length]; if(m.dev===undefined)m.dev=""; if(!m.name)m.name="마일스톤"; if(!m.free && !m.start)m.start="2026-06-01"; });
   // 자유(마일스톤 미지정) 버킷 1회 시드 — 마감일 없음, 삭제 불가
-  if(!state.milestones.some(m=>m.free)) state.milestones.push({ id:FREE_MS, name:"자유", color:"#94a3b8", free:true, start:"", end:"", resource:"", dev:"", qa:"" });
+  if(!state.milestones.some(m=>m.free)) state.milestones.push({ id:FREE_MS, name:"자유", color:"#94a3b8", free:true, start:"", end:"", plan:"", resource:"", dev:"", qa:"" });
+  /* 분류 '콘텐츠' 제거(2026-08-21) — 남아 있던 Task는 '개발'로 옮기고 상태·마일스톤을 개발 기준으로 보정 */
+  { const rm=state.milestones.find(m=>!m.free);
+    (state.tasks||[]).forEach(t=>{ if(t.track!=="콘텐츠") return;
+      t.track="개발";
+      const ss=statusesFor("개발"); if(ss.length && !ss.some(x=>x.k===t.status)) t.status=(ss[0]&&ss[0].k)||"대기";
+      if(t.milestoneId===FREE_MS && rm) t.milestoneId=rm.id;   // 개발엔 '자유' 버킷이 없음
+    }); }
   const firstMs=state.milestones[0].id;
   state.tasks.forEach(t=>{ if(!t.kickoff) t.kickoff = t.status && KICKOFFS.some(k=>k.k===t.status) ? t.status : "예정";
     if(!t.track) t.track="개발";   // 미지정만 기본값. 모르는 분류(신버전)라도 덮어쓰지 않음(데이터 보존)
@@ -1085,7 +1097,7 @@ function render(){ normalizeFocusDept(); renderTitle(); renderDeptFocus(); rende
 // 다가오는 마감(D-N). msFilter가 있으면 그 마일스톤만, 없으면 전체
 function ddayHtml(){
   const today=stripTime(new Date());
-  const DL=[["resource","리소스"],["dev","개발"],["qa","QA"],["end","종료"]];
+  const DL=[["plan","기획서"],["resource","리소스"],["dev","개발"],["qa","QA"],["end","종료"]];
   const ms=state.milestones.filter(m=> msFilter.size===0 || msFilter.has(m.id));
   let up=null, over=null;
   ms.forEach(m=>{
@@ -1209,7 +1221,7 @@ function renderHead(){
     const s=nearestWorkdayIndex(m.start), e=m.end?nearestWorkdayIndex(m.end):N-1;
     const left=s*DAY_W, w=Math.max(DAY_W,(e-s+1)*DAY_W);
     return `<div class="ms-bar" style="left:${left}px;width:${w}px;background:${m.color}22;border-color:${m.color}" title="${escapeHtml(m.name)} (${m.start} ~ ${m.end||'미정'})"><span style="color:${m.color}">${escapeHtml(m.name)}</span></div>`; }).join("");
-  const DLK=["resource","dev","qa"];
+  const DLK=["plan","resource","dev","qa"];
   const dlmarks=msList.map(m=>DLK.map(k=>{ if(!m[k]) return ""; const mk=MARKERS.find(x=>x.k===k);
     return `<div class="dl-mark" style="left:${nearestWorkdayIndex(m[k])*DAY_W + DAY_W/2}px" title="${escapeHtml(m.name)} · ${mk.label} ${m[k]}"><i style="background:${mk.color}"></i>${multi?escapeHtml(m.name)+' ':''}${mk.label}</div>`; }).join("")).join("");
   head.innerHTML=`<div class="ms-lane">${msbars}</div><div class="dl-lane">${dlmarks}</div><div class="month-row">${months}</div><div class="day-row">${days}</div>`;
@@ -1833,7 +1845,7 @@ function renderMsList(){
 }
 function loadMsEditor(id){ const m=findMs(id);
   document.getElementById("msName").value=m.name||""; document.getElementById("msStart").value=m.start||"";
-  document.getElementById("msEnd").value=m.end||""; document.getElementById("msResource").value=m.resource||"";
+  document.getElementById("msEnd").value=m.end||""; document.getElementById("msPlan").value=m.plan||""; document.getElementById("msResource").value=m.resource||"";
   document.getElementById("msDev").value=m.dev||""; document.getElementById("msQa").value=m.qa||""; }
 /* 마일스톤 설정: 열람은 전원, 편집은 관리자만.
    window.APP_ROLE 은 cloud.js 가 로그인 후 채운다. 값이 없으면 = 클라우드 미사용(로컬 단독) → 제한 없음 */
@@ -1841,7 +1853,7 @@ const msCanEdit = () => !window.APP_ROLE || window.APP_ROLE === "admin";
 function applyMsRole(){
   const ro = !msCanEdit();
   msModal.querySelector(".modal").classList.toggle("ms-readonly", ro);
-  ["msName","msStart","msEnd","msResource","msDev","msQa"].forEach(id=>{ const el=document.getElementById(id); if(el) el.disabled=ro; });
+  ["msName","msStart","msEnd","msPlan","msResource","msDev","msQa"].forEach(id=>{ const el=document.getElementById(id); if(el) el.disabled=ro; });
   const sub=document.getElementById("msModalSub");
   if(sub) sub.textContent = ro ? "각 마일스톤의 기간과 마감일을 확인합니다. 목록에서 선택하세요."
                                : "여러 마일스톤을 만들고 각 Task에 배정합니다. 목록에서 선택해 편집하세요.";
@@ -1851,15 +1863,15 @@ document.getElementById("msBtn").onclick=openMsModal;
 document.getElementById("msList").addEventListener("click", e=>{ const it=e.target.closest("[data-msitem]"); if(!it) return;
   msSelId=it.dataset.msitem; renderMsList(); loadMsEditor(msSelId); });
 document.getElementById("msAddNew").onclick=()=>{ if(!msCanEdit()) return; const id=uid();
-  state.milestones.push({ id, name:"마일스톤 "+(state.milestones.length+1), color:MS_PALETTE[state.milestones.length%MS_PALETTE.length], start:"2026-06-01", end:"", resource:"", dev:"", qa:"" });
+  state.milestones.push({ id, name:"마일스톤 "+(state.milestones.length+1), color:MS_PALETTE[state.milestones.length%MS_PALETTE.length], start:"2026-06-01", end:"", plan:"", resource:"", dev:"", qa:"" });
   msSelId=id; buildTimeline(); save(); render(); renderMsList(); loadMsEditor(id); };
 document.getElementById("msSaveOk").onclick=()=>{ if(!msCanEdit()) return; const m=findMs(msSelId);
-  const rv=document.getElementById("msResource").value||"", dv=document.getElementById("msDev").value||"", qv=document.getElementById("msQa").value||"";
-  const dls=[["리소스 마감",rv],["개발 마감",dv],["QA 마감",qv]].filter(x=>x[1]);
-  for(let i=1;i<dls.length;i++){ if(parseYmd(dls[i][1])<=parseYmd(dls[i-1][1])){ alert(`마감일은 겹칠 수 없습니다.\n리소스 마감 < 개발 마감 < QA 마감 순서로 설정하세요.\n(${dls[i-1][0]} ${dls[i-1][1]} → ${dls[i][0]} ${dls[i][1]})`); return; } }
+  const pv=document.getElementById("msPlan").value||"", rv=document.getElementById("msResource").value||"", dv=document.getElementById("msDev").value||"", qv=document.getElementById("msQa").value||"";
+  const dls=[["기획서 마감",pv],["리소스 마감",rv],["개발 마감",dv],["QA 마감",qv]].filter(x=>x[1]);
+  for(let i=1;i<dls.length;i++){ if(parseYmd(dls[i][1])<=parseYmd(dls[i-1][1])){ alert(`마감일은 겹칠 수 없습니다.\n기획서 마감 < 리소스 마감 < 개발 마감 < QA 마감 순서로 설정하세요.\n(${dls[i-1][0]} ${dls[i-1][1]} → ${dls[i][0]} ${dls[i][1]})`); return; } }
   m.name=document.getElementById("msName").value.trim()||m.name;
   m.start=document.getElementById("msStart").value||"2026-06-01"; m.end=document.getElementById("msEnd").value||"";
-  m.resource=rv; m.dev=dv; m.qa=qv;
+  m.plan=pv; m.resource=rv; m.dev=dv; m.qa=qv;
   buildTimeline(); save(); render(); renderMsList();
   const ni=nearestIndex(); rightBody.scrollLeft=ni>3?(ni-3)*DAY_W:0; };
 document.getElementById("msDelete").onclick=()=>{ if(!msCanEdit()) return; if(state.milestones.length<=1){ alert("마일스톤이 하나뿐이라 삭제할 수 없습니다."); return; }
