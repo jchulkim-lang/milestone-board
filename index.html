@@ -1092,7 +1092,16 @@ function mergeState3(base,ours,theirs){
   base=base||{}; ours=ours||{}; theirs=theirs||{};
   const out=_clone(theirs)||{};                           // 상대(서버 최신) 기준
   out.tasks=_mergeTasks(base.tasks||[], ours.tasks||[], theirs.tasks||[]);
-  ["title","milestones","departments","artCategories","combatCategories","trackStatuses","notice","notifyEmails","artSeeded","devDeptsSeeded","assembleDeptSeeded","forceReloadAt"].forEach(k=>{ if(!_eq(ours[k],base[k])) out[k]=_clone(ours[k]); });
+  /* tasks 외 모든 최상위 키: 내가 기준(base) 대비 바꿨으면 내 값 우선, 안 바꿨으면 서버 값 유지.
+     ※ 예전엔 키 화이트리스트였는데, 목록에 없는 새 필드(roadmap 등)가 병합 때마다 서버 값으로
+        덮여서 "저장이 안 되는" 버그가 있었다. 목록 관리가 필요 없도록 전체 키를 대상으로 바꿈. */
+  const keys=new Set([...Object.keys(base),...Object.keys(ours),...Object.keys(theirs)]);
+  keys.forEach(k=>{
+    if(k==="tasks") return;
+    if(_eq(ours[k], base[k])) return;                     // 내가 안 건드림 → 서버 값 그대로
+    if(ours[k]===undefined) delete out[k];                // 내가 지움
+    else out[k]=_clone(ours[k]);                          // 내가 바꿈 → 내 값
+  });
   return out;
 }
 function save(){ reconcileMirrors("edit"); localStorage.setItem(LS_KEY, JSON.stringify(state)); if(remote.active) remote.push(state); }
@@ -1937,8 +1946,8 @@ const RM_SEED = {
 };
 function seedRoadmap(){
   return { startYm:RM_SEED.startYm, months:RM_SEED.months, notes:RM_SEED.notes.slice(),
-    groups: RM_SEED.groups.map(g=>({ id:uid(), name:g.name, color:g.color,
-      items: g.items.map(([ym,text,date])=>({ id:uid(), ym, text, date })) })) };
+    groups: RM_SEED.groups.map((g,gi)=>({ id:"rmg"+gi, name:g.name, color:g.color,
+      items: g.items.map(([ym,text,date],ii)=>({ id:"rmg"+gi+"i"+ii, ym, text, date })) })) };
 }
 const rmCanEdit = () => !document.body.classList.contains("readonly");
 function rmMonths(){
