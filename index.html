@@ -308,6 +308,44 @@
   .ms-readonly #msAddNew,.ms-readonly #msSaveOk,.ms-readonly #msDelete,.ms-readonly #msEditHead{display:none!important;}
   .ms-readonly input[disabled]{opacity:.75;cursor:default;background:var(--panel);}
   .ms-readonly hr{opacity:.4;}
+  /* ===== 발주 로드맵 ===== */
+  #roadmapModal .modal{ width:min(1240px, 94vw); }
+  .rm-notes{ display:flex; flex-wrap:wrap; gap:6px; margin:0 0 12px; }
+  .rm-note{ font-size:11px; font-weight:700; color:var(--muted); background:var(--panel2); border:1px solid var(--line); border-radius:999px; padding:3px 10px; }
+  .rm-scroll{ overflow:auto; max-height:62vh; border:1px solid var(--line); border-radius:11px; background:var(--bg); }
+  .rm-grid{ min-width:max-content; }
+  .rm-row{ display:flex; align-items:stretch; border-bottom:1px solid var(--line); }
+  .rm-row:last-child{ border-bottom:0; }
+  .rm-label{ flex:0 0 190px; display:flex; align-items:center; gap:7px; padding:8px 10px; font-size:11.5px; font-weight:800; background:var(--rowhead); border-right:1px solid var(--line); position:sticky; left:0; z-index:2; }
+  .rm-label i{ width:8px; height:8px; border-radius:50%; flex:0 0 auto; }
+  .rm-label span{ min-width:0; overflow-wrap:anywhere; }
+  .rm-gedit{ margin-left:auto; background:none; border:0; color:var(--muted); cursor:pointer; font-size:11px; padding:2px 4px; border-radius:5px; flex:0 0 auto; }
+  .rm-gedit:hover{ color:var(--text); background:var(--panel2); }
+  .rm-cell{ flex:0 0 176px; min-height:44px; display:flex; flex-wrap:wrap; align-content:flex-start; gap:4px; padding:7px; border-right:1px solid var(--grid); }
+  .rm-cell:last-child{ border-right:0; }
+  .rm-cell.drop{ background:rgba(99,102,241,.14); box-shadow:inset 0 0 0 1px var(--accent); }
+  .rm-row.rm-head{ position:sticky; top:0; z-index:3; background:var(--panel); }
+  .rm-row.rm-head .rm-label{ background:var(--panel); }
+  .rm-mh{ min-height:0; align-items:center; font-size:11.5px; font-weight:800; color:var(--text); padding:7px 10px; background:var(--panel); }
+  .rm-mh.dim{ color:var(--muted); }
+  .rm-chip{ display:inline-flex; align-items:center; gap:5px; max-width:100%; font-size:11px; font-weight:700; padding:3px 8px; border-radius:7px; background:var(--panel2); border:1px solid var(--line); border-left-width:3px; color:var(--text); cursor:pointer; user-select:none; }
+  .rm-chip:hover{ filter:brightness(1.15); }
+  .rm-chip b{ font-size:10px; font-weight:800; color:var(--muted); }
+  .rm-chip.dragging{ opacity:.4; }
+  .rm-add{ font-size:11px; font-weight:800; line-height:1; padding:3px 7px; border-radius:7px; border:1px dashed var(--line); background:transparent; color:var(--muted); cursor:pointer; opacity:.28; transition:opacity .12s ease; }
+  .rm-cell:hover .rm-add, .rm-label .rm-add{ opacity:1; }
+  .rm-add:hover{ border-color:var(--accent); color:var(--text); opacity:1; }
+  .rm-foot{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .rm-range{ display:flex; align-items:center; gap:5px; font-size:11px; color:var(--muted); font-weight:700; }
+  .rm-range input,.rm-range select{ width:auto; background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:7px; padding:3px 6px; font-size:11.5px; font-family:inherit; }
+  /* 항목/그룹 편집 팝오버 */
+  .rm-pop{ position:fixed; z-index:60; display:none; background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:11px; box-shadow:0 16px 40px rgba(0,0,0,.5); width:246px; }
+  .rm-pop.show{ display:block; }
+  .rm-pop label{ display:block; font-size:10.5px; font-weight:800; color:var(--muted); margin:0 0 4px; }
+  .rm-pop input,.rm-pop select{ width:100%; background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:7px; padding:6px 8px; font-size:12.5px; font-family:inherit; margin-bottom:9px; }
+  .rm-pop .rmp-act{ display:flex; align-items:center; gap:6px; }
+  .rm-pop .rmp-act .btn{ padding:5px 11px; font-size:12px; }
+  .rm-pop .rmp-del{ margin-left:auto; background:none; border:0; color:#ff7a7a; font-size:11.5px; font-weight:700; cursor:pointer; }
   .modal-actions{flex-wrap:wrap;row-gap:10px;}
   .modal-actions > .right{flex:0 0 auto;flex-direction:row;align-items:center;justify-content:flex-end;margin-left:auto;overflow:visible;}
   .modal-actions .linkrow{flex:0 0 auto;white-space:nowrap;}
@@ -640,6 +678,7 @@
     <div id="footbar" class="foot-legend"></div>
     <div class="foot-apps" id="footApps">
       <button class="btn ghost sm" id="dashBtn">📊 대시보드</button>
+      <button class="btn ghost sm" id="roadmapBtn">🗺 발주 로드맵</button>
       <button class="btn ghost sm" id="historyBtn">🕘 히스토리</button>
       <button class="btn ghost sm" id="forceReloadBtn" style="display:none">🔄 강제 새로고침</button>
       <button class="btn ghost sm" id="noticeBtn">📢 공지</button>
@@ -731,6 +770,16 @@
     <div class="modal"><h3>제목 편집</h3><div class="msub">상단에 표시될 이름입니다.</div>
       <input id="titleInput" placeholder="예: 빅게임 본부 마일스톤" />
       <div class="modal-actions"><span></span><div class="right"><button class="btn ghost" data-close>취소</button><button class="btn" id="titleSaveOk">저장</button></div></div></div>
+  </div>
+  <div class="modal-bg" id="roadmapModal">
+    <div class="modal rm-modal"><h3>발주 로드맵 🗺</h3>
+      <div class="msub" id="rmSub">월별로 무엇이 발주·킥오프되는지 한눈에 봅니다.</div>
+      <div class="rm-notes" id="rmNotes"></div>
+      <div class="rm-scroll scrollbar"><div class="rm-grid" id="rmGrid"></div></div>
+      <div class="modal-actions">
+        <div class="rm-foot" id="rmFoot"></div>
+        <div class="right"><button class="btn" data-close>닫기</button></div></div>
+    </div>
   </div>
   <div class="modal-bg" id="dashModal">
     <div class="modal" style="width:520px"><h3>대시보드 📊</h3>
@@ -974,6 +1023,9 @@ function migrate(){
     const _ss=statusesFor(t.track); if(_ss.length && (!t.status || !_ss.some(s=>s.k===t.status))) t.status=(_ss[0]&&_ss[0].k)||"대기";   // 아는 분류일 때만 상태 보정(모르는 분류 보존)
     if(typeof t.done!=="boolean") t.done = (!isCatTrack(t.track) && t.status==="완료");
     if(!t.links) t.links={plan:"",trello:""}; if(t.depts) Object.values(t.depts).forEach(s=>{ if(s && !Array.isArray(s.assignees)) s.assignees=[]; }); if(!t.milestoneId || !findMs(t.milestoneId)) t.milestoneId=firstMs; if("open" in t) delete t.open; });   // 펼침은 개인 로컬로 이동
+  /* 발주 로드맵 1회 시드 (BR 일정 시트 「임시」 탭 기준). 삭제 후 재생성 방지 위해 플래그 사용 */
+  if(!state.roadmapSeeded){ if(!state.roadmap) state.roadmap=seedRoadmap(); state.roadmapSeeded=true; }
+  if(!state.roadmap || !Array.isArray(state.roadmap.groups)) state.roadmap={ startYm:"2026-09", months:5, notes:[], groups:[] };
   reconcileMirrors("init");
 }
 
@@ -1493,6 +1545,7 @@ function attachBarHandlers(){
 /* ===== 모달들 ===== */
 let editing=null;
 const taskModal=document.getElementById("taskModal"), taskInput=document.getElementById("taskInput"), taskMs=document.getElementById("taskMs");
+const roadmapModal=document.getElementById("roadmapModal");
 const deptModal=document.getElementById("deptModal"), linkModal=document.getElementById("linkModal"), schedModal=document.getElementById("schedModal"), msModal=document.getElementById("msModal"), deptMgrModal=document.getElementById("deptMgrModal"), catMgrModal=document.getElementById("catMgrModal"), titleModal=document.getElementById("titleModal"), dashModal=document.getElementById("dashModal"), historyModal=document.getElementById("historyModal"), notifyModal=document.getElementById("notifyModal"), noticePopup=document.getElementById("noticePopup"), noticeEditModal=document.getElementById("noticeEditModal");
 /* 부서 칩 클릭으로 막 켠 부서인데 일정을 정하지 않고 닫으면 → 부서를 다시 끈다 */
 function cancelPendingDept(){
@@ -1501,9 +1554,9 @@ function cancelPendingDept(){
   editing.justOn=false;
   if(sg && sg.on && sg.sched===false){ sg.on=false; save(); render(); }
 }
-function closeModals(){ cancelPendingDept(); [taskModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.classList.remove("show")); }
+function closeModals(){ cancelPendingDept(); closeRmPop(); [taskModal,roadmapModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.classList.remove("show")); }
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=closeModals);
-[taskModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
+[taskModal,roadmapModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
 
 /* ===== 종류 관리 (아트·전투 등 종류 방식 분류) ===== */
 let catMgrTrack="아트", catEditKey=null;
@@ -1845,6 +1898,202 @@ document.getElementById("schedSaveOk").onclick=()=>{ const t=findTask(editing.ti
 document.getElementById("schedRemove").onclick=()=>{ const t=findTask(editing.tid); const sg=t.depts[editing.dep]; sg.on=false; sg.sched=false; editing.justOn=false; closeModals(); save(); render(); };
 /* 부서만 켜 두고 일정은 비워 두기 */
 document.getElementById("schedUnset").onclick=()=>{ const t=findTask(editing.tid); const sg=t.depts[editing.dep]; sg.on=true; sg.sched=false; editing.justOn=false; closeModals(); save(); render(); };
+
+
+/* ===== 발주 로드맵 (아트 리소스 전달) =====
+ *  state.roadmap = { startYm, months, notes[], groups:[{id,name,color,items:[{id,ym,text,date}]}] }
+ *  ym "" = 미정 버킷. 최초 1회 'BR 일정' 시트의 「임시」 탭 내용으로 시드한다(roadmapSeeded 플래그). */
+const RM_SEED = {
+  startYm:"2026-09", months:5,
+  notes:["캐릭터 컨셉 문서 : 5일","캐릭터 가조립 : 7일","캐릭터 최종 조립 : 8일","캐릭터 밸런스 : 5일"],
+  groups:[
+    { name:"캐릭터 (대표님 니즈 스펙)", color:"#ec4899", items:[
+      ["2026-09","거크","2026-09-09"],["2026-09","카티야","2026-09-09"],["2026-09","사요","2026-09-09"],
+      ["2026-09","넬린","2026-09-09"],["2026-09","후우미","2026-09-09"],
+      ["2026-10","엘디스",""],["2026-10","스카디",""],["2026-10","셀레나",""],["2026-10","니샤",""],
+      ["2026-11","치즈루",""],
+      ["2026-12","마르티나",""],["2026-12","카타리나",""],["2026-12","각성시온",""],["2026-12","엘리제",""] ] },
+    { name:"캐릭터 킥오프", color:"#6366f1", items:[
+      ["2026-09","거크",""],["2026-09","카티야",""],["2026-09","사요",""],["2026-09","넬린",""],["2026-09","후우미",""],
+      ["2026-09","엘디스","2026-09-18"],["2026-09","스카디","2026-09-18"],["2026-09","셀레나","2026-09-15"],
+      ["2026-10","니샤","2026-10-06"],["2026-10","치즈루","2026-10-15"],
+      ["2026-11","마르티나","2026-11-13"],["2026-11","카타리나","2026-11-13"],
+      ["2026-11","각성시온","2026-11-13"],["2026-11","엘리제","2026-11-13"] ] },
+    { name:"프리미엄 코스튬 킥오프 (JP)", color:"#a855f7", items:[
+      ["2026-09","엘디스","2026-09-18"],["2026-09","스카디","2026-09-18"],["2026-09","셀레나","2026-09-15"],
+      ["2026-10","니샤","2026-10-06"],["2026-10","치즈루","2026-10-15"],
+      ["2026-11","마르티나","2026-11-13"],["2026-11","카타리나","2026-11-13"],["2026-11","각성시온","2026-11-13"] ] },
+    { name:"메인 퀘스트 · 발주", color:"#f59e0b", items:[
+      ["2026-09","챕터 5 NPC 발주","2026-09-04"],["2026-09","챕터 6-1","2026-09-23"],["2026-09","챕터 6-2","2026-09-30"],
+      ["2026-10","챕터 6-3","2026-10-06"],
+      ["2026-11","챕터 6 몬스터 발주","2026-11-11"],
+      ["2027-01","챕터 6 대본","2027-01-15"],["2027-01","챕터 6 NPC 발주","2027-01-18"] ] },
+    { name:"신규 캐릭터", color:"#10b981", items:[
+      ["2026-10","신규 캐릭터 A","2026-10-21"],["2026-10","신규 캐릭터 B","2026-10-21"],["2026-10","신규 캐릭터 C","2026-10-21"] ] },
+    { name:"미정 항목", color:"#64748b", items:[
+      ["","스핀오프 : 7",""],["","스핀오프 : 8",""],
+      ["","서브퀘스트 : 챕터 4",""],["","서브퀘스트 : 챕터 5",""],["","서브퀘스트 : 챕터 6",""] ] },
+  ]
+};
+function seedRoadmap(){
+  return { startYm:RM_SEED.startYm, months:RM_SEED.months, notes:RM_SEED.notes.slice(),
+    groups: RM_SEED.groups.map(g=>({ id:uid(), name:g.name, color:g.color,
+      items: g.items.map(([ym,text,date])=>({ id:uid(), ym, text, date })) })) };
+}
+const rmCanEdit = () => !document.body.classList.contains("readonly");
+function rmMonths(){
+  const rm=state.roadmap||{}; const out=[];
+  const p=(rm.startYm||"2026-09").split("-"); const y=Number(p[0])||2026, m=Number(p[1])||9;
+  const n=Math.min(24, Math.max(1, Number(rm.months)||5));
+  for(let i=0;i<n;i++){ const d=new Date(y, m-1+i, 1);
+    out.push({ ym:d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"), y:d.getFullYear(), m:d.getMonth()+1 }); }
+  return out;
+}
+const rmDateLabel = v => { if(!v) return ""; const p=String(v).split("-"); return p.length===3 ? (Number(p[1])+"/"+Number(p[2])) : v; };
+function rmFindGroup(gid){ return (state.roadmap.groups||[]).find(g=>g.id===gid); }
+function rmFindItem(gid,iid){ const g=rmFindGroup(gid); return g ? { g, it:(g.items||[]).find(x=>x.id===iid) } : { g:null, it:null }; }
+
+function renderRoadmap(){
+  const rm=state.roadmap, ms=rmMonths(), ed=rmCanEdit();
+  document.getElementById("rmSub").textContent = ed
+    ? "월별로 무엇이 발주·킥오프되는지 봅니다. 항목을 끌어 다른 달로 옮기거나, 클릭해 이름·날짜를 고칠 수 있어요."
+    : "월별로 무엇이 발주·킥오프되는지 봅니다. (읽기 전용)";
+  document.getElementById("rmNotes").innerHTML =
+    (rm.notes||[]).map(t=>`<span class="rm-note">${escapeHtml(t)}</span>`).join("") +
+    (ed?`<button class="rm-add" id="rmNoteEdit" title="표준 소요일 메모 편집">✎ 메모</button>`:"");
+
+  let lastY=null;
+  const head=`<div class="rm-row rm-head"><div class="rm-label rm-mh">항목</div>`+
+    ms.map(x=>{ const showY = x.y!==lastY; lastY=x.y;
+      return `<div class="rm-cell rm-mh">${showY?x.y+"년 ":""}${x.m}월</div>`; }).join("")+
+    `<div class="rm-cell rm-mh dim">미정</div></div>`;
+
+  const cell=(g,ym)=>{
+    const items=(g.items||[]).filter(it=>(it.ym||"")===ym);
+    const chips=items.map(it=>`<span class="rm-chip" data-rmitem="${g.id}|${it.id}" ${ed?'draggable="true"':''} style="border-left-color:${g.color}" title="${escapeHtml(it.text)}${it.date?' · '+it.date:''}${ed?' (클릭: 편집)':''}">${escapeHtml(it.text)}${it.date?`<b>${rmDateLabel(it.date)}</b>`:''}</span>`).join("");
+    return `<div class="rm-cell" data-rmdrop="${g.id}|${ym}">${chips}${ed?`<button class="rm-add" data-rmadd="${g.id}|${ym}" title="항목 추가">＋</button>`:""}</div>`;
+  };
+  const rows=(rm.groups||[]).map(g=>
+    `<div class="rm-row"><div class="rm-label"><i style="background:${g.color}"></i><span>${escapeHtml(g.name)}</span>`+
+    `${ed?`<button class="rm-gedit" data-rmgedit="${g.id}" title="그룹 이름·색 편집">✎</button>`:""}</div>`+
+    ms.map(x=>cell(g,x.ym)).join("")+cell(g,"")+`</div>`).join("");
+
+  document.getElementById("rmGrid").innerHTML = head + rows +
+    (ed?`<div class="rm-row"><div class="rm-label"><button class="rm-add" id="rmAddGroup">＋ 그룹</button></div></div>`:"");
+
+  document.getElementById("rmFoot").innerHTML = ed
+    ? `<span class="rm-range">시작 <input type="month" id="rmStart" value="${escapeHtml(rm.startYm||"2026-09")}">`+
+      `표시 <select id="rmMonths">${[3,4,5,6,8,10,12].map(n=>`<option value="${n}" ${Number(rm.months)===n?"selected":""}>${n}개월</option>`).join("")}</select></span>`
+    : "";
+}
+function openRoadmap(){ if(!state.roadmap) state.roadmap=seedRoadmap(); renderRoadmap(); roadmapModal.classList.add("show"); }
+
+/* --- 편집 팝오버 --- */
+let rmPopMode=null, rmPopRef=null;
+function rmPopEl(){ let p=document.getElementById("rmPop");
+  if(!p){ p=document.createElement("div"); p.id="rmPop"; p.className="rm-pop"; document.body.appendChild(p);
+    p.addEventListener("click", ev=>{ const b=ev.target.closest("button"); if(!b) return; ev.stopPropagation();
+      if(b.dataset.rmp==="save") rmPopSave(); else if(b.dataset.rmp==="del") rmPopDelete(); else if(b.dataset.rmp==="cancel") closeRmPop(); });
+    p.addEventListener("keydown", ev=>{ if(ev.key==="Enter"){ ev.preventDefault(); rmPopSave(); } });
+  }
+  return p; }
+function placeRmPop(anchor){ const p=rmPopEl(); p.classList.add("show");
+  const r=anchor.getBoundingClientRect(), pw=p.offsetWidth, ph=p.offsetHeight;
+  let left=Math.min(r.left, window.innerWidth-pw-8); if(left<8) left=8;
+  let top=r.bottom+6; if(top+ph>window.innerHeight-8) top=Math.max(8, r.top-ph-6);
+  p.style.left=left+"px"; p.style.top=top+"px"; }
+function rmMonthOptions(sel){ return rmMonths().map(x=>`<option value="${x.ym}" ${x.ym===sel?"selected":""}>${x.y}년 ${x.m}월</option>`).join("")+`<option value="" ${!sel?"selected":""}>미정</option>`; }
+function openRmItemPop(anchor, gid, iid, ym){
+  const isNew=!iid; const {g,it}= isNew ? {g:rmFindGroup(gid),it:null} : rmFindItem(gid,iid);
+  if(!g) return;
+  rmPopMode="item"; rmPopRef={gid, iid, isNew};
+  rmPopEl().innerHTML =
+    `<label>항목 이름</label><input id="rmpText" value="${escapeHtml(it?it.text:"")}" placeholder="예: 엘디스">`+
+    `<label>날짜 (선택)</label><input type="date" id="rmpDate" value="${escapeHtml(it&&it.date?it.date:"")}">`+
+    `<label>월</label><select id="rmpYm">${rmMonthOptions(it?(it.ym||""):(ym||""))}</select>`+
+    `<div class="rmp-act"><button class="btn" data-rmp="save">저장</button>`+
+    `<button class="btn ghost" data-rmp="cancel">취소</button>`+
+    `${isNew?"":`<button class="rmp-del" data-rmp="del">삭제</button>`}</div>`;
+  placeRmPop(anchor); const t=document.getElementById("rmpText"); if(t){ t.focus(); t.select(); }
+}
+function openRmGroupPop(anchor, gid){
+  const isNew=!gid; const g=isNew?null:rmFindGroup(gid); if(!isNew && !g) return;
+  rmPopMode="group"; rmPopRef={gid, isNew};
+  rmPopEl().innerHTML =
+    `<label>그룹 이름</label><input id="rmpText" value="${escapeHtml(g?g.name:"")}" placeholder="예: 캐릭터 킥오프">`+
+    `<label>색상</label><input type="color" id="rmpColor" value="${escapeHtml(g?g.color:"#6366f1")}" style="height:32px;padding:2px">`+
+    `<div class="rmp-act"><button class="btn" data-rmp="save">저장</button>`+
+    `<button class="btn ghost" data-rmp="cancel">취소</button>`+
+    `${isNew?"":`<button class="rmp-del" data-rmp="del">그룹 삭제</button>`}</div>`;
+  placeRmPop(anchor); const t=document.getElementById("rmpText"); if(t){ t.focus(); t.select(); }
+}
+function openRmNotePop(anchor){
+  rmPopMode="notes"; rmPopRef={};
+  rmPopEl().innerHTML =
+    `<label>표준 소요일 메모 (쉼표로 구분)</label><input id="rmpText" value="${escapeHtml((state.roadmap.notes||[]).join(", "))}" placeholder="캐릭터 컨셉 문서 : 5일, ...">`+
+    `<div class="rmp-act"><button class="btn" data-rmp="save">저장</button><button class="btn ghost" data-rmp="cancel">취소</button></div>`;
+  placeRmPop(anchor); const t=document.getElementById("rmpText"); if(t){ t.focus(); t.select(); }
+}
+function closeRmPop(){ const p=document.getElementById("rmPop"); if(p) p.classList.remove("show"); rmPopMode=null; rmPopRef=null; }
+function rmPopSave(){
+  if(!rmPopMode || !rmCanEdit()) return closeRmPop();
+  const txt=(document.getElementById("rmpText")||{}).value||"";
+  if(rmPopMode==="notes"){ state.roadmap.notes = txt.split(",").map(x=>x.trim()).filter(Boolean); }
+  else if(rmPopMode==="group"){
+    const name=txt.trim(); if(!name) return closeRmPop();
+    const color=(document.getElementById("rmpColor")||{}).value||"#6366f1";
+    if(rmPopRef.isNew) state.roadmap.groups.push({ id:uid(), name, color, items:[] });
+    else { const g=rmFindGroup(rmPopRef.gid); if(g){ g.name=name; g.color=color; } }
+  } else {
+    const text=txt.trim(); if(!text) return closeRmPop();
+    const date=(document.getElementById("rmpDate")||{}).value||"";
+    const ym=(document.getElementById("rmpYm")||{}).value||"";
+    if(rmPopRef.isNew){ const g=rmFindGroup(rmPopRef.gid); if(g){ if(!Array.isArray(g.items)) g.items=[]; g.items.push({ id:uid(), ym, text, date }); } }
+    else { const {it}=rmFindItem(rmPopRef.gid, rmPopRef.iid); if(it){ it.text=text; it.date=date; it.ym=ym; } }
+  }
+  closeRmPop(); save(); renderRoadmap();
+}
+function rmPopDelete(){
+  if(!rmCanEdit()) return closeRmPop();
+  if(rmPopMode==="group"){ const g=rmFindGroup(rmPopRef.gid);
+    if(g && !confirm(`그룹 "${g.name}" 과 그 안의 항목 ${(g.items||[]).length}개를 삭제할까요?`)) return;
+    state.roadmap.groups=(state.roadmap.groups||[]).filter(x=>x.id!==rmPopRef.gid);
+  } else if(rmPopMode==="item"){ const g=rmFindGroup(rmPopRef.gid); if(g) g.items=(g.items||[]).filter(x=>x.id!==rmPopRef.iid); }
+  closeRmPop(); save(); renderRoadmap();
+}
+
+/* --- 로드맵 상호작용 --- */
+document.getElementById("roadmapBtn").onclick=openRoadmap;
+document.getElementById("rmNotes").addEventListener("click", e=>{ if(e.target.closest("#rmNoteEdit")) openRmNotePop(e.target.closest("#rmNoteEdit")); });
+document.getElementById("rmFoot").addEventListener("change", e=>{
+  if(!rmCanEdit()) return;
+  const st=e.target.closest("#rmStart"); if(st && st.value){ state.roadmap.startYm=st.value; save(); renderRoadmap(); return; }
+  const mo=e.target.closest("#rmMonths"); if(mo){ state.roadmap.months=Number(mo.value)||5; save(); renderRoadmap(); }
+});
+document.getElementById("rmGrid").addEventListener("click", e=>{
+  const ag=e.target.closest("#rmAddGroup"); if(ag){ openRmGroupPop(ag, null); return; }
+  const ge=e.target.closest("[data-rmgedit]"); if(ge){ openRmGroupPop(ge, ge.dataset.rmgedit); return; }
+  const ad=e.target.closest("[data-rmadd]"); if(ad){ const [gid,ym]=ad.dataset.rmadd.split("|"); openRmItemPop(ad, gid, null, ym); return; }
+  const ch=e.target.closest("[data-rmitem]"); if(ch && rmCanEdit()){ const [gid,iid]=ch.dataset.rmitem.split("|"); openRmItemPop(ch, gid, iid); return; }
+});
+let rmDrag=null;
+document.getElementById("rmGrid").addEventListener("dragstart", e=>{ const c=e.target.closest("[data-rmitem]"); if(!c||!rmCanEdit()) return;
+  rmDrag=c.dataset.rmitem; c.classList.add("dragging"); e.dataTransfer.effectAllowed="move"; try{ e.dataTransfer.setData("text/plain", rmDrag); }catch(_){} });
+document.getElementById("rmGrid").addEventListener("dragend", e=>{ const c=e.target.closest("[data-rmitem]"); if(c) c.classList.remove("dragging");
+  document.querySelectorAll(".rm-cell.drop").forEach(x=>x.classList.remove("drop")); rmDrag=null; });
+document.getElementById("rmGrid").addEventListener("dragover", e=>{ if(!rmDrag) return; const d=e.target.closest("[data-rmdrop]"); if(!d) return;
+  e.preventDefault(); document.querySelectorAll(".rm-cell.drop").forEach(x=>{ if(x!==d) x.classList.remove("drop"); }); d.classList.add("drop"); });
+document.getElementById("rmGrid").addEventListener("drop", e=>{
+  if(!rmDrag) return; const d=e.target.closest("[data-rmdrop]"); if(!d) return; e.preventDefault();
+  const [sg,si]=rmDrag.split("|"); const di=d.dataset.rmdrop.lastIndexOf("|");
+  const dg=d.dataset.rmdrop.slice(0,di), dym=d.dataset.rmdrop.slice(di+1);
+  const src=rmFindGroup(sg), it=src && (src.items||[]).find(x=>x.id===si); const dst=rmFindGroup(dg);
+  if(it && dst){ it.ym=dym;
+    if(sg!==dg){ src.items=src.items.filter(x=>x.id!==si); if(!Array.isArray(dst.items)) dst.items=[]; dst.items.push(it); } }
+  rmDrag=null; save(); renderRoadmap();
+});
+document.addEventListener("click", e=>{ if(rmPopMode && !e.target.closest("#rmPop") && !e.target.closest("[data-rmitem]") && !e.target.closest("[data-rmadd]") && !e.target.closest("[data-rmgedit]") && !e.target.closest("#rmAddGroup") && !e.target.closest("#rmNoteEdit")) closeRmPop(); });
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeRmPop(); });
 
 /* ===== 마일스톤 관리 ===== */
 function renderMsList(){
