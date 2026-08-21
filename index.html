@@ -168,16 +168,14 @@
   .dept-chip.on{color:#fff;border-color:transparent;background:var(--accent);}
   .dept-dates{flex:1;text-align:right;font-size:11px;color:var(--muted);}
   /* 일정 미정(부서만 켜진 상태) */
-  .dept-dates.nosched{color:#f59e0b;font-weight:700;}
+  /* '일정 미정'도 색은 일정 배정된 것과 동일하게. 구분은 색이 아니라 문구(일정 미정 / ＋ 일정 지정)로 한다 */
+  .dept-dates.nosched{color:var(--muted);}
   .dept-row.nosched{cursor:pointer;}
   .dept-row.nosched:hover{background:var(--panel2);}
-  .dept-row.nosched .dept-chip{filter:saturate(.5);opacity:.85;}
   .set-sched{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;border:1px dashed var(--line);color:var(--muted);background:transparent;cursor:pointer;white-space:nowrap;}
   .dept-row.nosched:hover .set-sched{border-color:var(--accent);color:var(--text);}
   .tl-dept-lane.nosched{display:flex;align-items:center;}
-  .tl-nosched{position:sticky;left:8px;font-size:10px;font-weight:700;color:#f59e0b;opacity:.5;letter-spacing:-.2px;pointer-events:none;white-space:nowrap;}
-  .dband-chip.nosched{border-style:dashed;border-color:currentColor;background:transparent!important;}
-  .dept-slot.nosched i{opacity:.45;}
+  .tl-nosched{position:sticky;left:8px;font-size:10px;font-weight:700;color:var(--muted);opacity:.6;letter-spacing:-.2px;pointer-events:none;white-space:nowrap;}
   .meta-rows{display:none;}
   .task.open .meta-rows{display:block;}
   .meta-row{height:var(--meta-h);display:flex;align-items:center;gap:6px;padding:0 12px 0 34px;border-top:1px solid var(--grid);}
@@ -468,8 +466,10 @@
   .task.tdone .task-name{ text-decoration:line-through; color:var(--muted); }
   .parrow{ display:flex; align-items:center; color:var(--line); font-size:13px; font-weight:700; flex:0 0 auto; }
 
-  /* 하단 바 — 좌측 범례 + 우측 도구(관리자/편집 기능) */
-  .foot-legend{ display:flex; align-items:center; gap:14px; flex:1; min-width:0; overflow:hidden; }
+  /* 하단 바 — 좌측: 편집 라벨 + 앱 버튼 / 우측: 관리 도구 */
+  .foot-legend{ display:flex; align-items:center; gap:14px; flex:0 0 auto; min-width:0; }
+  .foot-apps{ display:flex; align-items:center; gap:6px; flex:0 0 auto; margin-left:14px; }
+  .foot-spacer{ flex:1 1 auto; min-width:8px; }
   .foot-tools{ display:flex; align-items:center; gap:8px; flex:0 0 auto; margin-left:14px; }
 
   /* 부서 색상 칸 접힘(개인) — Task 헤드의 부서 점 숨김 */
@@ -536,10 +536,18 @@
      =================================================================== */
   :root{ --head-h:72px; --group-h:28px; }
 
-  /* 최상단 바 50 → 38 */
-  .topbar{ height:38px; padding:0 12px; gap:8px; }
-  .topbar h1{ font-size:13.5px; }
-  .topbar .sub{ font-size:11px; }
+  /* 최상단 바 50 → 38. 앱 버튼을 하단으로 내린 만큼 부서 포커스 바가 넓게 쓴다 */
+  .topbar{ height:38px; padding:0 12px; gap:8px; overflow:hidden; flex-wrap:nowrap; }
+  .topbar h1{ font-size:13.5px; white-space:nowrap; flex:0 0 auto; }
+  .topbar .sub{ font-size:11px; white-space:nowrap; flex:0 1 auto; overflow:hidden; text-overflow:ellipsis; }
+  .topbar .title-edit,.topbar .status-dot{ flex:0 0 auto; white-space:nowrap; }
+  .topbar .spacer{ flex:1 1 0; min-width:0; }
+  /* 부서가 많은 분류(아트 등)에서도 잘리지 않게 — 넘치면 가로 스크롤(스크롤바는 숨김) */
+  .dfocus{ flex:0 1 auto; min-width:0; max-width:100%; overflow-x:auto; scrollbar-width:none; }
+  .dfocus::-webkit-scrollbar{ height:0; width:0; }
+  /* 하단 바도 좁은 창에서 버튼이 잘리지 않게 */
+  .footbar{ overflow-x:auto; overflow-y:hidden; scrollbar-width:none; }
+  .footbar::-webkit-scrollbar{ height:0; width:0; }
   .title-edit{ font-size:12px; padding:1px 4px; }
   .topbar .btn.sm{ padding:4px 9px; font-size:11.5px; border-radius:7px; }
   .topbar .status-dot{ font-size:10.5px; gap:5px; }
@@ -595,7 +603,7 @@
 
   /* 하단 바 38 → 30 */
   .footbar{ height:30px; padding:0 12px; gap:10px; font-size:10.5px; }
-  .footbar .btn.sm{ padding:3px 8px; font-size:11px; }
+  .footbar .btn.sm{ padding:3px 8px; font-size:11px; white-space:nowrap; flex:0 0 auto; }
   .footbar i{ width:9px; height:9px; }
 
 </style>
@@ -609,11 +617,6 @@
     <span class="dfocus" id="deptFocus"></span>
     <span class="spacer" style="flex:1"></span>
     <span id="syncStatus" class="status-dot"><b></b><span>로컬 (이 브라우저에 저장)</span></span>
-    <button class="btn ghost sm" id="dashBtn">📊 대시보드</button>
-    <button class="btn ghost sm" id="historyBtn">🕘 히스토리</button>
-    <button class="btn ghost sm" id="forceReloadBtn" style="display:none">🔄 강제 새로고침</button>
-    <button class="btn ghost sm" id="noticeBtn">📢 공지</button>
-    <button class="btn ghost sm" id="themeBtn">☀ 라이트</button>
     <button class="btn ghost sm" id="exportBtn" style="display:none">내보내기</button>
     <button class="btn ghost sm" id="importBtn" style="display:none">불러오기</button>
   </div>
@@ -635,6 +638,14 @@
 
   <div class="footbar">
     <div id="footbar" class="foot-legend"></div>
+    <div class="foot-apps" id="footApps">
+      <button class="btn ghost sm" id="dashBtn">📊 대시보드</button>
+      <button class="btn ghost sm" id="historyBtn">🕘 히스토리</button>
+      <button class="btn ghost sm" id="forceReloadBtn" style="display:none">🔄 강제 새로고침</button>
+      <button class="btn ghost sm" id="noticeBtn">📢 공지</button>
+      <button class="btn ghost sm" id="themeBtn">☀ 라이트</button>
+    </div>
+    <span class="foot-spacer"></span>
     <div class="foot-tools" id="footTools">
       <button class="btn ghost sm" id="msBtn">⚙ 마일스톤 설정</button>
       <button class="btn ghost sm" id="notifyBtn">🔔 알림 멤버</button>
@@ -1059,7 +1070,7 @@ const deptSched = (t,k) => hasSched(t&&t.depts&&t.depts[k]);
 const visibleDepts = t => activeDepts(t).filter(d => focusDept==="__all" || d.key===focusDept);
 function taskHasUnassigned(t){ const ad=activeDepts(t); if(!ad.length) return true; return ad.some(d=>!((t.depts[d.key].assignees)||[]).length); }
 function passFilter(t){
-  if(focusDept!=="__all"){ if(!deptSched(t,focusDept)) return false; }   // 해당 부서 일정이 박힌 Task만
+  if(focusDept!=="__all"){ const _sg=t.depts&&t.depts[focusDept]; if(!(_sg&&_sg.on)) return false; }   // 그 부서가 참여 중인 Task만 (일정 미정도 포함)
   if(searchQuery.trim()){ const q=searchQuery.trim().toLowerCase(); const hay=((t.name||"")+" "+taskAssignees(t).join(" ")).toLowerCase(); if(!hay.includes(q)) return false; }
   if(deptFilter.size && !activeDepts(t).some(d=>deptFilter.has(d.key))) return false;
   if(msFilter.size && !msFilter.has(t.milestoneId)) return false;
@@ -1148,7 +1159,7 @@ function renderLegend(){
   const stLabel = `<button class="lbl legend-edit" id="catLegendBtn" title="${art?'종류':'상태'} 추가·편집">${art?'종류':'상태'} 편집 ✎</button>`;
   document.getElementById("footbar").innerHTML=
     `<button class="lbl legend-edit" id="deptLegendBtn" title="부서 편집·추가">부서 편집 ✎</button>`+
-    `<div class="grp" style="margin-left:auto">${stLabel}</div>`;
+    `<div class="grp">${stLabel}</div>`;
 }
 
 function renderFilter(){
@@ -1231,13 +1242,13 @@ const TRELLO_ICON='<svg width="13" height="13" viewBox="0 0 24 24" style="vertic
 function deptGridHtml(t){
   return taskDeps(t).map(d=>{ const seg=t.depts[d.key]; const on=seg&&seg.on;
     const ow=(on&&seg.assignees&&seg.assignees.length)?' · 담당: '+escapeHtml(seg.assignees.join(', ')):'';
-    return `<span class="dept-slot ${on?'on':'off'} ${(on&&!hasSched(seg))?'nosched':''}" title="${escapeHtml(d.key)}${on?(hasSched(seg)?' · 지정됨':' · 일정 미정'):' · 미지정'}${ow}"><i ${on?`style="background:${d.color}"`:''}></i></span>`; }).join("");
+    return `<span class="dept-slot ${on?'on':'off'}" title="${escapeHtml(d.key)}${on?(hasSched(seg)?' · 지정됨':' · 일정 미정'):' · 미지정'}${ow}"><i ${on?`style="background:${d.color}"`:''}></i></span>`; }).join("");
 }
 function deptChipsInline(t){
   if((t.track||"개발")!=="개발") return "";   // 개발 분류 전용 — 타 분류엔 미노출
   const chips=depsFor("개발").map(d=>{ const seg=t.depts[d.key]; const on=seg&&seg.on;
     const ns=on&&!hasSched(seg);
-    return `<span class="dband-chip ${on?'on':''} ${ns?'nosched':''} ${(on&&focusDept===d.key)?'focus':''}" data-deptpick="${escapeHtml(d.key)}" style="${on?'background:'+d.color:''}" title="${escapeHtml(d.key)} · ${on?(ns?'일정 미정 · 클릭 시 참여 해제':'참여 해제'):'참여 추가'}">${escapeHtml(d.key)}</span>`; }).join("");
+    return `<span class="dband-chip ${on?'on':''} ${(on&&focusDept===d.key)?'focus':''}" data-deptpick="${escapeHtml(d.key)}" style="${on?'background:'+d.color:''}" title="${escapeHtml(d.key)} · ${on?(ns?'일정 미정 · 클릭 시 참여 해제':'참여 해제'):'참여 추가'}">${escapeHtml(d.key)}</span>`; }).join("");
   return `<span class="dept-inline">${chips}</span>`;
 }
 function taskHeadHtml(t){
