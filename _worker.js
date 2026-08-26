@@ -15,7 +15,7 @@ const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 �
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026082602;
+const APP_BUILD = 2026082603;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -184,6 +184,19 @@ async function trelloFetch(env, path, init){
   if(!r.ok) throw new Error(`trello ${r.status} ${path.split("?")[0]} :: ${txt.slice(0,180)}`);
   try{ return JSON.parse(txt); }catch(_){ return txt; }
 }
+/* 웹훅의 idModel 은 짧은 링크(NfAsSWHN)를 받지 않고 24자리 보드 ID만 받는다.
+ * 목록·카드 조회는 짧은 링크로도 되므로, 웹훅 등록 때만 실제 ID로 바꿔서 쓴다. */
+const TRELLO_ID_CACHE = {};
+async function trelloRealBoardId(env){
+  const raw = trelloBoardId(env);
+  if(/^[0-9a-f]{24}$/i.test(raw)) return raw;
+  if(TRELLO_ID_CACHE[raw]) return TRELLO_ID_CACHE[raw];
+  const b = await trelloFetch(env, `/boards/${raw}?fields=id`);
+  const id = b && b.id;
+  if(id) TRELLO_ID_CACHE[raw] = id;
+  return id || raw;
+}
+
 /* "[M10]" 과 "M10" 을 같은 것으로 본다 */
 const msKey = v => String(v||"").replace(/[\[\]()\s_·-]/g,"").toUpperCase();
 function msIdForList(st, listName){
@@ -526,6 +539,7 @@ async function handleApi(request, env, url, ctx){
         const lists = await trelloFetch(env, `/boards/${out.board}/lists?fields=id,name&filter=open`);
         const row = await env.DB.prepare("SELECT data FROM app_state WHERE id='main'").first();
         let st = {}; try{ st = JSON.parse(row.data); }catch(_){}
+        out.boardId = await trelloRealBoardId(env);
         out.allLists = (lists||[]).map(l => l.name);
         out.scopeLists = (lists||[]).filter(l => msIdForList(st, l.name)).map(l => l.name);
         out.linked = ((st.tasks)||[]).filter(t => t && t.trelloCardId).length;
@@ -547,10 +561,11 @@ async function handleApi(request, env, url, ctx){
         const hooks = await trelloFetch(env, `/tokens/${encodeURIComponent(env.TRELLO_TOKEN)}/webhooks`);
         const dup = (hooks||[]).find(h => h && h.callbackURL === cb);
         if(dup) return json({ ok:true, already:true, id:dup.id });
+        const idModel = await trelloRealBoardId(env);          // 짧은 링크는 여기서 실제 ID로 변환
         const made = await trelloFetch(env, `/webhooks/`, { method:"POST",
           headers:{ "content-type":"application/json" },
-          body: JSON.stringify({ description:"마일스톤 보드 동기화", callbackURL: cb, idModel: trelloBoardId(env) }) });
-        return json({ ok:true, id: made && made.id });
+          body: JSON.stringify({ description:"마일스톤 보드 동기화", callbackURL: cb, idModel }) });
+        return json({ ok:true, id: made && made.id, idModel });
       }catch(e){ return json({ error:String(e && e.message || e) }, 502); }
     }
     if(p === "/api/trello/hook" && request.method === "DELETE"){

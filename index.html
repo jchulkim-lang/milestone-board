@@ -1974,7 +1974,7 @@ async function renderTrello(){
   }
   const hooks=j.hooks||[];
   b.innerHTML =
-    row("보드", `<code>${escapeHtml(j.board||"")}</code>`)+
+    row("보드", `<code>${escapeHtml(j.board||"")}</code>`+(j.boardId&&j.boardId!==j.board?` <span style="color:var(--muted)">→ ${escapeHtml(j.boardId)}</span>`:""))+
     row("대상 리스트", (j.scopeLists||[]).length
         ? (j.scopeLists||[]).map(x=>`<code>${escapeHtml(x)}</code>`).join(" ")
         : `<span class="tr-warn">없음</span> — 마일스톤 이름과 같은 리스트가 보드에 없습니다`)+
