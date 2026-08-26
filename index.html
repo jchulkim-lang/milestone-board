@@ -544,7 +544,8 @@
   body.hide-deptgrid .task-head .dept-grid{ display:none; }
 
   /* 아트 미러 배지 */
-  .trello-badge{ font-size:9.5px; font-weight:800; color:#fff; background:#1868DB; border-radius:999px; padding:1px 7px; margin-left:6px; white-space:nowrap; flex:0 0 auto; }
+  .trello-badge{ font-size:9.5px; font-weight:800; color:#fff; background:#1868DB; border-radius:999px; padding:1px 7px; margin-left:6px; white-space:nowrap; flex:0 0 auto; text-decoration:none; cursor:pointer; }
+  a.trello-badge:hover{ background:#2a7bef; box-shadow:0 0 0 2px rgba(24,104,219,.35); }
   .mirror-badge{ font-size:9.5px; font-weight:800; color:#fff; background:linear-gradient(135deg,#ec4899,#a855f7); border-radius:999px; padding:1px 7px; margin-left:6px; white-space:nowrap; flex:0 0 auto; }
   .art-tag{ font-size:9px; font-weight:800; color:#fff; background:linear-gradient(135deg,#ec4899,#a855f7); border-radius:999px; padding:1px 6px; margin-left:5px; white-space:nowrap; flex:0 0 auto; }
   .cat-ord{ display:inline-flex; gap:2px; margin-left:6px; }
@@ -1347,6 +1348,7 @@ function renderHead(){
   head.innerHTML=`<div class="ms-lane">${msbars}</div><div class="dl-lane">${dlmarks}</div><div class="month-row">${months}</div><div class="day-row">${days}</div>`;
 }
 
+const trelloUrlOf = t => (t && ((t.links && t.links.trello) || (t.trelloCardId ? "https://trello.com/c/"+t.trelloCardId : ""))) || "";
 const TRELLO_ICON='<svg width="13" height="13" viewBox="0 0 24 24" style="vertical-align:-2px" aria-hidden="true"><rect width="24" height="24" rx="4" fill="#1868DB"/><rect x="4.5" y="4.5" width="6" height="13" rx="1.5" fill="#fff"/><rect x="13.5" y="4.5" width="6" height="8" rx="1.5" fill="#fff"/></svg>';
 function deptGridHtml(t){
   return taskDeps(t).map(d=>{ const seg=t.depts[d.key]; const on=seg&&seg.on;
@@ -1366,13 +1368,13 @@ function taskHeadHtml(t){
   const isArt=isCatTrack(t.track);
   const stOpts=statusesFor(t.track||"개발").map(s=>`<option ${s.k===t.status?'selected':''}>${escapeHtml(s.k)}</option>`).join("");
   const doneChip=isArt?`<span class="done-chip ${t.done?'on':''}" data-done="${t.id}" title="완료 토글">${t.done?'✓':'○'}</span>`:'';
-  const links=(t.links.plan?`<a class="lk" href="${escapeHtml(t.links.plan)}" target="_blank" rel="noopener" title="기획서">📄</a>`:"")+(t.links.trello?`<a class="lk" href="${escapeHtml(t.links.trello)}" target="_blank" rel="noopener" title="Trello">${TRELLO_ICON}</a>`:"");
+  const links=(t.links.plan?`<a class="lk" href="${escapeHtml(t.links.plan)}" target="_blank" rel="noopener" title="기획서">📄</a>`:"")+(trelloUrlOf(t)?`<a class="lk" href="${escapeHtml(trelloUrlOf(t))}" target="_blank" rel="noopener" title="Trello 카드 열기">${TRELLO_ICON}</a>`:"");
   const aps=taskAssignees(t);
   const asg=aps.length?`<span class="asg-badge" title="담당: ${escapeHtml(aps.join(', '))}">👤 ${escapeHtml(aps[0])}${aps.length>1?' +'+(aps.length-1):''}</span>`:'';
   return `<div class="task-head" data-toggleopen="${t.id}">
       <span class="drag-handle" data-drag="${t.id}" title="드래그하여 이동">⠿</span>
       <span class="caret">▶</span>
-      <span class="task-info"><select class="prio-sel p${t.priority||0}" data-prio="${t.id}" title="우선순위 선택 (없음·1~4)">${['','1','2','3','4'].map(v=>`<option value="${v}" ${String(t.priority||'')===v?'selected':''}>${v||'–'}</option>`).join('')}</select><span class="ms-tag"><i class="bd" style="background:${ms.color}"></i>${escapeHtml(ms.name)}</span><span class="task-name">${escapeHtml(t.name)}</span>${t.mirrorOf?'<span class="mirror-badge" title="아트에서 미러된 Task (아트 수정 시 갱신)">🔗 아트</span>':''}${t.trelloCardId?`<span class="trello-badge" title="트렐로 카드와 연결됨${t.trelloList?' · 리스트 '+escapeHtml(t.trelloList):''}\n이름은 트렐로가 기준입니다. 이 Task를 지우면 카드도 삭제됩니다.">${TRELLO_ICON} 동기화</span>`:''}${links}${(t.track||"개발")==="개발"?"":asg}</span>
+      <span class="task-info"><select class="prio-sel p${t.priority||0}" data-prio="${t.id}" title="우선순위 선택 (없음·1~4)">${['','1','2','3','4'].map(v=>`<option value="${v}" ${String(t.priority||'')===v?'selected':''}>${v||'–'}</option>`).join('')}</select><span class="ms-tag"><i class="bd" style="background:${ms.color}"></i>${escapeHtml(ms.name)}</span><span class="task-name">${escapeHtml(t.name)}</span>${t.mirrorOf?'<span class="mirror-badge" title="아트에서 미러된 Task (아트 수정 시 갱신)">🔗 아트</span>':''}${t.trelloCardId?`<a class="trello-badge" href="${escapeHtml(trelloUrlOf(t))}" target="_blank" rel="noopener" title="트렐로 카드 열기${t.trelloList?' · 리스트 '+escapeHtml(t.trelloList):''}\n이름은 트렐로가 기준입니다. 이 Task를 지우면 카드도 삭제됩니다.">${TRELLO_ICON} 동기화</a>`:''}${links}${(t.track||"개발")==="개발"?"":asg}</span>
       ${(t.track||"개발")==="개발"?deptChipsInline(t):`<span class="dept-grid">${deptGridHtml(t)}</span>`}
       <span class="th-right"><span class="kf-chip" data-kf="${t.id}" style="border-color:${kf.color};box-shadow:0 0 0 2px ${kf.color}30" title="킥오프: ${t.kickoff} — 클릭하여 선택">${kf.icon}</span>
       ${doneChip}<select class="st-sel" data-status="${t.id}" title="${isArt?'종류':'진행 상태'}">${stOpts}</select>
@@ -1403,7 +1405,7 @@ function renderLeft(){
         }
         const msOpts=msFor(t.track).map(m=>`<option value="${m.id}" ${m.id===t.milestoneId?'selected':''}>${escapeHtml(m.name)}</option>`).join("");
         const planBtn=t.links.plan?`<a class="meta-btn set" href="${escapeHtml(t.links.plan)}" target="_blank" rel="noopener" title="기획서 열기">📄 기획서</a>`:`<button class="meta-btn dim" data-openedit="${t.id}" title="기획서 링크 추가">📄 기획서 +</button>`;
-        const trelloBtn=t.links.trello?`<a class="meta-btn set" href="${escapeHtml(t.links.trello)}" target="_blank" rel="noopener" title="Trello 열기">${TRELLO_ICON} Trello</a>`:`<button class="meta-btn dim" data-openedit="${t.id}" title="Trello 링크 추가">${TRELLO_ICON} Trello +</button>`;
+        const trelloBtn=trelloUrlOf(t)?`<a class="meta-btn set" href="${escapeHtml(trelloUrlOf(t))}" target="_blank" rel="noopener" title="Trello 열기">${TRELLO_ICON} Trello</a>`:`<button class="meta-btn dim" data-openedit="${t.id}" title="Trello 링크 추가">${TRELLO_ICON} Trello +</button>`;
         const trOpts=TRACKS.map(tr=>`<option value="${tr}" ${tr===t.track?'selected':''}>${tr}</option>`).join("");
         const meta=`<div class="meta-rows"><div class="meta-row"><button class="meta-btn" data-openpicker="${t.id}">＋ 부서</button><button class="meta-btn" data-openedit="${t.id}">✏️ 편집</button><button class="meta-btn" data-dup="${t.id}" title="이 Task 복제">⧉ 복제</button><button class="meta-btn" data-copylink="${t.id}" title="이 Task 링크 복사(전달용)">🔗 링크</button>${planBtn}${trelloBtn}<select class="meta-sel" data-settrack="${t.id}" title="분류">${trOpts}</select><select class="meta-sel" data-setms="${t.id}" title="마일스톤">${msOpts}</select></div></div>`;
         html+=`<div class="task ${isOpen(t.id)?'open':''} ${t.kickoff==='Skip'?'skip':''} ${isCatTrack(t.track)&&t.done?'tdone':''} ${t.id===selectedId?'selected':''}" data-task="${t.id}" draggable="true">${taskHeadHtml(t)}${inner}${meta}</div>`;

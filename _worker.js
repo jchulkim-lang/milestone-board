@@ -15,7 +15,7 @@ const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 �
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026082603;
+const APP_BUILD = 2026082604;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -206,6 +206,17 @@ function msIdForList(st, listName){
 }
 /* 이름 대조용 키: 앞뒤 공백·연속 공백·대소문자 무시 */
 const nameKey = v => String(v||"").replace(/\s+/g," ").trim().toLowerCase();
+/* 웹훅 payload 의 card 에는 shortUrl 이 없고 shortLink 만 온다. 없으면 카드 ID로 URL 을 만든다. */
+const cardUrl = c => (c && (c.shortUrl || c.url ||
+  (c.shortLink ? "https://trello.com/c/"+c.shortLink : (c.id ? "https://trello.com/c/"+c.id : "")))) || "";
+/* 연결된 Task 에 트렐로 링크가 비어 있으면 채워 준다 */
+function fillCardLink(t, c){
+  if(!t) return false;
+  if(!t.links) t.links = { plan:"", trello:"" };
+  const u = cardUrl(c);
+  if(u && !t.links.trello){ t.links.trello = u; return true; }
+  return false;
+}
 const firstDevStatus = st => {
   const l = st && st.trackStatuses && st.trackStatuses["개발"];
   return (Array.isArray(l) && l.length && l[0] && l[0].key) || "대기";
@@ -215,7 +226,7 @@ function taskFromCard(st, card, listName){
   const fb = ((st.milestones||[]).find(m=>m && !m.free) || {}).id;
   return { id: "tr_"+card.id, name: (card.name||"").trim() || "(제목 없음)",
     track: "개발", status: firstDevStatus(st), milestoneId: msId || fb, kickoff: "예정",
-    links: { plan:"", trello: card.shortUrl || card.url || "" }, depts: {},
+    links: { plan:"", trello: cardUrl(card) }, depts: {},
     trelloCardId: card.id, trelloList: listName || "" };
 }
 /* 카드 1장을 상태에 반영: 이름이 같은(아직 연결 안 된) 개발 Task 가 딱 하나면 그 Task 에 연결하고,
@@ -237,8 +248,7 @@ function attachOrCreate(st, card, listName){
     const t = cands[0];
     t.trelloCardId = card.id; t.trelloList = listName || "";
     t.name = nm;                                  // 이름은 트렐로가 기준 (공백·대소문자 차이도 즉시 맞춘다)
-    if(!t.links) t.links = { plan:"", trello:"" };
-    if(!t.links.trello) t.links.trello = card.shortUrl || card.url || "";
+    fillCardLink(t, card);
     return "linked";
   }
   st.tasks.unshift(taskFromCard(st, card, listName));
@@ -306,7 +316,8 @@ async function applyTrelloAction(env, act){
       return (await mutateState(env, "trello", st => {
         const i = findIdx(st); if(i < 0) return false;
         const nm = (card.name||"").trim() || "(제목 없음)";
-        if(st.tasks[i].name === nm) return false;
+        const filled = fillCardLink(st.tasks[i], card);        // 링크가 비어 있으면 이 참에 채운다
+        if(st.tasks[i].name === nm) return filled;
         st.tasks[i].name = nm; return true; })).changed;
     }
     if(d.listAfter){                                          // 리스트 이동
@@ -352,7 +363,8 @@ async function trelloImportAll(env, who, opts){
       const nm = (c.name||"").trim() || "(제목 없음)";
       const listName = byId[c.idList];
       const i = st.tasks.findIndex(t => t && t.trelloCardId === c.id);
-      if(i >= 0){                                            // 이미 연결됨 → 이름만 맞춘다
+      if(i >= 0){                                            // 이미 연결됨 → 이름·링크만 맞춘다
+        if(fillCardLink(st.tasks[i], c)) changed = true;
         if(st.tasks[i].name !== nm){ st.tasks[i].name = nm; summary.renamed++; changed = true; }
         return;
       }
