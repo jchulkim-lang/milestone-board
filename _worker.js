@@ -7,6 +7,7 @@
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 const SESSION_TTL = 60 * 60 * 12; // 12시간
+const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 간격(10분)
 /* ===== 앱 버전(단일 소스) =====
  * 이 숫자 하나만 올리면 됩니다. 호환을 깨는(구버전이 데이터를 망칠 수 있는) 배포일 때만 올리세요.
  * - 서버는 index.html 을 서빙할 때 __APP_BUILD__ 자리에 이 값을 자동 주입 → 클라이언트 APP_VERSION.
@@ -14,7 +15,7 @@ const SESSION_TTL = 60 * 60 * 12; // 12시간
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026082107;
+const APP_BUILD = 2026082108;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -23,7 +24,10 @@ function bytesFromB64url(s){ s = s.replace(/-/g,"+").replace(/_/g,"/"); while(s.
 async function hmacKey(secret){ return crypto.subtle.importKey("raw", enc.encode(secret), { name:"HMAC", hash:"SHA-256" }, false, ["sign","verify"]); }
 function json(o, s=200, h={}){ return new Response(JSON.stringify(o), { status:s, headers:{ "content-type":"application/json", ...h } }); }
 
-/* D1 표가 없으면 자동 생성 + 최초 행 보장 (schema.sql 미실행이어도 동작) */
+/* D1 표가 없으면 자동 생성 + 최초 행 보장 (schema.sql 미실행이어도 동작)
+ * ※ 최적화(2026-08-22): 예전엔 모든 요청마다 이 함수를 돌렸다. CREATE TABLE IF NOT EXISTS·ALTER TABLE 이
+ *   매번 내부 스키마를 훑어 읽기 행 수와 Worker CPU를 크게 잡아먹었다. 지금은 "표/열 없음" 오류가
+ *   났을 때만 1회 실행하고 재시도한다(withDb). 정상 운영 중에는 한 번도 호출되지 않는다. */
 let DB_READY = false;
 async function ensureDb(env){
   if(DB_READY) return;
@@ -34,6 +38,15 @@ async function ensureDb(env){
   try{ await env.DB.prepare("ALTER TABLE users ADD COLUMN requested INTEGER DEFAULT 0").run(); }catch(_){}
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS history (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT NOT NULL, version INTEGER, saved_by TEXT, saved_at TEXT)").run();
   DB_READY = true;
+}
+/* 표/열이 없어서 실패한 경우에만 ensureDb 후 1회 재시도 */
+async function withDb(env, fn){
+  try{ return await fn(); }
+  catch(e){
+    const m=String(e && e.message || e);
+    if(!/no such table|no such column|has no column/i.test(m)) throw e;
+    DB_READY=false; await ensureDb(env); return await fn();
+  }
 }
 function isAdminEmail(env, email){ const list=(env.ADMIN_EMAILS||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean); return list.includes((email||"").toLowerCase()); }
 async function effectiveRole(env, email){ if(isAdminEmail(env, email)) return "admin"; const r=await env.DB.prepare("SELECT role FROM users WHERE email=?").bind(email).first(); return (r && r.role) || "viewer"; }
@@ -154,7 +167,6 @@ async function handleApi(request, env, url, ctx){
   if(p === "/api/config" && request.method === "GET"){
     return json({ googleClientId: env.GOOGLE_CLIENT_ID || "", companyDomain: env.COMPANY_DOMAIN || "" });
   }
-  try{ await ensureDb(env); }catch(_){}   // 표 자동 생성/보장
   if(p === "/api/auth/google" && request.method === "POST"){
     try{
       const b = await request.json(); const idt = b.credential || b.id_token; if(!idt) return json({ error:"missing credential" }, 400);
@@ -198,10 +210,27 @@ async function handleApi(request, env, url, ctx){
     return json({ error:"version", reason:"upgrade-required", min:APP_BUILD }, 426);
   }
   if(p === "/api/state" && request.method === "GET"){
+    /* 요청 수 절감(2026-08-22): 접속자 하트비트·목록을 이 응답에 함께 실어 보낸다.
+     *   ?v=<버전>  : 클라이언트가 가진 버전. 서버와 같으면 data 를 빼고 보낸다(전송량 절감).
+     *   ?beat=1    : 하트비트 기록(매 폴링마다 쓰지 않고 클라이언트가 ~1분에 한 번만 붙인다).
+     *   ?p=1       : 접속자 목록 포함. */
+    const q = url.searchParams;
+    if(q.get("beat")==="1"){
+      try{ await env.DB.prepare("INSERT INTO users (email,name,last_seen) VALUES (?,?,datetime('now')) ON CONFLICT(email) DO UPDATE SET last_seen=datetime('now'), name=excluded.name").bind(user.email, user.name||"").run(); }catch(_){}
+    }
     const row = await env.DB.prepare("SELECT data, version, updated_at, updated_by FROM app_state WHERE id='main'").first();
-    if(!row) return json({ data:{ tasks:[], milestones:[] }, version:0 });
+    let presence = undefined;
+    if(q.get("p")==="1"){
+      try{ const { results } = await env.DB.prepare("SELECT email,name FROM users WHERE last_seen > datetime('now','-180 seconds') ORDER BY name").all();
+        presence = { users: results || [], count: (results||[]).length }; }catch(_){}
+    }
+    if(!row) return json({ data:{ tasks:[], milestones:[] }, version:0, presence });
+    const known = Number(q.get("v"));
+    if(Number.isFinite(known) && known === row.version && q.get("v")!==null){
+      return json({ unchanged:true, version:row.version, presence });   // 바뀐 게 없으면 본문 생략
+    }
     let data; try{ data = JSON.parse(row.data); }catch(_){ data = { tasks:[], milestones:[] }; }
-    return json({ data, version:row.version, updatedAt:row.updated_at, updatedBy:row.updated_by });
+    return json({ data, version:row.version, updatedAt:row.updated_at, updatedBy:row.updated_by, presence });
   }
   if(p === "/api/state" && request.method === "PUT"){
     const role = await effectiveRole(env, user.email);
@@ -227,10 +256,18 @@ async function handleApi(request, env, url, ctx){
       await env.DB.prepare("UPDATE app_state SET data=?, version=version+1, updated_at=datetime('now'), updated_by=? WHERE id='main'").bind(payload, user.email).run();
     }
     if(ctx && ctx.waitUntil) ctx.waitUntil(notifyStatusChanges(env, cur && cur.data, payload, user.name || user.email, url.origin));
-    const row = await env.DB.prepare("SELECT data, version FROM app_state WHERE id='main'").first();
-    // 히스토리 스냅샷 + 최근 50개만 보관
-    await env.DB.prepare("INSERT INTO history (data,version,saved_by,saved_at) VALUES (?,?,?,datetime('now'))").bind(row.data, row.version, user.email).run();
-    await env.DB.prepare("DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY id DESC LIMIT 50)").run();
+    const row = await env.DB.prepare("SELECT version FROM app_state WHERE id='main'").first();
+    /* 히스토리 스냅샷(최근 50개 보관).
+     * 최적화(2026-08-22): 예전엔 저장할 때마다 전체 상태를 통째로 복사해 넣었다(0.8초 디바운스라 하루 수천 건).
+     * 지금은 마지막 스냅샷이 10분보다 오래됐을 때만 남긴다 → 50개면 약 8시간 분량을 커버한다. */
+    try{
+      const last = await env.DB.prepare("SELECT saved_at FROM history ORDER BY id DESC LIMIT 1").first();
+      const stale = !last || !last.saved_at || (Date.now() - Date.parse((last.saved_at+"Z").replace(" ","T")) > SNAPSHOT_MIN_GAP_MS);
+      if(stale){
+        await env.DB.prepare("INSERT INTO history (data,version,saved_by,saved_at) VALUES (?,?,?,datetime('now'))").bind(payload, row ? row.version : 1, user.email).run();
+        await env.DB.prepare("DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY id DESC LIMIT 50)").run();
+      }
+    }catch(_){}
     return json({ ok:true, version: row ? row.version : 1 });
   }
 
@@ -240,7 +277,7 @@ async function handleApi(request, env, url, ctx){
     return json({ ok:true });
   }
   if(p === "/api/presence" && request.method === "GET"){
-    const { results } = await env.DB.prepare("SELECT email,name FROM users WHERE last_seen > datetime('now','-45 seconds') ORDER BY name").all();
+    const { results } = await env.DB.prepare("SELECT email,name FROM users WHERE last_seen > datetime('now','-180 seconds') ORDER BY name").all();
     return json({ users: results || [], count: (results||[]).length });
   }
 
@@ -269,7 +306,7 @@ async function handleApi(request, env, url, ctx){
 export default {
   async fetch(request, env, ctx){
     const url = new URL(request.url);
-    if(url.pathname.startsWith("/api/")) return handleApi(request, env, url, ctx);
+    if(url.pathname.startsWith("/api/")) return withDb(env, () => handleApi(request, env, url, ctx));
     // index.html 문서에 현재 빌드 번호 주입(클라이언트 APP_VERSION 자동 설정)
     if(url.pathname === "/" || url.pathname === "/index.html"){
       const res = await env.ASSETS.fetch(request);

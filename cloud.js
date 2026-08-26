@@ -72,13 +72,24 @@
     let dirty=false, maxTimer=null; const MAXWAIT=1500;
     const focusedControl=()=>{ const ae=document.activeElement; return !!(ae && (ae.tagName==="SELECT"||ae.tagName==="INPUT"||ae.tagName==="TEXTAREA")); };
     const busy=()=> dirty || focusedControl();   // 편집 중(저장 대기 or 컨트롤 포커스): 백그라운드 갱신 보류
+    /* 폴링 1회 = 요청 1회. 접속자 하트비트·목록을 같은 응답에 실어 받는다(예전엔 /api/presence 2개를 따로 호출).
+       ?v=<내 버전> 을 보내 서버와 같으면 서버가 본문을 생략(unchanged) → 전송량도 절감. */
+    let lastBeat = 0;
+    const BEAT_GAP = 60000;                      // 하트비트는 약 1분에 한 번만
     remote.pull = async function(initial){
       if(_blocked) return;
       try{
-        const r = await fetch("/api/state", { credentials:"same-origin", headers:{ "X-App-Version": APPVER() } });
+        const q = new URLSearchParams();
+        q.set("p","1");
+        if(!initial && this.version >= 0) q.set("v", String(this.version));
+        const nowT = Date.now();
+        if(initial || nowT - lastBeat > BEAT_GAP){ q.set("beat","1"); lastBeat = nowT; }
+        const r = await fetch("/api/state?"+q.toString(), { credentials:"same-origin", headers:{ "X-App-Version": APPVER() } });
         if(r.status===426){ blockOldVersion(); return; }
         if(!r.ok) return;
         const j = await r.json();
+        if(j.presence) showPresence(j.presence);
+        if(j.unchanged) return;                  // 서버와 버전 동일 — 할 일 없음
         const remoteData = (j.data && j.data.milestones) ? j.data : { milestones:[], tasks:[] };
         if(initial){
           state = remoteData; this.version = j.version; remote.base = clone(remoteData);
@@ -124,25 +135,32 @@
       this._t = setTimeout(doPush, 800);
     };
     remote.pull(true);
-    // 3초 폴링 + 숨긴 탭에서는 네트워크 호출 중단(부하·비용 절약), 다시 보이면 즉시 갱신
-    setInterval(() => { if(!_blocked && document.visibilityState==="visible") remote.pull(false); }, 3000);
-    document.addEventListener("visibilitychange", () => { if(!_blocked && document.visibilityState==="visible") remote.pull(false); });
-    startPresence();
+    /* Workers 무료 한도(하루 10만 요청) 대응 — 요청 수를 줄이는 게 핵심.
+     *  · 숨긴 탭에서는 아무 호출도 하지 않는다(예전엔 접속자 하트비트가 24시간 계속 돌았다).
+     *  · 조작 중에는 8초, 5분간 아무 조작이 없으면 30초 간격으로 완화. 다시 만지면 즉시 8초로 복귀.
+     *  · 접속자 표시는 이 폴링 응답에 함께 실려 오므로 별도 요청이 없다. */
+    const POLL_ACTIVE=8000, POLL_IDLE=30000, IDLE_AFTER=5*60*1000;
+    let lastAct=Date.now(), lastPoll=Date.now();
+    const touch=()=>{ lastAct=Date.now(); };
+    ["pointerdown","keydown","wheel"].forEach(ev=>document.addEventListener(ev, touch, {passive:true}));
+    setInterval(() => {
+      if(_blocked || document.visibilityState!=="visible") return;
+      const now=Date.now();
+      const gap=(now-lastAct > IDLE_AFTER) ? POLL_IDLE : POLL_ACTIVE;
+      if(now-lastPoll < gap) return;
+      lastPoll=now; remote.pull(false);
+    }, 2000);
+    document.addEventListener("visibilitychange", () => {
+      if(_blocked || document.visibilityState!=="visible") return;
+      lastAct=Date.now(); lastPoll=Date.now(); remote.pull(false);
+    });
+    setStatus("☁ 동기화 중");
   }
 
-  function startPresence(){
-    setStatus("☁ 동기화 중");
-    const roleTxt = () => ROLE==="admin" ? "관리자" : (ROLE==="editor" ? "편집 가능" : "읽기 전용");
-    const beat = () => fetch("/api/presence", { method:"POST", credentials:"same-origin" }).catch(()=>{});
-    const show = async () => {
-      try{
-        const r = await fetch("/api/presence", { credentials:"same-origin" }); if(!r.ok) return;
-        const j = await r.json();
-        setStatus(`${roleTxt()} · ☁ ${j.count}명`, (j.users||[]).map(u=>u.name || u.email));
-      }catch(_){}
-    };
-    beat(); show();
-    setInterval(beat, 15000); setInterval(show, 15000);
+  /* 접속자 표시 — /api/state 응답에 함께 실려 온 값을 그리기만 한다(별도 요청 없음) */
+  function showPresence(pr){
+    const roleTxt = ROLE==="admin" ? "관리자" : (ROLE==="editor" ? "편집 가능" : "읽기 전용");
+    setStatus(`${roleTxt} · ☁ ${pr.count}명`, (pr.users||[]).map(u=>u.name || u.email));
   }
 
   /* ----- 역할별 UI ----- */
