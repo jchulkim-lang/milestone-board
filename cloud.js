@@ -168,7 +168,9 @@
     window.APP_ROLE = ROLE;   // index.html 이 읽는 역할값 (마일스톤 설정 읽기전용 판단 등)
     document.body.classList.toggle("role-admin", ROLE==="admin");
     if(!canEdit()){ document.body.classList.add("readonly"); injectReadonlyStyle(); injectRequestButton(); }
-    if(ROLE==="admin"){ injectAccessButton(); const fr=document.getElementById("forceReloadBtn"); if(fr) fr.style.display=""; }
+    if(ROLE==="admin"){ injectAccessButton(); const fr=document.getElementById("forceReloadBtn"); if(fr) fr.style.display="";
+      const tb=document.getElementById("trelloBtn"); if(tb) tb.style.display="";   // 트렐로 동기화는 관리자 전용
+    }
     else { const hb=document.getElementById("historyBtn"); if(hb) hb.style.display="none"; const fr=document.getElementById("forceReloadBtn"); if(fr) fr.style.display="none"; }   // 히스토리·강제새로고침은 관리자 전용
     // 마일스톤 설정(#msBtn)은 전원 열람 가능 — 편집 컨트롤만 index.html 쪽에서 관리자에게만 열어 준다
   }

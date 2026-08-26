@@ -15,7 +15,7 @@ const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 �
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026082108;
+const APP_BUILD = 2026082602;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -161,12 +161,250 @@ async function verifyGoogleIdToken(idToken, env){
   return { email:payload.email, name:payload.name };
 }
 
+
+/* =====================================================================
+ *  Trello 동기화 (2026-08-26)
+ *  - 대상: 보드(TRELLO_BOARD)의 리스트 중 "마일스톤 이름과 같은 이름"의 리스트. 예) 리스트 M10 → 마일스톤 [M10]
+ *  - 트렐로 카드 생성/이름변경 → 보드 Task 생성/이름 갱신 (분류는 항상 "개발")
+ *  - 트렐로 카드 삭제·보관(archive) → 보드 Task 삭제
+ *  - 보드에서 연결된 Task 삭제 → 트렐로 카드 삭제
+ *  - 보드에서 만든 Task 는 트렐로로 보내지 않는다(단방향 생성)
+ *  - 카드를 대상 밖 리스트로 옮겨도 Task 는 그대로 둔다(오조작 방지)
+ *  필요한 환경변수: TRELLO_KEY, TRELLO_TOKEN, TRELLO_SECRET(웹훅 서명 검증), TRELLO_BOARD(선택)
+ * ===================================================================== */
+const TRELLO_API = "https://api.trello.com/1";
+const TRELLO_MAX_AUTO_DELETE = 10;   // 한 번에 이 개수를 넘는 삭제는 트렐로에 반영하지 않는다(사고 방지)
+const trelloReady = env => !!(env.TRELLO_KEY && env.TRELLO_TOKEN);
+const trelloBoardId = env => String(env.TRELLO_BOARD || "NfAsSWHN").trim();
+async function trelloFetch(env, path, init){
+  const sep = path.includes("?") ? "&" : "?";
+  const auth = `key=${encodeURIComponent(env.TRELLO_KEY)}&token=${encodeURIComponent(env.TRELLO_TOKEN)}`;
+  const r = await fetch(`${TRELLO_API}${path}${sep}${auth}`, init);
+  const txt = await r.text();
+  if(!r.ok) throw new Error(`trello ${r.status} ${path.split("?")[0]} :: ${txt.slice(0,180)}`);
+  try{ return JSON.parse(txt); }catch(_){ return txt; }
+}
+/* "[M10]" 과 "M10" 을 같은 것으로 본다 */
+const msKey = v => String(v||"").replace(/[\[\]()\s_·-]/g,"").toUpperCase();
+function msIdForList(st, listName){
+  const k = msKey(listName); if(!k) return null;
+  const m = (st.milestones||[]).find(x => x && !x.free && msKey(x.name) === k);
+  return m ? m.id : null;
+}
+/* 이름 대조용 키: 앞뒤 공백·연속 공백·대소문자 무시 */
+const nameKey = v => String(v||"").replace(/\s+/g," ").trim().toLowerCase();
+const firstDevStatus = st => {
+  const l = st && st.trackStatuses && st.trackStatuses["개발"];
+  return (Array.isArray(l) && l.length && l[0] && l[0].key) || "대기";
+};
+function taskFromCard(st, card, listName){
+  const msId = msIdForList(st, listName);
+  const fb = ((st.milestones||[]).find(m=>m && !m.free) || {}).id;
+  return { id: "tr_"+card.id, name: (card.name||"").trim() || "(제목 없음)",
+    track: "개발", status: firstDevStatus(st), milestoneId: msId || fb, kickoff: "예정",
+    links: { plan:"", trello: card.shortUrl || card.url || "" }, depts: {},
+    trelloCardId: card.id, trelloList: listName || "" };
+}
+/* 카드 1장을 상태에 반영: 이름이 같은(아직 연결 안 된) 개발 Task 가 딱 하나면 그 Task 에 연결하고,
+ * 없으면 새로 만든다. 같은 이름이 둘 이상이면 어느 것인지 알 수 없으므로 아무것도 하지 않는다.
+ * 반환: "linked" | "added" | "ambiguous" | false */
+function attachOrCreate(st, card, listName){
+  if(!Array.isArray(st.tasks)) st.tasks = [];
+  if(st.tasks.some(t => t && t.trelloCardId === card.id)) return false;
+  const nm = (card.name||"").trim() || "(제목 없음)";
+  const k = nameKey(nm);
+  let cands = st.tasks.filter(t => t && !t.trelloCardId && (t.track||"개발")==="개발" && nameKey(t.name)===k);
+  if(cands.length > 1){
+    const msId = msIdForList(st, listName);
+    const same = cands.filter(t => t.milestoneId === msId);
+    if(same.length === 1) cands = same;
+  }
+  if(cands.length > 1) return "ambiguous";
+  if(cands.length === 1){
+    const t = cands[0];
+    t.trelloCardId = card.id; t.trelloList = listName || "";
+    t.name = nm;                                  // 이름은 트렐로가 기준 (공백·대소문자 차이도 즉시 맞춘다)
+    if(!t.links) t.links = { plan:"", trello:"" };
+    if(!t.links.trello) t.links.trello = card.shortUrl || card.url || "";
+    return "linked";
+  }
+  st.tasks.unshift(taskFromCard(st, card, listName));
+  return "added";
+}
+
+/* 상태를 읽어 고치고 저장(낙관적 잠금 재시도). fn(st) 이 true 를 돌려주면 저장한다. */
+async function mutateState(env, who, fn){
+  for(let i=0;i<4;i++){
+    const cur = await env.DB.prepare("SELECT data, version FROM app_state WHERE id='main'").first();
+    if(!cur) return { ok:false, reason:"no-state" };
+    let st; try{ st = JSON.parse(cur.data); }catch(_){ return { ok:false, reason:"bad-state" }; }
+    const changed = await fn(st);
+    if(!changed) return { ok:true, changed:false };
+    const res = await env.DB.prepare("UPDATE app_state SET data=?, version=version+1, updated_at=datetime('now'), updated_by=? WHERE id='main' AND version=?")
+      .bind(JSON.stringify(st), who, cur.version).run();
+    if(res && res.meta && res.meta.changes) return { ok:true, changed:true };
+  }
+  return { ok:false, reason:"conflict" };
+}
+/* 트렐로 웹훅 서명 검증: base64(HMAC-SHA1(secret, body + callbackURL)) */
+async function trelloSigOk(request, env, bodyText, callbackUrl){
+  const secret = env.TRELLO_SECRET; if(!secret) return false;
+  const sig = request.headers.get("x-trello-webhook") || "";
+  if(!sig) return false;
+  try{
+    const k = await crypto.subtle.importKey("raw", enc.encode(secret), { name:"HMAC", hash:"SHA-1" }, false, ["sign"]);
+    const mac = await crypto.subtle.sign("HMAC", k, enc.encode(bodyText + callbackUrl));
+    return sig === btoa(String.fromCharCode(...new Uint8Array(mac)));
+  }catch(_){ return false; }
+}
+const trelloCallbackUrl = (env, url) => String(env.TRELLO_CALLBACK || (url.origin + "/api/trello/webhook"));
+
+/* 웹훅 액션 1건 반영 */
+async function applyTrelloAction(env, act){
+  const type = act && act.type, d = (act && act.data) || {};
+  const card = d.card || {}; if(!card.id) return false;
+  const listName = (d.list && d.list.name) || (d.listAfter && d.listAfter.name) || "";
+  const findIdx = st => (st.tasks||[]).findIndex(t => t && t.trelloCardId === card.id);
+
+  if(type === "deleteCard"){
+    return (await mutateState(env, "trello", st => {
+      const i = findIdx(st); if(i < 0) return false; st.tasks.splice(i,1); return true; })).changed;
+  }
+  if(type === "createCard" || type === "copyCard" || type === "moveCardToBoard"){
+    return (await mutateState(env, "trello", st => {
+      if(!msIdForList(st, listName)) return false;            // 대상 리스트가 아니면 무시
+      const r = attachOrCreate(st, card, listName);            // 같은 이름 Task 가 있으면 중복 생성 대신 연결
+      return r === "linked" || r === "added"; })).changed;
+  }
+  if(type === "updateCard"){
+    const old = d.old || {};
+    if(old.closed === false && card.closed === true){        // 보관(archive) → 삭제로 취급
+      return (await mutateState(env, "trello", st => {
+        const i = findIdx(st); if(i < 0) return false; st.tasks.splice(i,1); return true; })).changed;
+    }
+    if(old.closed === true && card.closed === false){        // 보관 해제 → 대상 리스트면 되살림
+      return (await mutateState(env, "trello", st => {
+        const ln = listName || (d.list && d.list.name) || "";
+        if(!msIdForList(st, ln)) return false;
+        const r = attachOrCreate(st, card, ln);
+        return r === "linked" || r === "added"; })).changed;
+    }
+    if(Object.prototype.hasOwnProperty.call(old, "name")){    // 이름 변경 → 트렐로가 기준
+      return (await mutateState(env, "trello", st => {
+        const i = findIdx(st); if(i < 0) return false;
+        const nm = (card.name||"").trim() || "(제목 없음)";
+        if(st.tasks[i].name === nm) return false;
+        st.tasks[i].name = nm; return true; })).changed;
+    }
+    if(d.listAfter){                                          // 리스트 이동
+      return (await mutateState(env, "trello", st => {
+        const i = findIdx(st);
+        const after = d.listAfter.name || "";
+        if(i < 0){                                            // 밖에 있던 카드가 대상 리스트로 들어옴 → 등록
+          if(!msIdForList(st, after)) return false;
+          const r = attachOrCreate(st, card, after);
+          return r === "linked" || r === "added";
+        }
+        if(st.tasks[i].trelloList === after) return false;     // 밖으로 나가도 Task 는 그대로 둔다
+        st.tasks[i].trelloList = after;
+        const ms = msIdForList(st, after); if(ms) st.tasks[i].milestoneId = ms;
+        return true; })).changed;
+    }
+  }
+  return false;
+}
+
+/* 전체 가져오기 — 웹훅이 놓친 것 복구 + 최초 1회 도입용
+ *  opts.dry       : true 면 계산만 하고 저장하지 않는다(미리보기)
+ *  opts.linkByName: true(기본) 면 "이름이 같은 기존 Task" 를 새로 만들지 않고 그 Task에 카드를 연결한다.
+ *                   같은 이름이 2개 이상이면 어느 것인지 알 수 없으므로 아무것도 하지 않고 보고만 한다. */
+async function trelloImportAll(env, who, opts){
+  const dry = !!(opts && opts.dry);
+  const linkByName = !opts || opts.linkByName !== false;
+  const board = trelloBoardId(env);
+  const lists = await trelloFetch(env, `/boards/${board}/lists?fields=id,name&filter=open`);
+  const cards = await trelloFetch(env, `/boards/${board}/cards?fields=id,name,idList,shortUrl&filter=open`);
+  const byId = {}; (lists||[]).forEach(l => byId[l.id] = l.name);
+  const summary = { dry, linkByName, added:0, linked:0, renamed:0, removed:0, skippedRemoval:0,
+                    lists:[], linkedNames:[], addedNames:[], ambiguous:[], removedNames:[] };
+  await mutateState(env, who, st => {
+    const scope = (lists||[]).filter(l => msIdForList(st, l.name));
+    summary.lists = scope.map(l => l.name);
+    const scopeIds = new Set(scope.map(l => l.id));
+    const inScope = (cards||[]).filter(c => scopeIds.has(c.idList));
+    if(!Array.isArray(st.tasks)) st.tasks = [];
+    let changed = false;
+
+    inScope.forEach(c => {
+      const nm = (c.name||"").trim() || "(제목 없음)";
+      const listName = byId[c.idList];
+      const i = st.tasks.findIndex(t => t && t.trelloCardId === c.id);
+      if(i >= 0){                                            // 이미 연결됨 → 이름만 맞춘다
+        if(st.tasks[i].name !== nm){ st.tasks[i].name = nm; summary.renamed++; changed = true; }
+        return;
+      }
+      if(!linkByName){                                       // 이름 연결을 끄면 무조건 새로 만든다
+        st.tasks.unshift(taskFromCard(st, c, listName));
+        summary.added++; if(summary.addedNames.length < 50) summary.addedNames.push(nm);
+        changed = true; return;
+      }
+      const r = attachOrCreate(st, c, listName);
+      if(r === "ambiguous"){ summary.ambiguous.push({ name:nm, list:listName }); return; }
+      if(r === "linked"){ summary.linked++; if(summary.linkedNames.length < 50) summary.linkedNames.push(nm); changed = true; return; }
+      if(r === "added"){ summary.added++; if(summary.addedNames.length < 50) summary.addedNames.push(nm); changed = true; }
+    });
+
+    // 보드에서 사라진(삭제·보관) 카드에 연결된 Task 정리
+    const openIds = new Set((cards||[]).map(c => c.id));      // 보드의 열린 카드 전체(대상 밖 리스트 포함)
+    const dead = st.tasks.filter(t => t && t.trelloCardId && !openIds.has(t.trelloCardId));
+    if(dead.length > TRELLO_MAX_AUTO_DELETE){ summary.skippedRemoval = dead.length; }
+    else if(dead.length){
+      const kill = new Set(dead.map(t => t.id));
+      summary.removedNames = dead.slice(0,50).map(t => t.name);
+      st.tasks = st.tasks.filter(t => !kill.has(t.id));
+      summary.removed = dead.length; changed = true;
+    }
+    return dry ? false : changed;                            // 미리보기면 저장하지 않는다
+  });
+  return summary;
+}
+
+/* 보드에서 연결된 Task 를 지우면 트렐로 카드도 삭제 (PUT /api/state 이후 백그라운드) */
+async function trelloDeleteRemoved(env, prevRaw, nextRaw){
+  try{
+    if(!trelloReady(env)) return;
+    const prev = JSON.parse(prevRaw || "{}"), next = JSON.parse(nextRaw || "{}");
+    if(!Array.isArray(prev.tasks) || !Array.isArray(next.tasks)) return;
+    const alive = new Set(next.tasks.map(t => t && t.id));
+    const gone = prev.tasks.filter(t => t && t.trelloCardId && !alive.has(t.id));
+    if(!gone.length || gone.length > TRELLO_MAX_AUTO_DELETE) return;   // 대량 삭제는 반영하지 않는다
+    for(const t of gone){
+      try{ await trelloFetch(env, `/cards/${t.trelloCardId}`, { method:"DELETE" }); }catch(_){}
+    }
+  }catch(_){}
+}
+
 async function handleApi(request, env, url, ctx){
   const p = url.pathname;
 
   if(p === "/api/config" && request.method === "GET"){
     return json({ googleClientId: env.GOOGLE_CLIENT_ID || "", companyDomain: env.COMPANY_DOMAIN || "" });
   }
+  /* 트렐로 웹훅 — 로그인 없이 들어온다. HEAD 는 트렐로의 콜백 URL 검증용. */
+  if(p === "/api/trello/webhook"){
+    if(request.method === "HEAD" || request.method === "GET") return new Response("ok", { status:200 });
+    if(request.method !== "POST") return json({ error:"method" }, 405);
+    if(!trelloReady(env)) return json({ error:"trello not configured" }, 200);
+    const bodyText = await request.text();
+    if(!(await trelloSigOk(request, env, bodyText, trelloCallbackUrl(env, url)))){
+      return json({ error:"bad signature" }, 401);
+    }
+    let body; try{ body = JSON.parse(bodyText); }catch(_){ return json({ ok:true }); }
+    if(ctx && ctx.waitUntil) ctx.waitUntil(applyTrelloAction(env, body && body.action).catch(()=>{}));
+    else { try{ await applyTrelloAction(env, body && body.action); }catch(_){} }
+    return json({ ok:true });
+  }
+
   if(p === "/api/auth/google" && request.method === "POST"){
     try{
       const b = await request.json(); const idt = b.credential || b.id_token; if(!idt) return json({ error:"missing credential" }, 400);
@@ -256,6 +494,11 @@ async function handleApi(request, env, url, ctx){
       await env.DB.prepare("UPDATE app_state SET data=?, version=version+1, updated_at=datetime('now'), updated_by=? WHERE id='main'").bind(payload, user.email).run();
     }
     if(ctx && ctx.waitUntil) ctx.waitUntil(notifyStatusChanges(env, cur && cur.data, payload, user.name || user.email, url.origin));
+    /* 보드에서 연결된 Task 를 지웠으면 트렐로 카드도 삭제 (응답을 막지 않도록 백그라운드) */
+    if(trelloReady(env)){
+      const job = trelloDeleteRemoved(env, cur && cur.data, payload);
+      if(ctx && ctx.waitUntil) ctx.waitUntil(job.catch(()=>{}));
+    }
     const row = await env.DB.prepare("SELECT version FROM app_state WHERE id='main'").first();
     /* 히스토리 스냅샷(최근 50개 보관).
      * 최적화(2026-08-22): 예전엔 저장할 때마다 전체 상태를 통째로 복사해 넣었다(0.8초 디바운스라 하루 수천 건).
@@ -269,6 +512,55 @@ async function handleApi(request, env, url, ctx){
       }
     }catch(_){}
     return json({ ok:true, version: row ? row.version : 1 });
+  }
+
+  /* ===== 트렐로 관리(관리자 전용) ===== */
+  if(p.startsWith("/api/trello/")){
+    const role = await effectiveRole(env, user.email);
+    if(role !== "admin") return json({ error:"forbidden" }, 403);
+    const cb = trelloCallbackUrl(env, url);
+    if(p === "/api/trello/status" && request.method === "GET"){
+      const out = { configured: trelloReady(env), secret: !!env.TRELLO_SECRET, board: trelloBoardId(env), callback: cb };
+      if(!out.configured) return json(out);
+      try{
+        const lists = await trelloFetch(env, `/boards/${out.board}/lists?fields=id,name&filter=open`);
+        const row = await env.DB.prepare("SELECT data FROM app_state WHERE id='main'").first();
+        let st = {}; try{ st = JSON.parse(row.data); }catch(_){}
+        out.allLists = (lists||[]).map(l => l.name);
+        out.scopeLists = (lists||[]).filter(l => msIdForList(st, l.name)).map(l => l.name);
+        out.linked = ((st.tasks)||[]).filter(t => t && t.trelloCardId).length;
+        const hooks = await trelloFetch(env, `/tokens/${encodeURIComponent(env.TRELLO_TOKEN)}/webhooks`);
+        out.hooks = (hooks||[]).filter(h => h && h.callbackURL === cb).map(h => ({ id:h.id, active:h.active }));
+      }catch(e){ out.error = String(e && e.message || e); }
+      return json(out);
+    }
+    if(p === "/api/trello/import" && request.method === "POST"){
+      if(!trelloReady(env)) return json({ error:"trello not configured" }, 400);
+      const q = url.searchParams;
+      const opts = { dry: q.get("dry")==="1", linkByName: q.get("link")!=="0" };
+      try{ return json({ ok:true, summary: await trelloImportAll(env, "trello-import:"+user.email, opts) }); }
+      catch(e){ return json({ error:String(e && e.message || e) }, 502); }
+    }
+    if(p === "/api/trello/hook" && request.method === "POST"){
+      if(!trelloReady(env)) return json({ error:"trello not configured" }, 400);
+      try{
+        const hooks = await trelloFetch(env, `/tokens/${encodeURIComponent(env.TRELLO_TOKEN)}/webhooks`);
+        const dup = (hooks||[]).find(h => h && h.callbackURL === cb);
+        if(dup) return json({ ok:true, already:true, id:dup.id });
+        const made = await trelloFetch(env, `/webhooks/`, { method:"POST",
+          headers:{ "content-type":"application/json" },
+          body: JSON.stringify({ description:"마일스톤 보드 동기화", callbackURL: cb, idModel: trelloBoardId(env) }) });
+        return json({ ok:true, id: made && made.id });
+      }catch(e){ return json({ error:String(e && e.message || e) }, 502); }
+    }
+    if(p === "/api/trello/hook" && request.method === "DELETE"){
+      try{
+        const hooks = await trelloFetch(env, `/tokens/${encodeURIComponent(env.TRELLO_TOKEN)}/webhooks`);
+        for(const h of (hooks||[])) if(h && h.callbackURL === cb) await trelloFetch(env, `/webhooks/${h.id}`, { method:"DELETE" });
+        return json({ ok:true });
+      }catch(e){ return json({ error:String(e && e.message || e) }, 502); }
+    }
+    return json({ error:"not found" }, 404);
   }
 
   // 접속자(presence): 하트비트 + 현재 접속자

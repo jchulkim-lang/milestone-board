@@ -308,6 +308,26 @@
   .ms-readonly #msAddNew,.ms-readonly #msSaveOk,.ms-readonly #msDelete,.ms-readonly #msEditHead{display:none!important;}
   .ms-readonly input[disabled]{opacity:.75;cursor:default;background:var(--panel);}
   .ms-readonly hr{opacity:.4;}
+  /* ===== 트렐로 동기화 ===== */
+  #trelloModal .modal{ width:min(560px, 94vw); }
+  .tr-body{ font-size:12.5px; line-height:1.7; }
+  .tr-row{ display:flex; gap:8px; align-items:flex-start; padding:6px 0; border-bottom:1px solid var(--grid); }
+  .tr-row:last-child{ border-bottom:0; }
+  .tr-k{ flex:0 0 104px; color:var(--muted); font-weight:700; font-size:11.5px; }
+  .tr-v{ flex:1; min-width:0; overflow-wrap:anywhere; }
+  .tr-ok{ color:#7fe3c0; font-weight:700; }
+  .tr-no{ color:#ff9b9b; font-weight:700; }
+  .tr-warn{ color:#fbbf24; font-weight:700; }
+  .tr-body code{ background:var(--panel2); border:1px solid var(--line); border-radius:5px; padding:1px 5px; font-size:11.5px; }
+  .tr-msg{ margin-top:10px; font-size:12px; font-weight:700; }
+  .tr-opt{ display:flex; align-items:center; gap:7px; margin-top:12px; font-size:11.5px; color:var(--muted); cursor:pointer; }
+  .tr-opt input{ width:auto; margin:0; }
+  .tr-detail{ margin-top:8px; max-height:190px; overflow:auto; font-size:11.5px; line-height:1.65; }
+  .tr-detail .tr-grp{ margin-bottom:8px; }
+  .tr-detail .tr-h{ font-weight:800; font-size:11px; color:var(--muted); margin-bottom:3px; }
+  .tr-detail li{ margin-left:16px; overflow-wrap:anywhere; }
+  .tr-detail .tr-amb li{ color:#fbbf24; }
+
   /* ===== 발주 로드맵 ===== */
   #roadmapModal .modal{ width:96vw; max-width:96vw; }
   .rm-notes{ display:flex; flex-wrap:wrap; gap:6px; margin:0 0 12px; }
@@ -524,6 +544,7 @@
   body.hide-deptgrid .task-head .dept-grid{ display:none; }
 
   /* 아트 미러 배지 */
+  .trello-badge{ font-size:9.5px; font-weight:800; color:#fff; background:#1868DB; border-radius:999px; padding:1px 7px; margin-left:6px; white-space:nowrap; flex:0 0 auto; }
   .mirror-badge{ font-size:9.5px; font-weight:800; color:#fff; background:linear-gradient(135deg,#ec4899,#a855f7); border-radius:999px; padding:1px 7px; margin-left:6px; white-space:nowrap; flex:0 0 auto; }
   .art-tag{ font-size:9px; font-weight:800; color:#fff; background:linear-gradient(135deg,#ec4899,#a855f7); border-radius:999px; padding:1px 6px; margin-left:5px; white-space:nowrap; flex:0 0 auto; }
   .cat-ord{ display:inline-flex; gap:2px; margin-left:6px; }
@@ -689,6 +710,7 @@
     <div class="foot-apps" id="footApps">
       <button class="btn ghost sm" id="dashBtn">📊 대시보드</button>
       <button class="btn ghost sm" id="roadmapBtn">🗺 발주 로드맵</button>
+      <button class="btn ghost sm" id="trelloBtn" style="display:none">🔗 트렐로 동기화</button>
       <button class="btn ghost sm" id="historyBtn">🕘 히스토리</button>
       <button class="btn ghost sm" id="forceReloadBtn" style="display:none">🔄 강제 새로고침</button>
       <button class="btn ghost sm" id="noticeBtn">📢 공지</button>
@@ -780,6 +802,22 @@
     <div class="modal"><h3>제목 편집</h3><div class="msub">상단에 표시될 이름입니다.</div>
       <input id="titleInput" placeholder="예: 빅게임 본부 마일스톤" />
       <div class="modal-actions"><span></span><div class="right"><button class="btn ghost" data-close>취소</button><button class="btn" id="titleSaveOk">저장</button></div></div></div>
+  </div>
+  <div class="modal-bg" id="trelloModal">
+    <div class="modal"><h3>트렐로 동기화 🔗</h3>
+      <div class="msub">트렐로 보드의 <b>마일스톤과 같은 이름의 리스트</b>(예: <code>M10</code> → <code>[M10]</code>)에 카드를 만들면 이 보드에 <b>개발</b> 분류 Task로 자동 등록됩니다.</div>
+      <div id="trelloBody" class="tr-body">불러오는 중…</div>
+      <label class="tr-opt"><input type="checkbox" id="trelloLinkByName" checked>
+        <span>이름이 같은 기존 Task 는 <b>새로 만들지 않고 연결</b> (중복 방지 · 권장)</span></label>
+      <div class="tr-msg" id="trelloMsg"></div>
+      <div class="tr-detail" id="trelloDetail"></div>
+      <div class="modal-actions">
+        <button class="linkrow neutral" id="trelloHookOff">웹훅 해제</button>
+        <div class="right"><button class="btn ghost" data-close>닫기</button>
+          <button class="btn ghost" id="trelloHookOn">웹훅 등록</button>
+          <button class="btn ghost" id="trelloDry">미리보기</button>
+          <button class="btn" id="trelloImport">가져오기 실행</button></div></div>
+    </div>
   </div>
   <div class="modal-bg" id="roadmapModal">
     <div class="modal rm-modal"><h3>발주 로드맵 🗺</h3>
@@ -1334,7 +1372,7 @@ function taskHeadHtml(t){
   return `<div class="task-head" data-toggleopen="${t.id}">
       <span class="drag-handle" data-drag="${t.id}" title="드래그하여 이동">⠿</span>
       <span class="caret">▶</span>
-      <span class="task-info"><select class="prio-sel p${t.priority||0}" data-prio="${t.id}" title="우선순위 선택 (없음·1~4)">${['','1','2','3','4'].map(v=>`<option value="${v}" ${String(t.priority||'')===v?'selected':''}>${v||'–'}</option>`).join('')}</select><span class="ms-tag"><i class="bd" style="background:${ms.color}"></i>${escapeHtml(ms.name)}</span><span class="task-name">${escapeHtml(t.name)}</span>${t.mirrorOf?'<span class="mirror-badge" title="아트에서 미러된 Task (아트 수정 시 갱신)">🔗 아트</span>':''}${links}${(t.track||"개발")==="개발"?"":asg}</span>
+      <span class="task-info"><select class="prio-sel p${t.priority||0}" data-prio="${t.id}" title="우선순위 선택 (없음·1~4)">${['','1','2','3','4'].map(v=>`<option value="${v}" ${String(t.priority||'')===v?'selected':''}>${v||'–'}</option>`).join('')}</select><span class="ms-tag"><i class="bd" style="background:${ms.color}"></i>${escapeHtml(ms.name)}</span><span class="task-name">${escapeHtml(t.name)}</span>${t.mirrorOf?'<span class="mirror-badge" title="아트에서 미러된 Task (아트 수정 시 갱신)">🔗 아트</span>':''}${t.trelloCardId?`<span class="trello-badge" title="트렐로 카드와 연결됨${t.trelloList?' · 리스트 '+escapeHtml(t.trelloList):''}\n이름은 트렐로가 기준입니다. 이 Task를 지우면 카드도 삭제됩니다.">${TRELLO_ICON} 동기화</span>`:''}${links}${(t.track||"개발")==="개발"?"":asg}</span>
       ${(t.track||"개발")==="개발"?deptChipsInline(t):`<span class="dept-grid">${deptGridHtml(t)}</span>`}
       <span class="th-right"><span class="kf-chip" data-kf="${t.id}" style="border-color:${kf.color};box-shadow:0 0 0 2px ${kf.color}30" title="킥오프: ${t.kickoff} — 클릭하여 선택">${kf.icon}</span>
       ${doneChip}<select class="st-sel" data-status="${t.id}" title="${isArt?'종류':'진행 상태'}">${stOpts}</select>
@@ -1481,7 +1519,9 @@ leftBody.addEventListener("click", e=>{
   const grp=e.target.closest("[data-group]"); if(grp){ const k=grp.dataset.group; groupCollapsed.has(k)?groupCollapsed.delete(k):groupCollapsed.add(k); render(); return; }
   const kf=e.target.closest("[data-kf]"); if(kf){ e.stopPropagation(); openKfPop(kf, kf.dataset.kf); return; }
   const dn=e.target.closest("[data-done]"); if(dn){ e.stopPropagation(); const t=findTask(dn.dataset.done); t.done=!t.done; save(); render(); return; }
-  const del=e.target.closest("[data-del]"); if(del){ e.stopPropagation(); const id=del.dataset.del; if(confirm("이 Task를 삭제할까요?")){ state.tasks=state.tasks.filter(t=>t.id!==id); save(); render(); } return; }
+  const del=e.target.closest("[data-del]"); if(del){ e.stopPropagation(); const id=del.dataset.del; const _t=findTask(id);
+    const _msg = (_t && _t.trelloCardId) ? "이 Task를 삭제할까요?\n\n⚠ 연결된 트렐로 카드도 함께 삭제됩니다. (되돌릴 수 없습니다)" : "이 Task를 삭제할까요?";
+    if(confirm(_msg)){ state.tasks=state.tasks.filter(t=>t.id!==id); save(); render(); } return; }
   const pick=e.target.closest("[data-openpicker]"); if(pick){ e.stopPropagation(); openDeptModal(pick.dataset.openpicker); return; }
   const ss=e.target.closest("[data-setsched]"); if(ss){ e.stopPropagation(); const [tid,dep]=ss.dataset.setsched.split("|"); openSchedModal(tid,dep,false); return; }
   const dbp=e.target.closest("[data-deptpick]"); if(dbp){ e.stopPropagation(); const tk=e.target.closest("[data-task]");
@@ -1564,7 +1604,7 @@ function attachBarHandlers(){
 /* ===== 모달들 ===== */
 let editing=null;
 const taskModal=document.getElementById("taskModal"), taskInput=document.getElementById("taskInput"), taskMs=document.getElementById("taskMs");
-const roadmapModal=document.getElementById("roadmapModal");
+const roadmapModal=document.getElementById("roadmapModal"), trelloModal=document.getElementById("trelloModal");
 const deptModal=document.getElementById("deptModal"), linkModal=document.getElementById("linkModal"), schedModal=document.getElementById("schedModal"), msModal=document.getElementById("msModal"), deptMgrModal=document.getElementById("deptMgrModal"), catMgrModal=document.getElementById("catMgrModal"), titleModal=document.getElementById("titleModal"), dashModal=document.getElementById("dashModal"), historyModal=document.getElementById("historyModal"), notifyModal=document.getElementById("notifyModal"), noticePopup=document.getElementById("noticePopup"), noticeEditModal=document.getElementById("noticeEditModal");
 /* 부서 칩 클릭으로 막 켠 부서인데 일정을 정하지 않고 닫으면 → 부서를 다시 끈다 */
 function cancelPendingDept(){
@@ -1573,9 +1613,9 @@ function cancelPendingDept(){
   editing.justOn=false;
   if(sg && sg.on && sg.sched===false){ sg.on=false; save(); render(); }
 }
-function closeModals(){ cancelPendingDept(); closeRmPop(); [taskModal,roadmapModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.classList.remove("show")); }
+function closeModals(){ cancelPendingDept(); closeRmPop(); [taskModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.classList.remove("show")); }
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=closeModals);
-[taskModal,roadmapModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
+[taskModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
 
 /* ===== 종류 관리 (아트·전투 등 종류 방식 분류) ===== */
 let catMgrTrack="아트", catEditKey=null;
@@ -1918,6 +1958,77 @@ document.getElementById("schedRemove").onclick=()=>{ const t=findTask(editing.ti
 /* 부서만 켜 두고 일정은 비워 두기 */
 document.getElementById("schedUnset").onclick=()=>{ const t=findTask(editing.tid); const sg=t.depts[editing.dep]; sg.on=true; sg.sched=false; editing.justOn=false; closeModals(); save(); render(); };
 
+
+/* ===== 트렐로 동기화(관리자) ===== */
+function trSetMsg(t, cls){ const el=document.getElementById("trelloMsg"); if(!el) return;
+  el.className="tr-msg "+(cls||""); el.textContent=t||""; }
+async function renderTrello(){
+  const b=document.getElementById("trelloBody"); b.textContent="불러오는 중…";
+  let j; try{ j=await (await fetch("/api/trello/status",{credentials:"same-origin"})).json(); }
+  catch(_){ b.innerHTML='<span class="tr-no">상태를 불러오지 못했습니다.</span>'; return; }
+  const row=(k,v)=>`<div class="tr-row"><div class="tr-k">${k}</div><div class="tr-v">${v}</div></div>`;
+  if(!j.configured){
+    b.innerHTML = row("설정","<span class='tr-no'>키·토큰이 없습니다</span>")+
+      `<div class="tr-msg tr-warn">Cloudflare 환경변수에 <code>TRELLO_KEY</code>, <code>TRELLO_TOKEN</code>, <code>TRELLO_SECRET</code> 을 등록한 뒤 다시 열어 주세요.</div>`;
+    return;
+  }
+  const hooks=j.hooks||[];
+  b.innerHTML =
+    row("보드", `<code>${escapeHtml(j.board||"")}</code>`)+
+    row("대상 리스트", (j.scopeLists||[]).length
+        ? (j.scopeLists||[]).map(x=>`<code>${escapeHtml(x)}</code>`).join(" ")
+        : `<span class="tr-warn">없음</span> — 마일스톤 이름과 같은 리스트가 보드에 없습니다`)+
+    row("전체 리스트", (j.allLists||[]).map(x=>escapeHtml(x)).join(", ") || "-")+
+    row("연결된 Task", `${j.linked||0}개`)+
+    row("서명 검증", j.secret ? "<span class='tr-ok'>켜짐</span>" : "<span class='tr-no'>TRELLO_SECRET 없음 — 웹훅이 거부됩니다</span>")+
+    row("실시간 웹훅", hooks.length ? `<span class="tr-ok">등록됨</span> (${hooks.length}개)` : "<span class='tr-warn'>미등록</span> — 아래 ‘웹훅 등록’을 누르세요")+
+    row("콜백 주소", `<code>${escapeHtml(j.callback||"")}</code>`)+
+    (j.error ? row("오류", `<span class='tr-no'>${escapeHtml(j.error)}</span>`) : "");
+}
+function openTrello(){ trelloModal.classList.add("show"); trSetMsg(""); document.getElementById("trelloDetail").innerHTML=""; renderTrello(); }
+function trShowDetail(su){
+  const el=document.getElementById("trelloDetail"); if(!el) return;
+  const grp=(cls,title,items)=> (items&&items.length)
+    ? `<div class="tr-grp ${cls}"><div class="tr-h">${title}</div><ul>`+items.map(x=>`<li>${escapeHtml(x)}</li>`).join("")+`</ul></div>` : "";
+  el.innerHTML =
+    grp("tr-amb","⚠ 같은 이름이 여러 개라 건너뜀 — 보드에서 정리 후 다시 실행하세요",
+        (su.ambiguous||[]).map(a=>`${a.name}${a.list?" ("+a.list+")":""}`))+
+    grp("","기존 Task 에 연결", su.linkedNames||[])+
+    grp("","새로 추가", su.addedNames||[])+
+    grp("","사라진 카드 → 정리", su.removedNames||[]);
+}
+async function trCall(path, method, btn){
+  const old=btn.textContent; btn.disabled=true; btn.textContent="처리 중…";
+  try{
+    const r=await fetch(path,{ method, credentials:"same-origin" });
+    const j=await r.json();
+    if(!r.ok || j.error){ trSetMsg("실패: "+(j.error||r.status), "tr-no"); }
+    else if(j.summary){ const su=j.summary;
+      const head = su.dry ? "미리보기 (아직 저장하지 않았습니다)" : "가져오기 완료";
+      trSetMsg(`${head} — 연결 ${su.linked} · 새로 추가 ${su.added} · 이름갱신 ${su.renamed} · 정리 ${su.removed}`
+        + ((su.ambiguous&&su.ambiguous.length)?` · ⚠ 이름 중복 ${su.ambiguous.length}건 건너뜀`:"")
+        + (su.skippedRemoval?` · ⚠ 사라진 카드 ${su.skippedRemoval}건은 너무 많아 자동 삭제하지 않았습니다`:"")
+        + (su.lists&&su.lists.length?`  (리스트: ${su.lists.join(", ")})`:""),
+        (su.skippedRemoval||(su.ambiguous&&su.ambiguous.length))?"tr-warn":"tr-ok");
+      trShowDetail(su);
+      if(!su.dry && remote && remote.pull) remote.pull(false);
+    }
+    else { trSetMsg("완료되었습니다.", "tr-ok"); trShowDetail({}); }
+  }catch(e){ trSetMsg("실패: "+e, "tr-no"); }
+  btn.disabled=false; btn.textContent=old;
+  setTimeout(renderTrello, 600);
+}
+const trImportUrl = dry => {
+  const link = document.getElementById("trelloLinkByName").checked ? "1" : "0";
+  return `/api/trello/import?link=${link}${dry?"&dry=1":""}`;
+};
+document.getElementById("trelloBtn").onclick=openTrello;
+document.getElementById("trelloDry").onclick=function(){ trCall(trImportUrl(true),"POST",this); };
+document.getElementById("trelloImport").onclick=function(){
+  if(!confirm("트렐로 카드를 보드에 반영합니다.\n\n먼저 ‘미리보기’로 결과를 확인하셨나요?")) return;
+  trCall(trImportUrl(false),"POST",this); };
+document.getElementById("trelloHookOn").onclick=function(){ trCall("/api/trello/hook","POST",this); };
+document.getElementById("trelloHookOff").onclick=function(){ if(confirm("실시간 동기화를 끕니다. 계속할까요?")) trCall("/api/trello/hook","DELETE",this); };
 
 /* ===== 발주 로드맵 (아트 리소스 전달) =====
  *  state.roadmap = { startYm, months, notes[], groups:[{id,name,color,items:[{id,ym,text,date}]}] }
