@@ -112,7 +112,6 @@
   .tl-group{height:var(--group-h);background:var(--rowhead);border-bottom:1px solid var(--line);}
 
   .task{border-bottom:1px solid var(--line);}
-  .task.skip .task-name{text-decoration:line-through;}
   .task.selected{box-shadow:inset 3px 0 0 var(--accent);background:rgba(99,102,241,.07);}
   .task.flash{animation:taskFlash 1.6s ease-out 1;}
   @keyframes taskFlash{0%{background:rgba(99,102,241,.38);}100%{background:rgba(99,102,241,.07);}}
@@ -204,7 +203,6 @@
   .grid-col.today{background:rgba(99,102,241,.09);}
   .mline{position:absolute;top:0;bottom:0;width:2px;opacity:.4;}
   .tl-task{border-bottom:1px solid var(--line);position:relative;}
-  .tl-task.skip{opacity:.5;}
   .tl-task-head{height:var(--task-h);position:relative;}
   .tl-dept-lane{height:var(--row-h);position:relative;border-top:1px solid var(--grid);}
   .tl-meta-lane{height:var(--meta-h);border-top:1px solid var(--grid);}
@@ -514,7 +512,21 @@
   .ctx-fill{ display:block; height:100%; background:var(--grad); border-radius:99px; transition:width .3s ease; }
   .ctx-num{ font-size:12.5px; font-weight:800; }
   .ctx-num span{ color:var(--muted); font-weight:600; }
-  .ctx-dday{ display:flex; align-items:center; gap:7px; font-size:12px; margin-left:auto; white-space:nowrap; }
+  .ctx-dday{ display:flex; align-items:center; gap:5px; font-size:12px; margin-left:auto; white-space:nowrap; min-width:0; overflow-x:auto; scrollbar-width:none; }
+  .ctx-dday::-webkit-scrollbar{ height:0; width:0; }
+  .dlbar-ms{ font-size:11px; font-weight:800; flex:0 0 auto; margin-right:2px; }
+  .dlc{ display:inline-flex; align-items:center; gap:4px; flex:0 0 auto; font-size:10.5px; font-weight:700; color:var(--muted);
+        background:var(--panel2); border:1px solid var(--line); border-radius:999px; padding:2px 8px; line-height:1.3; }
+  .dlc i{ width:6px; height:6px; border-radius:50%; flex:0 0 auto; }
+  .dlc b{ color:var(--text); font-weight:800; }
+  .dlc em{ font-style:normal; font-weight:800; opacity:.85; }
+  .dlc.soon{ color:#fbbf24; border-color:rgba(245,158,11,.5); }
+  .dlc.soon b{ color:#fbbf24; }
+  .dlc.dnow{ background:#ef4444; border-color:#ef4444; color:#fff; }
+  .dlc.dnow b,.dlc.dnow em{ color:#fff; }
+  .dlc.past{ opacity:.45; }
+  .dlc.past.over{ opacity:1; color:#ff9b9b; border-color:rgba(239,68,68,.5); background:rgba(239,68,68,.10); }
+  .dlc.past.over b{ color:#ff9b9b; }
 
   /* 파이프라인 스테퍼 */
   .pipebar{ flex:0 0 auto; display:flex; align-items:center; padding:5px 10px; background:var(--panel); border-bottom:1px solid var(--line); overflow-x:auto; }
@@ -1215,27 +1227,36 @@ function renderDeptFocus(){
 function renderTitle(){ const t=state.title||"본부 마일스톤 관리"; const el=document.getElementById("appTitle"); if(el) el.textContent=t; document.title=t; }
 function render(){ normalizeFocusDept(); renderTitle(); renderDeptFocus(); renderContext(); renderPipeline(); renderLegend(); renderFilter(); renderHead(); renderLeft(); renderBody(); }
 
-// 다가오는 마감(D-N). msFilter가 있으면 그 마일스톤만, 없으면 전체
-function ddayHtml(){
+/* 상단 바 오른쪽: 선택한 마일스톤의 마감일을 전부 한 줄로.
+ * 마일스톤이 '전체'면 오늘이 속한 마일스톤(없으면 가장 가까운 마감을 가진 것)을 골라 보여준다. */
+const DL_ALL=[["plan","기획서"],["resource","리소스"],["dev","개발"],["qa","QA"],["end","종료"]];
+function deadlineBarHtml(){
   const today=stripTime(new Date());
-  const DL=[["plan","기획서"],["resource","리소스"],["dev","개발"],["qa","QA"],["end","종료"]];
-  const ms=state.milestones.filter(m=> msFilter.size===0 || msFilter.has(m.id));
-  let up=null, over=null;
-  ms.forEach(m=>{
-    const incomplete=state.tasks.filter(t=>t.milestoneId===m.id && !isDone(t)).length;
-    DL.forEach(([k,label])=>{
-      if(!m[k]) return;
-      const d=stripTime(parseYmd(m[k]));
-      const diff=Math.round((d-today)/86400000);
-      if(diff>=0){ if(up===null||diff<up.diff) up={diff,m,label,d}; }
-      else if(incomplete>0){ if(over===null||(-diff)<over.late) over={late:-diff,m,label,d,incomplete}; }
-    });
-  });
-  const md=d=>(d.getMonth()+1)+"/"+d.getDate();
-  if(up){ const tag=up.diff===0?"D-DAY":"D-"+up.diff;
-    return `<span class="dday-badge${up.diff<=3?' urgent':''}">🚩 ${tag}</span><span class="dday-label"><b style="color:${up.m.color}">${escapeHtml(up.m.name)}</b> ${up.label} 마감 · ${md(up.d)}</span>`; }
-  if(over){ return `<span class="dday-badge over">⚠ ${over.late}일 초과</span><span class="dday-label"><b style="color:${over.m.color}">${escapeHtml(over.m.name)}</b> ${over.label} 마감 · 미완료 ${over.incomplete}건</span>`; }
-  return "";
+  const list=state.milestones.filter(m=>!m.free && (msFilter.size===0 || msFilter.has(m.id)));
+  if(!list.length) return "";
+  let m=list[0];
+  if(list.length>1){
+    const inRange=list.find(x=>x.start&&x.end&&stripTime(parseYmd(x.start))<=today&&today<=stripTime(parseYmd(x.end)));
+    if(inRange) m=inRange;
+    else{ let best=null;
+      list.forEach(x=>DL_ALL.forEach(([k])=>{ if(!x[k])return;
+        const diff=Math.round((stripTime(parseYmd(x[k]))-today)/86400000);
+        if(diff>=0 && (best===null||diff<best.diff)) best={diff,m:x}; }));
+      if(best) m=best.m; }
+  }
+  const incomplete=state.tasks.filter(t=>t.milestoneId===m.id && !isDone(t)).length;
+  const chips=DL_ALL.map(([k,label])=>{
+    if(!m[k]) return "";
+    const mk=MARKERS.find(x=>x.k===k)||{color:"#888"};
+    const d=stripTime(parseYmd(m[k]));
+    const diff=Math.round((d-today)/86400000);
+    const cls = diff<0 ? (incomplete>0?"past over":"past") : (diff===0?"dnow":(diff<=3?"soon":""));
+    const tag = diff<0 ? `${-diff}일 지남` : (diff===0?"D-DAY":"D-"+diff);
+    return `<span class="dlc ${cls}" title="${escapeHtml(m.name)} · ${label} 마감 ${m[k]}${diff<0&&incomplete>0?` · 미완료 ${incomplete}건`:""}">`+
+      `<i style="background:${mk.color}"></i>${label}<b>${d.getMonth()+1}/${d.getDate()}</b><em>${tag}</em></span>`;
+  }).filter(Boolean);
+  if(!chips.length) return "";
+  return `<span class="dlbar-ms" style="color:${m.color}" title="${escapeHtml(m.name)} 마감일">${escapeHtml(m.name)}</span>`+chips.join("");
 }
 
 // 한 줄 컨텍스트 바: 마일스톤 + 분류 + 진행률 + 마감
@@ -1250,7 +1271,7 @@ function renderContext(){
     `<span class="lh-label">마일스톤</span><select class="ctx-ms" id="ctxMs">${msOpts}</select>`+
     `<span class="lh-label" style="margin-left:6px">분류</span><div class="seg-group">${trackTabs}</div>`+
     `<div class="ctx-prog"><span class="lh-label">진행</span><span class="ctx-track"><span class="ctx-fill" style="width:${pct}%"></span></span><span class="ctx-num">${pct}% <span>(${done}/${tot})</span></span></div>`+
-    `<div class="ctx-dday">${ddayHtml()}</div>`;
+    `<div class="ctx-dday">${deadlineBarHtml()}</div>`;
 }
 
 // 상태 파이프라인 스테퍼 (클릭 시 해당 상태만 필터)
