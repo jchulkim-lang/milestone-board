@@ -15,7 +15,7 @@ const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 �
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026082606;
+const APP_BUILD = 2026082607;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -199,10 +199,24 @@ async function trelloRealBoardId(env){
 
 /* "[M10]" 과 "M10" 을 같은 것으로 본다 */
 const msKey = v => String(v||"").replace(/[\[\]()\s_·-]/g,"").toUpperCase();
+/* 리스트 이름에 메모가 붙어도 마일스톤을 찾아낸다. 위에서부터 순서대로 시도:
+ *   1) 이름 전체        "M10"          → [M10]
+ *   2) 괄호 안 제거      "M10 (9/18)"   → [M10]
+ *   3) 첫 낱말만        "M10 - 9/18"   → [M10]
+ * 마일스톤 이름 쪽도 같은 방식으로 정리해서 비교한다. */
+function msVariants(v){
+  const raw = String(v||"");
+  const out = [msKey(raw), msKey(raw.replace(/\([^)]*\)/g," ")), msKey(raw.trim().split(/\s+/)[0]||"")];
+  return out.filter((x,i)=>x && out.indexOf(x)===i);
+}
 function msIdForList(st, listName){
-  const k = msKey(listName); if(!k) return null;
-  const m = (st.milestones||[]).find(x => x && !x.free && msKey(x.name) === k);
-  return m ? m.id : null;
+  const ks = msVariants(listName); if(!ks.length) return null;
+  const list = (st.milestones||[]).filter(x => x && !x.free);
+  for(const k of ks){
+    const m = list.find(x => msVariants(x.name).includes(k));
+    if(m) return m.id;
+  }
+  return null;
 }
 /* 이름 대조용 키: 앞뒤 공백·연속 공백·대소문자 무시 */
 const nameKey = v => String(v||"").replace(/\s+/g," ").trim().toLowerCase();
@@ -553,7 +567,12 @@ async function handleApi(request, env, url, ctx){
         let st = {}; try{ st = JSON.parse(row.data); }catch(_){}
         out.boardId = await trelloRealBoardId(env);
         out.allLists = (lists||[]).map(l => l.name);
-        out.scopeLists = (lists||[]).filter(l => msIdForList(st, l.name)).map(l => l.name);
+        out.scopeMap = (lists||[]).map(l => {
+          const id = msIdForList(st, l.name); if(!id) return null;
+          const m = (st.milestones||[]).find(x => x.id === id);
+          return { list:l.name, ms: m ? m.name : id };
+        }).filter(Boolean);
+        out.scopeLists = out.scopeMap.map(x => x.list);
         out.linked = ((st.tasks)||[]).filter(t => t && t.trelloCardId).length;
         const hooks = await trelloFetch(env, `/tokens/${encodeURIComponent(env.TRELLO_TOKEN)}/webhooks`);
         out.hooks = (hooks||[]).filter(h => h && h.callbackURL === cb).map(h => ({ id:h.id, active:h.active }));
