@@ -2137,8 +2137,19 @@ function rmBandMilestones(months){
     }).sort((a,b)=>String(a.start||"").localeCompare(String(b.start||"")));
 }
 function rmBandHtml(months){
-  const all=rmBandMilestones(months); if(!all.length) return "";
-  const shown=all.slice(0, RM_MAX_LANES), extra=all.length-shown.length;
+  const shown=rmBandMilestones(months); if(!shown.length) return "";
+  const first=months[0].ym+"-01", lm=months[months.length-1];
+  const last=lm.ym+"-"+String(rmDays(lm.y,lm.m)).padStart(2,"0");
+  /* 줄 배치: 앞 마일스톤과 기간이 겹치지 않는 첫 줄에 넣는다.
+     3줄이 다 차면 다시 첫 줄부터 채운다(가장 먼저 끝나는 줄에 얹음). */
+  const laneEnd=new Array(RM_MAX_LANES).fill(null), laneOf={};
+  shown.forEach(ms=>{
+    const s=ms.start||first, e=ms.end||last;
+    let li=laneEnd.findIndex(x=>x===null || x < s);
+    if(li<0){ li=0; for(let i=1;i<laneEnd.length;i++) if(laneEnd[i] < laneEnd[li]) li=i; }
+    laneEnd[li]=e; laneOf[ms.id]=li;
+  });
+  const usedLanes=Math.max(1, ...Object.values(laneOf).map(v=>v+1));
   const firstIdx={};                                            // 마일스톤 이름을 한 번만 찍기 위해
   shown.forEach(ms=>{
     const i=months.findIndex(x=>{
@@ -2149,8 +2160,8 @@ function rmBandHtml(months){
   const cell=(x,xi)=>{
     const dc=rmDays(x.y,x.m), mA=x.ym+"-01", mB=x.ym+"-"+String(dc).padStart(2,"0");
     let inner="";
-    shown.forEach((ms,li)=>{
-      const laneTop=li*RM_LANE_H, barTop=laneTop+13;
+    shown.forEach(ms=>{
+      const li=laneOf[ms.id], laneTop=li*RM_LANE_H, barTop=laneTop+13;
       const s=ms.start||"", e=ms.end||"";
       if((s||mA)<=mB && (e||mB)>=mA){                            // 이 달에 걸친 막대 조각
         const a=(s&&s>mA)?s:mA, b=(e&&e<mB)?e:mB;
@@ -2174,8 +2185,8 @@ function rmBandHtml(months){
     });
     return `<div class="rm-cell rm-bcell">${inner}</div>`;
   };
-  return `<div class="rm-row rm-band" style="height:${shown.length*RM_LANE_H+4}px">`+
-    `<div class="rm-label rm-blabel">마일스톤 마감${extra?`<em title="로드맵 기간과 겹치는 마일스톤 ${all.length}개 중 3개만 표시">+${extra}</em>`:""}</div>`+
+  return `<div class="rm-row rm-band" style="height:${usedLanes*RM_LANE_H+4}px">`+
+    `<div class="rm-label rm-blabel">마일스톤 마감<em title="${shown.map(m=>m.name).join(", ")}">${shown.length}개</em></div>`+
     months.map(cell).join("")+`<div class="rm-cell rm-bcell"></div></div>`;
 }
 /* 라벨이 서로 겹치면 좌우로 밀어 준다(그린 뒤 실제 폭을 재서 조정) */
