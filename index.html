@@ -345,7 +345,7 @@
   .rm-row.g-over-bot{ box-shadow:inset 0 -3px 0 0 var(--accent); }
   .rm-gedit{ margin-left:auto; background:none; border:0; color:var(--muted); cursor:pointer; font-size:11px; padding:2px 4px; border-radius:5px; flex:0 0 auto; }
   .rm-gedit:hover{ color:var(--text); background:var(--panel2); }
-  .rm-cell{ flex:1 1 176px; min-width:176px; min-height:44px; display:flex; flex-wrap:wrap; align-content:flex-start; gap:4px; padding:7px; border-right:1px solid var(--grid); }
+  .rm-cell{ flex:1 1 176px; min-width:176px; min-height:44px; display:flex; flex-wrap:wrap; align-content:flex-start; column-gap:5px; row-gap:10px; padding:11px 7px 7px; border-right:1px solid var(--grid); }
   .rm-cell:last-child{ border-right:0; }
   .rm-cell.drop{ background:rgba(99,102,241,.14); box-shadow:inset 0 0 0 1px var(--accent); }
   /* 마일스톤 마감 밴드 (월 헤더 아래) */
@@ -365,7 +365,21 @@
   .rm-row.rm-head .rm-label{ background:var(--panel); }
   .rm-mh{ min-height:0; align-items:center; font-size:11.5px; font-weight:800; color:var(--text); padding:7px 10px; background:var(--panel); }
   .rm-mh.dim{ color:var(--muted); }
-  .rm-chip{ display:inline-flex; align-items:center; gap:5px; max-width:100%; font-size:11px; font-weight:700; padding:3px 8px; border-radius:7px; background:var(--panel2); border:1px solid var(--line); border-left-width:3px; color:var(--text); cursor:pointer; user-select:none; }
+  .rm-chip{ position:relative; overflow:visible; display:inline-flex; align-items:center; gap:5px; max-width:100%; font-size:11px; font-weight:700; padding:3px 8px; border-radius:7px; background:var(--panel2); border:1px solid var(--line); border-left-width:3px; color:var(--text); cursor:pointer; user-select:none; }
+  /* 타겟 마일스톤 배지 — 칩 좌측 상단에 겹쳐 붙는 원형 숫자 */
+  .rm-mb{ position:absolute; top:-7px; left:-6px; z-index:3; width:15px; height:15px; border-radius:50%;
+          display:flex; align-items:center; justify-content:center; font-size:8.5px; font-weight:800; line-height:1;
+          color:#fff; box-shadow:0 0 0 2px var(--bg); pointer-events:none; }
+  .rm-mb.none{ background:var(--panel2); color:var(--muted); box-shadow:0 0 0 2px var(--bg), inset 0 0 0 1px var(--line); }
+  /* 마일스톤 필터 행 */
+  .rm-filter{ display:flex; align-items:center; flex-wrap:wrap; gap:5px; margin:0 0 9px; }
+  .rm-filter > span{ font-size:11px; font-weight:800; color:var(--muted); margin-right:2px; }
+  .rm-fchip{ display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; color:var(--muted);
+             background:var(--panel2); border:1px solid var(--line); border-radius:999px; padding:3px 10px; cursor:pointer; }
+  .rm-fchip i{ width:7px; height:7px; border-radius:50%; flex:0 0 auto; }
+  .rm-fchip:hover{ color:var(--text); }
+  .rm-fchip.on{ color:#fff; background:var(--accent); border-color:var(--accent); }
+  .rm-fchip.on i{ box-shadow:0 0 0 1px rgba(255,255,255,.75); }
   .rm-chip:hover{ filter:brightness(1.15); }
   .rm-chip b{ font-size:10px; font-weight:800; color:var(--muted); }
   .rm-chip.dragging{ opacity:.4; }
@@ -849,6 +863,7 @@
     <div class="modal rm-modal"><h3>발주 로드맵 🗺</h3>
       <div class="msub" id="rmSub">월별로 무엇이 발주·킥오프되는지 한눈에 봅니다.</div>
       <div class="rm-notes" id="rmNotes"></div>
+      <div class="rm-filter" id="rmFilter"></div>
       <div class="rm-scroll scrollbar"><div class="rm-grid" id="rmGrid"></div></div>
       <div class="modal-actions">
         <div class="rm-foot" id="rmFoot"></div>
@@ -2117,6 +2132,32 @@ function rmMonths(){
 }
 const rmDateLabel = v => { if(!v) return ""; const p=String(v).split("-"); return p.length===3 ? (Number(p[1])+"/"+Number(p[2])) : v; };
 function rmFindGroup(gid){ return (state.roadmap.groups||[]).find(g=>g.id===gid); }
+/* ===== 타겟 마일스톤 ===== */
+let rmFilterMs="";                                        // "" 전체 · msId · "none" 미지정 (뷰 상태, 저장 안 함)
+const rmMsList = () => (state.milestones||[]).filter(m=>m && !m.free);
+const rmMsById = id => rmMsList().find(m=>m.id===id) || null;
+function rmMsBadgeText(name){                             // "[M10]" -> "10", 숫자 없으면 앞 두 글자
+  const d=String(name||"").match(/(\d+)/);
+  if(d) return d[1].slice(-3);
+  const t=String(name||"").replace(/[\[\]()\s]/g,"");
+  return t.slice(0,2)||"?";
+}
+function rmMsForDate(ymd){                                // 날짜가 들어가는 마일스톤 찾기
+  if(!ymd) return null;
+  return rmMsList().find(m=>(m.start||"0000-00-00")<=ymd && (!m.end || ymd<=m.end)) || null;
+}
+/* 최초 1회: 기존 항목에 날짜(없으면 그 달 15일) 기준으로 타겟 마일스톤을 자동 배정한다. */
+function rmAutoAssignMs(){
+  const rm=state.roadmap; if(!rm || rm.msAssigned) return false;
+  (rm.groups||[]).forEach(g=>(g.items||[]).forEach(it=>{
+    if(it.msId!==undefined) return;
+    const probe = it.date || (it.ym ? it.ym+"-15" : "");
+    const m = rmMsForDate(probe);
+    it.msId = m ? m.id : "";
+  }));
+  rm.msAssigned = 1;
+  return true;
+}
 function rmFindItem(gid,iid){ const g=rmFindGroup(gid); return g ? { g, it:(g.items||[]).find(x=>x.id===iid) } : { g:null, it:null }; }
 
 /* ===== 마일스톤 마감 밴드 =====
@@ -2209,8 +2250,27 @@ function rmLayoutBandLabels(){
     });
   });
 }
+function rmPassMs(it){
+  if(!rmFilterMs) return true;
+  if(rmFilterMs==="none") return !rmMsById(it.msId);
+  return it.msId===rmFilterMs;
+}
+function renderRmFilter(){
+  const list=rmMsList();
+  const cnt={none:0}; list.forEach(m=>cnt[m.id]=0); let all=0;
+  ((state.roadmap||{}).groups||[]).forEach(g=>(g.items||[]).forEach(it=>{
+    all++; const m=rmMsById(it.msId); if(m) cnt[m.id]++; else cnt.none++; }));
+  const chip=(key,label,color,n)=>
+    `<button class="rm-fchip ${rmFilterMs===key?"on":""}" data-rmf="${key}">`+
+    `${color?`<i style="background:${color}"></i>`:""}${escapeHtml(label)}<b style="opacity:.65;font-weight:700">${n}</b></button>`;
+  document.getElementById("rmFilter").innerHTML =
+    `<span>마일스톤</span>` + chip("","전체","",all) +
+    list.map(m=>chip(m.id,m.name,m.color,cnt[m.id])).join("") +
+    chip("none","미지정","",cnt.none);
+}
 function renderRoadmap(){
   const rm=state.roadmap, ms=rmMonths(), ed=rmCanEdit();
+  renderRmFilter();
   document.getElementById("rmSub").textContent = ed
     ? "월별로 무엇이 발주·킥오프되는지 봅니다. 항목을 끌어 다른 달로 옮기거나, 클릭해 이름·날짜를 고칠 수 있어요."
     : "월별로 무엇이 발주·킥오프되는지 봅니다. (읽기 전용)";
@@ -2225,8 +2285,15 @@ function renderRoadmap(){
     `<div class="rm-cell rm-mh dim">미정</div></div>`;
 
   const cell=(g,ym)=>{
-    const items=(g.items||[]).filter(it=>(it.ym||"")===ym);
-    const chips=items.map(it=>`<span class="rm-chip" data-rmitem="${g.id}|${it.id}" ${ed?'draggable="true"':''} style="border-left-color:${g.color}" title="${escapeHtml(it.text)}${it.date?' · '+it.date:''}${ed?' (클릭: 편집)':''}">${escapeHtml(it.text)}${it.date?`<b>${rmDateLabel(it.date)}</b>`:''}</span>`).join("");
+    const items=(g.items||[]).filter(it=>(it.ym||"")===ym && rmPassMs(it));
+    const chips=items.map(it=>{
+      const m=rmMsById(it.msId);
+      const badge = m
+        ? `<span class="rm-mb" style="background:${m.color}">${escapeHtml(rmMsBadgeText(m.name))}</span>`
+        : `<span class="rm-mb none">–</span>`;
+      const tip=`${it.text}${it.date?' · '+it.date:''} · 타겟 ${m?m.name:"미지정"}${ed?' (클릭: 편집)':''}`;
+      return `<span class="rm-chip" data-rmitem="${g.id}|${it.id}" ${ed?'draggable="true"':''} style="border-left-color:${g.color}" title="${escapeHtml(tip)}">${badge}${escapeHtml(it.text)}${it.date?`<b>${rmDateLabel(it.date)}</b>`:''}</span>`;
+    }).join("");
     return `<div class="rm-cell" data-rmdrop="${g.id}|${ym}">${chips}${ed?`<button class="rm-add" data-rmadd="${g.id}|${ym}" title="항목 추가">＋</button>`:""}</div>`;
   };
   const rows=(rm.groups||[]).map(g=>
@@ -2245,7 +2312,9 @@ function renderRoadmap(){
       `표시 <select id="rmMonths">${[3,4,5,6,8,10,12].map(n=>`<option value="${n}" ${Number(rm.months)===n?"selected":""}>${n}개월</option>`).join("")}</select></span>`
     : "";
 }
-function openRoadmap(){ if(!state.roadmap) state.roadmap=seedRoadmap(); renderRoadmap(); roadmapModal.classList.add("show"); }
+function openRoadmap(){ if(!state.roadmap) state.roadmap=seedRoadmap();
+  if(rmAutoAssignMs() && rmCanEdit()) save();
+  renderRoadmap(); roadmapModal.classList.add("show"); }
 
 /* --- 편집 팝오버 --- */
 let rmPopMode=null, rmPopRef=null;
@@ -2273,6 +2342,10 @@ function openRmItemPop(anchor, gid, iid, ym){
     `<label>항목 이름</label><input id="rmpText" value="${escapeHtml(it?it.text:"")}" placeholder="예: 엘디스">`+
     `<label>날짜 (선택)</label><input type="date" id="rmpDate" value="${escapeHtml(it&&it.date?it.date:"")}">`+
     `<label>월</label><select id="rmpYm">${rmMonthOptions(it?(it.ym||""):(ym||""))}</select>`+
+    `<label>타겟 마일스톤</label><select id="rmpMs">`+
+      `<option value="" ${it&&rmMsById(it.msId)?"":"selected"}>미지정</option>`+
+      rmMsList().map(m=>`<option value="${m.id}" ${it&&it.msId===m.id?"selected":""}>${escapeHtml(m.name)}</option>`).join("")+
+    `</select>`+
     `<div class="rmp-act"><button class="btn" data-rmp="save">저장</button>`+
     `<button class="btn ghost" data-rmp="cancel">취소</button>`+
     `${isNew?"":`<button class="rmp-del" data-rmp="del">삭제</button>`}</div>`;
@@ -2312,8 +2385,9 @@ function rmPopSave(){
     const text=txt.trim(); if(!text) return closeRmPop();
     const date=(document.getElementById("rmpDate")||{}).value||"";
     const ym=(document.getElementById("rmpYm")||{}).value||"";
-    if(rmPopRef.isNew){ const g=rmFindGroup(rmPopRef.gid); if(g){ if(!Array.isArray(g.items)) g.items=[]; g.items.push({ id:uid(), ym, text, date }); } }
-    else { const {it}=rmFindItem(rmPopRef.gid, rmPopRef.iid); if(it){ it.text=text; it.date=date; it.ym=ym; } }
+    const msId=(document.getElementById("rmpMs")||{}).value||"";
+    if(rmPopRef.isNew){ const g=rmFindGroup(rmPopRef.gid); if(g){ if(!Array.isArray(g.items)) g.items=[]; g.items.push({ id:uid(), ym, text, date, msId }); } }
+    else { const {it}=rmFindItem(rmPopRef.gid, rmPopRef.iid); if(it){ it.text=text; it.date=date; it.ym=ym; it.msId=msId; } }
   }
   closeRmPop(); save(); renderRoadmap();
 }
@@ -2329,6 +2403,11 @@ function rmPopDelete(){
 /* --- 로드맵 상호작용 --- */
 document.getElementById("roadmapBtn").onclick=openRoadmap;
 document.getElementById("rmNotes").addEventListener("click", e=>{ if(e.target.closest("#rmNoteEdit")) openRmNotePop(e.target.closest("#rmNoteEdit")); });
+document.getElementById("rmFilter").addEventListener("click", e=>{
+  const b=e.target.closest("[data-rmf]"); if(!b) return;
+  rmFilterMs = b.dataset.rmf===rmFilterMs && rmFilterMs!=="" ? "" : b.dataset.rmf;   // 같은 칩 다시 누르면 전체
+  renderRoadmap();
+});
 document.getElementById("rmFoot").addEventListener("change", e=>{
   if(!rmCanEdit()) return;
   const st=e.target.closest("#rmStart"); if(st && st.value){ state.roadmap.startYm=st.value; save(); renderRoadmap(); return; }
