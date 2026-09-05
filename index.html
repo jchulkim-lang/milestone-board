@@ -534,12 +534,12 @@
   /* 컨텍스트 바 */
   .ctxbar{ flex:0 0 auto; display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:9px 16px; background:var(--panel); border-bottom:1px solid var(--line); }
   .ctx-ms{ background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:9px; padding:7px 10px; font-size:13px; font-weight:700; cursor:pointer; }
-  .ctx-prog{ display:flex; align-items:center; gap:9px; margin-left:8px; }
+  .ctx-prog{ display:flex; align-items:center; gap:9px; margin-left:auto; flex:0 0 auto; }
   .ctx-track{ width:170px; height:9px; border-radius:99px; background:var(--panel2); overflow:hidden; }
   .ctx-fill{ display:block; height:100%; background:var(--grad); border-radius:99px; transition:width .3s ease; }
   .ctx-num{ font-size:12.5px; font-weight:800; }
   .ctx-num span{ color:var(--muted); font-weight:600; }
-  .ctx-dday{ display:flex; align-items:center; gap:5px; font-size:12px; margin-left:auto; white-space:nowrap; min-width:0; overflow-x:auto; scrollbar-width:none; }
+  .ctx-dday{ display:flex; align-items:center; gap:5px; font-size:12px; margin-left:8px; flex:1 1 0; white-space:nowrap; min-width:0; overflow-x:auto; scrollbar-width:none; }
   .ctx-dday::-webkit-scrollbar{ height:0; width:0; }
   .dlbar-ms{ font-size:11px; font-weight:800; flex:0 0 auto; margin-right:2px; }
   .dlc{ display:inline-flex; align-items:center; gap:4px; flex:0 0 auto; font-size:10.5px; font-weight:700; color:var(--muted);
@@ -669,7 +669,7 @@
   .ctxbar{ padding:4px 12px; gap:8px; }
   .ctxbar .lh-label{ font-size:10px; }
   .ctx-ms{ padding:3px 7px; font-size:11.5px; border-radius:7px; }
-  .ctx-prog{ gap:7px; margin-left:6px; }
+  .ctx-prog{ gap:7px; margin-left:auto; }
   .ctx-track{ width:150px; height:7px; }
   .ctx-num{ font-size:11.5px; }
   .ctx-dday{ font-size:11px; gap:6px; }
@@ -1298,8 +1298,8 @@ function renderContext(){
   box.innerHTML=
     `<span class="lh-label">마일스톤</span><select class="ctx-ms" id="ctxMs">${msOpts}</select>`+
     `<span class="lh-label" style="margin-left:6px">분류</span><div class="seg-group">${trackTabs}</div>`+
-    `<div class="ctx-prog"><span class="lh-label">진행</span><span class="ctx-track"><span class="ctx-fill" style="width:${pct}%"></span></span><span class="ctx-num">${pct}% <span>(${done}/${tot})</span></span></div>`+
-    `<div class="ctx-dday">${deadlineBarHtml()}</div>`;
+    `<div class="ctx-dday">${deadlineBarHtml()}</div>`+
+    `<div class="ctx-prog"><span class="lh-label">진행</span><span class="ctx-track"><span class="ctx-fill" style="width:${pct}%"></span></span><span class="ctx-num">${pct}% <span>(${done}/${tot})</span></span></div>`;
 }
 
 // 상태 파이프라인 스테퍼 (클릭 시 해당 상태만 필터)
