@@ -352,6 +352,7 @@
   .rm-row.rm-band{ background:var(--panel); overflow:visible; }
   .rm-blabel{ font-size:10.5px; font-weight:800; color:var(--muted); align-items:center; }
   .rm-blabel em{ font-style:normal; margin-left:5px; font-size:9.5px; opacity:.8; }
+  .rm-blabel em.warn{ color:#fbbf24; opacity:1; }
   .rm-bcell{ position:relative; min-height:0; padding:0; display:block; overflow:visible; }
   .rm-bar{ position:absolute; height:11px; border:1px solid; border-radius:6px; display:flex; align-items:center;
            padding:0 5px; overflow:hidden; z-index:2; }
@@ -1253,7 +1254,15 @@ function renderDeptFocus(){
       `<i style="background:${d.color}"></i>${escapeHtml(d.key)}</button>`; }).join("");
 }
 function renderTitle(){ const t=state.title||"본부 마일스톤 관리"; const el=document.getElementById("appTitle"); if(el) el.textContent=t; document.title=t; }
-function render(){ normalizeFocusDept(); renderTitle(); renderDeptFocus(); renderContext(); renderPipeline(); renderLegend(); renderFilter(); renderHead(); renderLeft(); renderBody(); }
+function render(){ normalizeFocusDept(); renderTitle(); renderDeptFocus(); renderContext(); renderPipeline(); renderLegend(); renderFilter(); renderHead(); renderLeft(); renderBody(); refreshRoadmapIfOpen(); }
+/* 발주 로드맵이 열려 있는 동안 마일스톤이 바뀌면(설정 편집·동기화 수신) 마감 밴드를 다시 그린다.
+   편집 팝오버가 떠 있거나 드래그 중이면 건드리지 않는다 — innerHTML 을 갈아끼우면 입력이 날아간다. */
+function refreshRoadmapIfOpen(){
+  const m=document.getElementById("roadmapModal");
+  if(!m || !m.classList.contains("show")) return;
+  if(rmPopMode || rmDrag || rmGDrag) return;
+  renderRoadmap();
+}
 
 /* 상단 바 오른쪽: 선택한 마일스톤의 마감일을 전부 한 줄로.
  * 마일스톤이 '전체'면 오늘이 속한 마일스톤(없으면 가장 가까운 마감을 가진 것)을 골라 보여준다. */
@@ -2178,7 +2187,13 @@ function rmBandMilestones(months){
     }).sort((a,b)=>String(a.start||"").localeCompare(String(b.start||"")));
 }
 function rmBandHtml(months){
-  const shown=rmBandMilestones(months); if(!shown.length) return "";
+  const shown=rmBandMilestones(months);
+  const dated=(state.milestones||[]).filter(m=>m && !m.free && (m.start||m.end));
+  const outN=Math.max(0, dated.length-shown.length);          // 표시 기간 밖이라 안 보이는 것
+  if(!shown.length) return dated.length
+    ? `<div class="rm-row rm-band" style="height:25px"><div class="rm-label rm-blabel">마일스톤 마감<em class="warn">표시 기간 밖 ${dated.length}개</em></div>`+
+      months.map(()=>`<div class="rm-cell rm-bcell"></div>`).join("")+`<div class="rm-cell rm-bcell"></div></div>`
+    : "";
   const first=months[0].ym+"-01", lm=months[months.length-1];
   const last=lm.ym+"-"+String(rmDays(lm.y,lm.m)).padStart(2,"0");
   /* 줄 배치: 앞 마일스톤과 기간이 겹치지 않는 첫 줄에 넣는다.
@@ -2227,7 +2242,8 @@ function rmBandHtml(months){
     return `<div class="rm-cell rm-bcell">${inner}</div>`;
   };
   return `<div class="rm-row rm-band" style="height:${usedLanes*RM_LANE_H+4}px">`+
-    `<div class="rm-label rm-blabel">마일스톤 마감<em title="${shown.map(m=>m.name).join(", ")}">${shown.length}개</em></div>`+
+    `<div class="rm-label rm-blabel">마일스톤 마감<em title="${shown.map(m=>m.name).join(", ")}">${shown.length}개</em>`+
+    `${outN?`<em class="warn" title="아래 '시작'·'표시' 를 조정하면 보입니다">밖 ${outN}</em>`:""}</div>`+
     months.map(cell).join("")+`<div class="rm-cell rm-bcell"></div></div>`;
 }
 /* 라벨이 서로 겹치면 좌우로 밀어 준다(그린 뒤 실제 폭을 재서 조정) */
