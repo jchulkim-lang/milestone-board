@@ -389,6 +389,7 @@
   .rm-add:hover{ border-color:var(--accent); color:var(--text); opacity:1; }
   .rm-foot{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .rm-range{ display:flex; align-items:center; gap:5px; font-size:11px; color:var(--muted); font-weight:700; }
+  .rm-auto{ font-style:normal; font-size:10px; font-weight:800; color:#fbbf24; background:rgba(245,158,11,.12); border:1px solid rgba(245,158,11,.35); border-radius:999px; padding:2px 7px; }
   .rm-range input,.rm-range select{ width:auto; background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:7px; padding:3px 6px; font-size:11.5px; font-family:inherit; }
   /* 항목/그룹 편집 팝오버 */
   .rm-pop{ position:fixed; z-index:60; display:none; background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:11px; box-shadow:0 16px 40px rgba(0,0,0,.5); width:246px; }
@@ -2131,13 +2132,33 @@ function seedRoadmap(){
       items: g.items.map(([ym,text,date],ii)=>({ id:"rmg"+gi+"i"+ii, ym, text, date })) })) };
 }
 const rmCanEdit = () => !document.body.classList.contains("readonly");
-function rmMonths(){
-  const rm=state.roadmap||{}; const out=[];
-  const p=(rm.startYm||"2026-09").split("-"); const y=Number(p[0])||2026, m=Number(p[1])||9;
-  const n=Math.min(24, Math.max(1, Number(rm.months)||5));
+const RM_MAX_MONTHS=24;
+function rmMakeMonths(y,m,n){ const out=[];
   for(let i=0;i<n;i++){ const d=new Date(y, m-1+i, 1);
     out.push({ ym:d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"), y:d.getFullYear(), m:d.getMonth()+1 }); }
   return out;
+}
+/* 표시 개월 수는 사용자 설정값이 '최소'다.
+ * 밴드에 나오는 마일스톤의 마감(리소스·개발·QA·종료)이 마지막 달을 넘어가면 그만큼 자동으로 늘린다.
+ * 안 그러면 M12 의 QA·종료처럼 범위 밖 마감이 조용히 사라진다. (2026-09-05) */
+let rmAutoExtra=0;                                            // 자동으로 늘린 개월 수 (푸터 안내용)
+function rmMonths(){
+  const rm=state.roadmap||{};
+  const p=(rm.startYm||"2026-09").split("-"); const y=Number(p[0])||2026, m=Number(p[1])||9;
+  const n=Math.min(RM_MAX_MONTHS, Math.max(1, Number(rm.months)||5));
+  const base=rmMakeMonths(y,m,n);
+  let need=n;
+  rmBandMilestones(base).forEach(ms=>{                        // 이미 밴드에 걸린 마일스톤만 대상
+    ["start","end","resource","dev","qa"].forEach(k=>{
+      const v=ms[k]; if(!v) return;
+      const d=Number(String(v).slice(0,4))*12 + Number(String(v).slice(5,7));
+      const idx=d - (y*12+m) + 1;                             // 시작월부터 몇 번째 달인가
+      if(idx>need) need=idx;
+    });
+  });
+  need=Math.min(RM_MAX_MONTHS, need);
+  rmAutoExtra=Math.max(0, need-n);
+  return need===n ? base : rmMakeMonths(y,m,need);
 }
 const rmDateLabel = v => { if(!v) return ""; const p=String(v).split("-"); return p.length===3 ? (Number(p[1])+"/"+Number(p[2])) : v; };
 function rmFindGroup(gid){ return (state.roadmap.groups||[]).find(g=>g.id===gid); }
@@ -2325,7 +2346,8 @@ function renderRoadmap(){
   rmLayoutBandLabels();
   document.getElementById("rmFoot").innerHTML = ed
     ? `<span class="rm-range">시작 <input type="month" id="rmStart" value="${escapeHtml(rm.startYm||"2026-09")}">`+
-      `표시 <select id="rmMonths">${[3,4,5,6,8,10,12].map(n=>`<option value="${n}" ${Number(rm.months)===n?"selected":""}>${n}개월</option>`).join("")}</select></span>`
+      `표시 <select id="rmMonths">${[3,4,5,6,8,10,12].map(n=>`<option value="${n}" ${Number(rm.months)===n?"selected":""}>${n}개월</option>`).join("")}</select>`+
+      `${rmAutoExtra?`<em class="rm-auto" title="마일스톤 마감이 잘리지 않도록 자동으로 늘렸습니다">+${rmAutoExtra}개월 자동</em>`:""}</span>`
     : "";
 }
 function openRoadmap(){ if(!state.roadmap) state.roadmap=seedRoadmap();
