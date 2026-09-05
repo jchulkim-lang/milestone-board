@@ -1335,7 +1335,7 @@ function renderContext(){
   const trackTabs=TRACKS.map(tr=>`<span class="trtab ${trackFilter===tr?'on':''}" data-track="${tr}"><i class="trdot" style="background:${TRACK_COLORS[tr]||'#888'}"></i>${escapeHtml(tr)}</span>`).join("")
     + `<span class="trtab ${isMemberView()?'on':''}" data-track="${VIEW_MEMBER}" title="마일스톤 안의 모든 일감을 담당자 기준으로 봅니다"><i class="trdot" style="background:${TRACK_COLORS[VIEW_MEMBER]}"></i>${VIEW_MEMBER}</span>`;
   const scope=state.tasks.filter(t=> (msFilter.size===0||msFilter.has(t.milestoneId)) &&
-    (isMemberView() ? true : (t.track||"개발")===headTrack()));
+    (t.track||"개발")===(isMemberView()?MEM_TRACK:headTrack()));
   const tot=scope.length, done=scope.filter(isDone).length, pct=tot?Math.round(done/tot*100):0;
   box.innerHTML=
     `<span class="lh-label">마일스톤</span><select class="ctx-ms" id="ctxMs">${msOpts}</select>`+
@@ -1350,7 +1350,7 @@ function renderPipeline(){
   if(isMemberView()){ const s=memberSummary();
     box.innerHTML=`<div class="pipe-mem"><span>멤버 <b>${s.mem}</b>명</span><span>담당 일감 <b>${s.n}</b>건</span>`+
       `<span class="warn">일정 미정 <b>${s.un}</b></span><span class="bad">겹치는 날 <b>${s.ov}</b></span>`+
-      `<span style="color:var(--dim);font-weight:700">· 멤버 줄 클릭: 접기/펼치기 · 막대 클릭: 일정·담당자 편집</span></div>`;
+      `<span style="color:var(--dim);font-weight:700">· <b style="color:var(--muted)">${MEM_TRACK}</b> 분류만 집계 · 멤버 줄 클릭: 접기/펼치기 · 막대 클릭: 일정·담당자 편집</span></div>`;
     return; }
   const sts=statusesFor(headTrack());
   const scope=state.tasks.filter(t=> (msFilter.size===0||msFilter.has(t.milestoneId)) && (t.track||"개발")===headTrack());
@@ -1402,7 +1402,7 @@ function renderFilter(){
   document.getElementById("leftHead").innerHTML=
     `<div class="lh-row">
        <button class="btn sm" id="addTaskBtn">＋ Task</button>
-       <span class="lh-label" style="margin-left:4px">${isMemberView()?"멤버 · 담당 일감 · 일정":"TASK · 부서 · 킥오프"}</span>
+       <span class="lh-label" style="margin-left:4px">${isMemberView()?"멤버 · 담당 일감 · 일정 (개발 분류)":"TASK · 부서 · 킥오프"}</span>
        <button class="filter-btn" id="toggleAllBtn" style="margin-left:auto" title="모두 펼침/접기 (개인 화면)">${_allOpen?'⊖ 모두 접기':'⊕ 모두 펼치기'}</button>
        <button class="filter-btn ${sortMode!=='manual'?'active':''}" id="sortBtn" title="정렬 (클릭: 수동 → 이름↑ → 이름↓ → 우선순위)">${sortMode==='name-asc'?'이름 ↑':sortMode==='name-desc'?'이름 ↓':sortMode==='prio'?'우선순위':'↕ 정렬'}</button>
        <button class="filter-btn ${cnt?'active':''}" id="filterBtn">필터${cnt?' ('+cnt+')':''} ▾</button>
@@ -1491,9 +1491,11 @@ function avColor(n){ let h=0; for(let i=0;i<n.length;i++) h=(h*31+n.charCodeAt(i
 const memKey = m => "m:"+m.dept+"|"+m.name;
 const memOpen = m => !memCollapsed.has(memKey(m));
 
+const MEM_TRACK="개발";                          // 멤버 뷰가 세는 업무 볼륨은 '개발' 분류만 (2026-09-05 사용자 지시)
 function memberScopeTasks(){
   const q=searchQuery.trim().toLowerCase();
   return state.tasks.filter(t=>{
+    if((t.track||"개발")!==MEM_TRACK) return false;
     if(msFilter.size && !msFilter.has(t.milestoneId)) return false;
     if(q && !(String(t.name||"").toLowerCase().includes(q) || taskAssignees(t).some(n=>n.toLowerCase().includes(q)))) return false;
     return true;
@@ -1555,7 +1557,7 @@ function memStatChips(st){
 }
 function renderMemberLeft(){
   const body=document.getElementById("leftBody"); const gs=memberGroups();
-  if(!gs.length){ body.innerHTML=`<div class="empty">이 조건에 해당하는 담당 일감이 없습니다.<br>Task의 <b>＋ 부서</b> 에서 부서별 담당자를 지정하면 여기에 나옵니다.</div>`; return; }
+  if(!gs.length){ body.innerHTML=`<div class="empty">이 조건에 해당하는 담당 일감이 없습니다.<br><b>개발</b> 분류 Task의 <b>＋ 부서</b> 에서 부서별 담당자를 지정하면 여기에 나옵니다.</div>`; return; }
   let html="";
   gs.forEach(g=>{
     const gk="g:"+g.dept, gcol=memCollapsed.has(gk);
