@@ -353,6 +353,17 @@
   .sp-redit{ background:none; border:0; color:var(--muted); cursor:pointer; font-size:11px; padding:1px 3px; border-radius:5px; flex:0 0 auto; opacity:0; }
   .sp-lab:hover .sp-redit{ opacity:1; }
   .sp-redit:hover{ color:var(--text); background:var(--panel2); }
+  .sp-add{ flex:0 0 auto; font-size:10.5px; font-weight:800; line-height:1; padding:3px 8px; border-radius:7px;
+           border:1px dashed var(--line); background:transparent; color:var(--muted); cursor:pointer; }
+  .sp-add:hover{ border-color:var(--accent); color:var(--text); border-style:solid; }
+  .sp-handle{ flex:0 0 auto; font-size:12px; line-height:1; color:var(--muted); opacity:.4; cursor:grab; user-select:none; margin-left:-3px; }
+  .sp-lab:hover .sp-handle{ opacity:1; color:var(--text); }
+  .sp-row.sp-drag{ opacity:.4; }
+  .sp-row.sp-over-top{ box-shadow:inset 0 3px 0 0 var(--accent); }
+  .sp-row.sp-over-bot{ box-shadow:inset 0 -3px 0 0 var(--accent); }
+  .sp-sec .sp-lab{ gap:6px; }
+  .sp-sec .sp-lab .nm{ margin-right:auto; }
+  .sp-bar .dt{ font-size:9px; font-weight:700; opacity:.6; margin-left:auto; padding-left:4px; }
   .sp-track{ flex:1 1 0; min-width:0; position:relative; display:flex; }
   .sp-wk{ flex:1 0 62px; min-width:62px; border-right:1px solid var(--grid); }
   .sp-wk:last-child{ border-right:0; }
@@ -2806,7 +2817,7 @@ document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeRmPop(); });
 const SP_VER_COLORS=["#6366f1","#0ea5e9","#10b981","#f59e0b","#a855f7","#ec4899"];
 const SP_COL_W=62, SP_LANE_H=25, SP_MAX_WEEKS=52;
 const SP_SEED={
-  launch:"2026-07-08", weeks:19, showDates:false, guideOpen:false, verWeeks:6,
+  launch:"2026-07-08", weeks:19, showDates:true, guideOpen:false, verWeeks:6,
   guide:[
     ["일간","일일 퀘스트 / 의뢰","성장 재화 파밍 — 행동력 360(Max), 4분당 1회복","매일 로그인할 이유 · 성장 재화 기본 공급","#10b981"],
     ["일간","일일 레이드","무기 제작 재료 파밍 — 1일 2회의 획득 기회","장비 제작 목표의 일 단위 진척","#ef4444"],
@@ -2872,6 +2883,10 @@ const spWeeks = () => Math.min(SP_MAX_WEEKS, Math.max(1, Number(planState().week
 function spWeekDate(i){ const p=String(planState().launch||"2026-07-08").split("-");
   const d=new Date(Number(p[0]),Number(p[1])-1,Number(p[2])); d.setDate(d.getDate()+i*7); return d; }
 const spDLabel = i => { const d=spWeekDate(i); return (d.getMonth()+1)+"/"+d.getDate(); };
+/* 런칭일 기준 실제 기간: 시작 주 첫날 ~ 마지막 주 끝날 */
+function spRange(it){ const a=spWeekDate(it.s), b=spWeekDate(it.s+it.w); b.setDate(b.getDate()-1);
+  return { a, b, label:(a.getMonth()+1)+"/"+a.getDate()+" ~ "+(b.getMonth()+1)+"/"+b.getDate(),
+           full:ymd(a)+" ~ "+ymd(b) }; }
 function spTodayWeek(){ const a=spWeekDate(0), t=stripTime(new Date());
   const diff=(t-stripTime(a))/86400000; if(diff<0) return null;
   const w=diff/7; return w<=spWeeks() ? w : null; }
@@ -2911,19 +2926,23 @@ function spLanes(items){
   return { placed, n:Math.max(1,lanes.length) };
 }
 function spRowHtml(row, ed){
-  const W=spWeeks(), {placed,n}=spLanes(row.items);
+  const W=spWeeks(), {placed,n}=spLanes(row.items), showD=!!planState().showDates;
   const H=Math.max(30, n*SP_LANE_H+8);
   const bars=placed.map(({it,li})=>{
     const st=Math.max(0,Math.min(W-1,it.s)), wd=Math.max(1,Math.min(W-st,it.w));
     const l=(st/W)*100, ww=(wd/W)*100;
+    const rg=spRange({s:st,w:wd});
     return `<div class="sp-bar ${it.kind==='cont'?'cont':''} ${it.kind==='tbd'?'tbd':''}" data-spitem="${row.id}|${it.id}"`+
       ` style="left:calc(${l}% + 3px);width:calc(${ww}% - 6px);top:${4+li*SP_LANE_H}px;background:${row.color}2e;border-color:${row.color}"`+
-      ` title="${escapeHtml(it.text)}${it.note?' · '+it.note:''} — 런칭 +${st}주부터 ${wd}주${ed?' (클릭: 편집 · 드래그: 이동/기간)':''}">`+
-      `${ed?'<span class="h l"></span>':''}${escapeHtml(it.text)}${it.note?`<em>${escapeHtml(it.note)}</em>`:''}${ed?'<span class="h r"></span>':''}</div>`;
+      ` title="${escapeHtml(it.text)}${it.note?' · '+it.note:''}\n${rg.full} (런칭 +${st}주부터 ${wd}주)${ed?'\n클릭: 편집 · 드래그: 이동/기간':''}">`+
+      `${ed?'<span class="h l"></span>':''}${escapeHtml(it.text)}${it.note?`<em>${escapeHtml(it.note)}</em>`:''}`+
+      `${showD?`<em class="dt">${escapeHtml(rg.label)}</em>`:''}${ed?'<span class="h r"></span>':''}</div>`;
   }).join("");
   let cells=""; for(let i=0;i<W;i++) cells+=`<div class="sp-wk ${Math.floor(i/3)%2?'alt':''}"></div>`;
   return `<div class="sp-row" style="height:${H}px" data-sprow="${row.id}">`+
-    `<div class="sp-lab"><i style="background:${row.color}"></i><span class="nm">${escapeHtml(row.name)}</span>`+
+    `<div class="sp-lab" ${ed?`draggable="true" data-sprowdrag="${row.id}"`:""}>`+
+    `${ed?`<span class="sp-handle" title="드래그하여 순서 변경">⠿</span>`:""}`+
+    `<i style="background:${row.color}"></i><span class="nm">${escapeHtml(row.name)}</span>`+
     `<span class="sp-cyc">${escapeHtml(row.cycle||"")}</span>`+
     `${ed?`<button class="sp-redit" data-sprowedit="${row.id}" title="트랙 이름·주기·색">✎</button>`:""}</div>`+
     `<div class="sp-track">${cells}<div class="sp-lane">${bars}</div></div></div>`;
@@ -2947,12 +2966,14 @@ function renderPlan(){
   let html=spHeadHtml();
   (pl.sections||[]).forEach(sec=>{
     const cnt=(sec.rows||[]).reduce((a,r)=>a+((r.items||[]).length),0);
-    html+=`<div class="sp-sec"><div class="sp-lab">${escapeHtml(sec.name)}</div>`+
-      `<div class="rest">트랙 ${(sec.rows||[]).length} · 항목 ${cnt}`+
-      `${ed?`<button class="sp-redit" style="opacity:1" data-sprowadd="${sec.id}" title="이 섹션에 트랙 추가">＋ 트랙</button>`:""}</div></div>`;
+    html+=`<div class="sp-sec" data-spsec="${sec.id}"><div class="sp-lab">`+
+      `<span class="nm">${escapeHtml(sec.name)}</span>`+
+      `${ed?`<button class="sp-add" data-sprowadd="${sec.id}" title="이 섹션에 트랙 추가">＋ 트랙</button>`+
+           `<button class="sp-redit" data-spsecedit="${sec.id}" title="섹션 이름 변경·삭제">✎</button>`:""}</div>`+
+      `<div class="rest">트랙 ${(sec.rows||[]).length} · 항목 ${cnt}</div></div>`;
     (sec.rows||[]).forEach(r=>{ html+=spRowHtml(r, ed); });
   });
-  if(ed) html+=`<div class="sp-row" style="height:30px"><div class="sp-lab"><button class="sp-redit" style="opacity:1" id="spAddSection">＋ 섹션</button></div><div class="sp-track"></div></div>`;
+  if(ed) html+=`<div class="sp-row" style="height:32px"><div class="sp-lab"><button class="sp-add" id="spAddSection">＋ 섹션 추가</button></div><div class="sp-track"></div></div>`;
   const grid=document.getElementById("spGrid");
   grid.innerHTML=html;
   grid.style.minWidth=(206+W*SP_COL_W)+"px";
@@ -2964,7 +2985,7 @@ function renderPlan(){
     ? `<span>런칭일</span><input type="date" id="spLaunch" value="${escapeHtml(pl.launch||"2026-07-08")}">`+
       `<span>표시</span><select id="spWeeks">${[13,19,26,32,39,52].map(n=>`<option value="${n}" ${Number(pl.weeks)===n?"selected":""}>${n}주</option>`).join("")}</select>`+
       `<span>버전 단위</span><select id="spVerW">${[3,4,6,8,12].map(n=>`<option value="${n}" ${Number(pl.verWeeks||6)===n?"selected":""}>${n}주</option>`).join("")}</select>`+
-      `<button class="tgl ${pl.showDates?"on":""}" id="spDates">실제 날짜</button>`
+      `<button class="tgl ${pl.showDates?"on":""}" id="spDates" title="헤더와 막대에 런칭일 기준 실제 날짜를 표시">📅 실제 날짜</button>`
     : `<span>런칭 ${escapeHtml(pl.launch||"")} 기준 ${W}주</span>`;
 }
 function openPlan(){ const fresh=!state.plan; planState();
@@ -3006,10 +3027,16 @@ function openSpItemPop(anchor, rid, iid, startWeek){
       `<option value="cont" ${it&&it.kind==="cont"?"selected":""}>지속 운영 (빗금)</option>`+
       `<option value="tbd" ${it&&it.kind==="tbd"?"selected":""}>미정 (점선)</option></select>`+
     `<label>메모 (막대 옆 작은 글씨)</label><input id="sppNote" value="${escapeHtml(it&&it.note?it.note:"")}" placeholder="예: [S] 불/어둠">`+
+    `<div class="rmp-hint" id="sppWhen">${escapeHtml(spRange({s:cs,w:cw}).full)}</div>`+
     `<div class="rmp-act"><button class="btn" data-spp="save">저장</button>`+
     `<button class="btn ghost" data-spp="cancel">취소</button>`+
     `${isNew?"":`<button class="rmp-del" data-spp="del">삭제</button>`}</div>`;
-  placeSpPop(anchor); const t=document.getElementById("sppText"); if(t){ t.focus(); t.select(); }
+  placeSpPop(anchor);
+  const upd=()=>{ const el=document.getElementById("sppWhen"); if(!el) return;
+    el.textContent=spRange({s:Number((document.getElementById("sppS")||{}).value)||0,
+                            w:Math.max(1,Number((document.getElementById("sppW")||{}).value)||1)}).full; };
+  ["sppS","sppW"].forEach(id=>{ const e=document.getElementById(id); if(e) e.addEventListener("change",upd); });
+  const t=document.getElementById("sppText"); if(t){ t.focus(); t.select(); }
 }
 function openSpRowPop(anchor, rid, secId){
   const isNew=!rid; const row=isNew?null:spFindRow(rid).row; if(!isNew && !row) return;
@@ -3021,6 +3048,16 @@ function openSpRowPop(anchor, rid, secId){
     `<div class="rmp-act"><button class="btn" data-spp="save">저장</button>`+
     `<button class="btn ghost" data-spp="cancel">취소</button>`+
     `${isNew?"":`<button class="rmp-del" data-spp="del">트랙 삭제</button>`}</div>`;
+  placeSpPop(anchor); const t=document.getElementById("sppText"); if(t){ t.focus(); t.select(); }
+}
+function openSpSecPop(anchor, sid){
+  const sec=(planState().sections||[]).find(x=>x.id===sid); if(!sec) return;
+  spPopMode="sec"; spPopRef={sid};
+  spPopEl().innerHTML =
+    `<label>섹션 이름</label><input id="sppText" value="${escapeHtml(sec.name)}" placeholder="예: 픽업 사이클">`+
+    `<div class="rmp-act"><button class="btn" data-spp="save">저장</button>`+
+    `<button class="btn ghost" data-spp="cancel">취소</button>`+
+    `<button class="rmp-del" data-spp="del">섹션 삭제</button></div>`;
   placeSpPop(anchor); const t=document.getElementById("sppText"); if(t){ t.focus(); t.select(); }
 }
 function openSpGuidePop(anchor, gid){
@@ -3044,7 +3081,10 @@ function spPopSave(){
   if(!spPopMode || !spCanEdit()) return closeSpPop();
   const pl=planState();
   const V=id=>((document.getElementById(id)||{}).value||"");
-  if(spPopMode==="row"){
+  if(spPopMode==="sec"){
+    const name=V("sppText").trim(); if(!name) return closeSpPop();
+    const sec=(pl.sections||[]).find(x=>x.id===spPopRef.sid); if(sec) sec.name=name;
+  } else if(spPopMode==="row"){
     const name=V("sppText").trim(); if(!name) return closeSpPop();
     const cycle=V("sppCycle").trim(), color=V("sppColor")||"#6366f1";
     if(spPopRef.isNew){ const sec=(pl.sections||[]).find(x=>x.id===spPopRef.secId);
@@ -3074,7 +3114,11 @@ function spPopSave(){
 function spPopDelete(){
   if(!spCanEdit()) return closeSpPop();
   const pl=planState();
-  if(spPopMode==="row"){ const {sec,row}=spFindRow(spPopRef.rid);
+  if(spPopMode==="sec"){ const sec=(pl.sections||[]).find(x=>x.id===spPopRef.sid);
+    if(sec){ const nr=(sec.rows||[]).length;
+      if(!confirm(`섹션 "${sec.name}" 과 그 안의 트랙 ${nr}개를 삭제할까요?`)) return;
+      pl.sections=pl.sections.filter(x=>x.id!==sec.id); } }
+  else if(spPopMode==="row"){ const {sec,row}=spFindRow(spPopRef.rid);
     if(sec && row){ if(!confirm(`트랙 "${row.name}" 과 그 안의 항목 ${(row.items||[]).length}개를 삭제할까요?`)) return;
       sec.rows=sec.rows.filter(x=>x.id!==row.id); } }
   else if(spPopMode==="guide"){ pl.guide=(pl.guide||[]).filter(x=>x.id!==spPopRef.gid); }
@@ -3105,6 +3149,7 @@ document.getElementById("spGrid").addEventListener("click", e=>{
     planState().sections.push({id:uid(),name:nm.trim(),rows:[]}); save(); renderPlan(); return; }
   const ra=e.target.closest("[data-sprowadd]"); if(ra){ openSpRowPop(ra, null, ra.dataset.sprowadd); return; }
   const re=e.target.closest("[data-sprowedit]"); if(re){ openSpRowPop(re, re.dataset.sprowedit); return; }
+  const se=e.target.closest("[data-spsecedit]"); if(se){ openSpSecPop(se, se.dataset.spsecedit); return; }
   const bi=e.target.closest("[data-spitem]"); if(bi){ if(spDragMoved) return;
     const [rid,iid]=bi.dataset.spitem.split("|"); openSpItemPop(bi, rid, iid); return; }
   const tr=e.target.closest(".sp-track"); const row=e.target.closest("[data-sprow]");
@@ -3138,7 +3183,37 @@ document.getElementById("spGrid").addEventListener("pointerdown", e=>{
     setTimeout(()=>{ spDragMoved=false; },0); }
   bar.addEventListener("pointermove",mv); bar.addEventListener("pointerup",up);
 });
-document.addEventListener("click", e=>{ if(spPopMode && !e.target.closest("#spPop") && !e.target.closest("[data-spitem]") && !e.target.closest("[data-sprowedit]") && !e.target.closest("[data-sprowadd]") && !e.target.closest("[data-spguide]") && !e.target.closest(".sp-track")) closeSpPop(); });
+/* 좌측 트랙 순서 드래그 (섹션을 넘어서 옮길 수도 있다) */
+let spRowDrag=null;
+function spClearMarks(){ document.querySelectorAll(".sp-row.sp-over-top,.sp-row.sp-over-bot").forEach(x=>x.classList.remove("sp-over-top","sp-over-bot")); }
+document.getElementById("spGrid").addEventListener("dragstart", e=>{
+  if(!spCanEdit()) return; const h=e.target.closest("[data-sprowdrag]"); if(!h) return;
+  spRowDrag=h.dataset.sprowdrag; const row=h.closest("[data-sprow]"); if(row) row.classList.add("sp-drag");
+  e.dataTransfer.effectAllowed="move"; try{ e.dataTransfer.setData("text/plain", spRowDrag); }catch(_){}
+});
+document.getElementById("spGrid").addEventListener("dragend", ()=>{
+  document.querySelectorAll(".sp-row.sp-drag").forEach(x=>x.classList.remove("sp-drag"));
+  spClearMarks(); spRowDrag=null; });
+document.getElementById("spGrid").addEventListener("dragover", e=>{
+  if(!spRowDrag) return; const row=e.target.closest("[data-sprow]"); if(!row) return; e.preventDefault();
+  spClearMarks(); if(row.dataset.sprow===spRowDrag) return;
+  const r=row.getBoundingClientRect();
+  row.classList.add((e.clientY-r.top) < r.height/2 ? "sp-over-top" : "sp-over-bot"); });
+document.getElementById("spGrid").addEventListener("drop", e=>{
+  if(!spRowDrag) return; const row=e.target.closest("[data-sprow]"); const moving=spRowDrag; spRowDrag=null;
+  if(!row){ spClearMarks(); return; } e.preventDefault();
+  const targetId=row.dataset.sprow;
+  if(targetId===moving){ spClearMarks(); renderPlan(); return; }
+  const pl=planState();
+  const src=pl.sections.find(sec=>(sec.rows||[]).some(r=>r.id===moving));
+  const dst=pl.sections.find(sec=>(sec.rows||[]).some(r=>r.id===targetId));
+  if(!src||!dst){ spClearMarks(); renderPlan(); return; }
+  const [moved]=src.rows.splice(src.rows.findIndex(r=>r.id===moving),1);
+  const r=row.getBoundingClientRect(); const before=(e.clientY-r.top) < r.height/2;
+  let to=dst.rows.findIndex(r=>r.id===targetId); if(to<0) to=dst.rows.length-1;
+  dst.rows.splice(before?to:to+1, 0, moved);
+  spClearMarks(); save(); renderPlan(); });
+document.addEventListener("click", e=>{ if(spPopMode && !e.target.closest("#spPop") && !e.target.closest("[data-spitem]") && !e.target.closest("[data-sprowedit]") && !e.target.closest("[data-sprowadd]") && !e.target.closest("[data-spguide]") && !e.target.closest("[data-spsecedit]") && !e.target.closest(".sp-track")) closeSpPop(); });
 document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeSpPop(); });
 
 /* ===== 마일스톤 관리 ===== */
