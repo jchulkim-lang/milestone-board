@@ -513,11 +513,13 @@
   .seg-group .trtab.on[data-track="아트"]{ background:linear-gradient(135deg,#ec4899,#a855f7); box-shadow:0 2px 9px rgba(236,72,153,.45); }
   .seg-group .trtab.on[data-track="전투"]{ background:linear-gradient(135deg,#ef4444,#f97316); box-shadow:0 2px 9px rgba(239,68,68,.45); }
   .seg-group .trtab.on[data-track="네러티브"]{ background:linear-gradient(135deg,#14b8a6,#06b6d4); box-shadow:0 2px 9px rgba(20,184,166,.45); }
+  .seg-group .trtab.on[data-track="멤버"]{ background:linear-gradient(135deg,#a78bfa,#6366f1); box-shadow:0 2px 9px rgba(167,139,250,.45); }
   .seg-group .trtab.on .trdot{ background:#fff !important; }
   .seg-group .trtab:not(.on)[data-track="개발"]{ color:#7ea8f0; }
   .seg-group .trtab:not(.on)[data-track="아트"]{ color:#f08fc2; }
   .seg-group .trtab:not(.on)[data-track="전투"]{ color:#f0a08f; }
   .seg-group .trtab:not(.on)[data-track="네러티브"]{ color:#7fd9cc; }
+  .seg-group .trtab:not(.on)[data-track="멤버"]{ color:#c4b5fd; }
 
   /* 필터 담당자 — 아트 부서 표시 + 부서명 칸 넓힘(잘림 방지) */
   .fa-trk{ font-size:9px; font-weight:800; color:#fff; background:linear-gradient(135deg,#a855f7,#ec4899); border-radius:999px; padding:1px 6px; margin-left:3px; vertical-align:middle; }
@@ -583,7 +585,14 @@
   .mem-task .dp{ flex:0 0 auto; font-size:9.5px; font-weight:800; color:#fff; border-radius:5px; padding:1px 6px; }
   .mem-task .tn{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
   .mem-task .tms{ flex:0 0 auto; font-size:9.5px; font-weight:800; color:var(--dim); }
-  .mem-task .tdur{ margin-left:auto; flex:0 0 auto; font-size:10.5px; font-weight:800; color:var(--muted); }
+  .mem-task .tdur{ flex:0 0 auto; width:56px; text-align:right; font-size:10.5px; font-weight:800; color:var(--muted); }
+  .mem-stat{ margin-left:auto; flex:0 0 auto; display:inline-flex; align-items:center; gap:5px; }
+  .mem-stat > i{ width:7px; height:7px; border-radius:50%; flex:0 0 auto; }
+  .mem-stat .st-sel{ width:86px; font-size:10.5px; padding:2px 2px; color:var(--text); }
+  .mem-task.done .tn{ opacity:.5; }
+  .mem-task.done .dp{ opacity:.6; }
+  .mem-st.ok{ color:#6ee7b7; border-color:rgba(16,185,129,.4); background:rgba(16,185,129,.10); }
+  .mem-st.ok b{ color:#6ee7b7; }
   .mem-task .tdur.none{ color:#fbbf24; }
   .tl-ovz{ position:absolute; top:0; bottom:0; background:rgba(239,68,68,.13); border-left:1px solid rgba(239,68,68,.42); border-right:1px solid rgba(239,68,68,.42); pointer-events:none; z-index:0; }
   .bar.ovl{ outline:1.5px solid rgba(239,68,68,.8); outline-offset:1px; }
@@ -1349,6 +1358,7 @@ function renderPipeline(){
   const box=document.getElementById("pipeline"); if(!box) return;
   if(isMemberView()){ const s=memberSummary();
     box.innerHTML=`<div class="pipe-mem"><span>멤버 <b>${s.mem}</b>명</span><span>담당 일감 <b>${s.n}</b>건</span>`+
+      `<span>완료 <b>${s.done}</b>/${s.n}</span>`+
       `<span class="warn">일정 미정 <b>${s.un}</b></span><span class="bad">겹치는 날 <b>${s.ov}</b></span>`+
       `<span style="color:var(--dim);font-weight:700">· <b style="color:var(--muted)">${MEM_TRACK}</b> 분류만 집계 · 멤버 줄 클릭: 접기/펼치기 · 막대 클릭: 일정·담당자 편집</span></div>`;
     return; }
@@ -1529,13 +1539,14 @@ function memberGroups(){
 }
 /* 일감 수 · 일정 미정 수 · 배정 영업일 · 겹치는 날(같은 사람이 같은 날 2건 이상) */
 function memStats(m){
-  const day={}; let un=0;
-  m.items.forEach(it=>{ if(!hasSched(it.seg)){ un++; return; }
+  const day={}; let un=0, done=0;
+  m.items.forEach(it=>{ if(isDone(it.t)) done++;
+    if(!hasSched(it.seg)){ un++; return; }
     for(let i=it.seg.start;i<=it.seg.end;i++) day[i]=(day[i]||0)+1; });
   const ds=Object.keys(day).map(Number).sort((a,b)=>a-b);
   const ov=ds.filter(d=>day[d]>1), spans=[];
   ov.forEach(d=>{ const l=spans[spans.length-1]; if(l && l[1]===d-1) l[1]=d; else spans.push([d,d]); });
-  return { n:m.items.length, un, load:ds.length, ovDays:ov.length, spans };
+  return { n:m.items.length, un, done, load:ds.length, ovDays:ov.length, spans };
 }
 /* 부하 막대의 분모 = 지금 보고 있는 마일스톤의 영업일 수 (전체 타임라인 N 을 쓰면 막대가 늘 바닥에 붙는다) */
 function memLoadDenom(){
@@ -1548,6 +1559,7 @@ function memLoadDenom(){
 }
 function memStatChips(st){
   let h=`<span class="mem-st">일감 <b>${st.n}</b></span>`;
+  h+=`<span class="mem-st ${st.done===st.n&&st.n?'ok':''}" title="완료된 일감">완료 <b>${st.done}/${st.n}</b></span>`;
   if(st.un) h+=`<span class="mem-st warn">미정 <b>${st.un}</b></span>`;
   if(st.ovDays) h+=`<span class="mem-st bad">겹침 <b>${st.ovDays}일</b></span>`;
   const den=memLoadDenom(), p=Math.min(100,Math.round(st.load/den*100));
@@ -1575,10 +1587,16 @@ function renderMemberLeft(){
         const ok=hasSched(it.seg);
         const dp=it.dept?`<span class="dp" style="background:${it.color}">${escapeHtml(it.dept)}</span>`:`<span class="dp" style="background:#3a4150">부서 없음</span>`;
         const ms=findMs(it.t.milestoneId);
-        return `<div class="mem-task" data-memtask="${it.t.id}|${escapeHtml(it.dept)}" title="${escapeHtml(it.t.name)} — 클릭: 일정·담당자 편집">`+
+        const sts=statusesFor(it.t.track||"개발");
+        const cur=sts.find(x=>x.k===it.t.status)||{color:"#888"};
+        const stSel=`<span class="mem-stat"><i style="background:${cur.color}"></i>`+
+          `<select class="st-sel" data-status="${it.t.id}" title="진행 상태">`+
+          sts.map(x=>`<option ${x.k===it.t.status?'selected':''}>${escapeHtml(x.k)}</option>`).join("")+
+          `</select></span>`;
+        return `<div class="mem-task ${isDone(it.t)?'done':''}" data-memtask="${it.t.id}|${escapeHtml(it.dept)}" title="${escapeHtml(it.t.name)} — 클릭: 일정·담당자 편집">`+
           `${dp}<span class="tn">${escapeHtml(it.t.name)}</span>`+
           `<span class="tms" style="color:${ms?ms.color:'var(--dim)'}">${ms?escapeHtml(ms.name):''}</span>`+
-          `<span class="tdur ${ok?'':'none'}">${ok?(it.seg.end-it.seg.start+1)+'일':'일정 미정'}</span></div>`;
+          `${stSel}<span class="tdur ${ok?'':'none'}">${ok?(it.seg.end-it.seg.start+1)+'일':'일정 미정'}</span></div>`;
       }).join("");
       html+=`<div class="task mem ${op?'open':''}">`+
         `<div class="task-head mem-head" data-memtoggle="${escapeHtml(memKey(m))}">`+
@@ -1616,10 +1634,19 @@ function renderMemberBody(){
   body.innerHTML=`<div class="gridlayer" style="position:absolute;inset:0">${grid}</div>${rows}<div class="markerlayer" style="position:absolute;top:0;bottom:0;left:0;right:0;pointer-events:none">${mlines}</div>`;
   attachBarHandlers();
 }
+/* 멤버 뷰로 들어올 때 가장 이른 일정 쪽으로 가로 스크롤 */
+function scrollToMemberStart(){
+  let mn=null;
+  memberGroups().forEach(g=>g.members.forEach(m=>m.items.forEach(it=>{
+    if(hasSched(it.seg)) mn = (mn===null) ? it.seg.start : Math.min(mn, it.seg.start); })));
+  if(mn===null) return;
+  const el=document.getElementById("rightBody"); if(!el) return;
+  el.scrollLeft=Math.max(0,(mn-2)*DAY_W);
+}
 function memberSummary(){
-  const gs=memberGroups(); let mem=0, n=0, un=0, ov=0;
-  gs.forEach(g=>g.members.forEach(m=>{ const st=memStats(m); if(!m.none) mem++; n+=st.n; un+=st.un; ov+=st.ovDays; }));
-  return {mem,n,un,ov};
+  const gs=memberGroups(); let mem=0, n=0, un=0, ov=0, done=0;
+  gs.forEach(g=>g.members.forEach(m=>{ const st=memStats(m); if(!m.none) mem++; n+=st.n; un+=st.un; ov+=st.ovDays; done+=st.done; }));
+  return {mem,n,un,ov,done};
 }
 function renderLeft(){
   if(isMemberView()) return renderMemberLeft();
@@ -1732,7 +1759,9 @@ leftHead.addEventListener("click", e=>{
   if(e.target.closest("#toggleAllBtn")){ const vis=state.tasks.filter(passFilter); const allOpen=vis.length>0 && vis.every(t=>isOpen(t.id)); vis.forEach(t=>{ if(allOpen) openTasks.delete(t.id); else openTasks.add(t.id); }); saveOpen(); render(); return; }
   if(e.target.closest("#deptGridToggle")){ showDeptGrid=!showDeptGrid; try{localStorage.setItem("milestone_deptgrid_v1",showDeptGrid?"1":"0");}catch(_){}  applyDeptGridClass(); renderFilter(); return; }
   const tab=e.target.closest("[data-mstab]"); if(tab){ const k=tab.dataset.mstab; msFilter.clear(); if(k!=="__all") msFilter.add(k); render(); return; }
-  const trk=e.target.closest("[data-track]"); if(trk){ trackFilter=trk.dataset.track; deptFilter.clear(); assigneeFilter.clear(); statusFilter.clear(); kfFilter.clear(); groupCollapsed.clear(); render(); return; }
+  const trk=e.target.closest("[data-track]"); if(trk){ trackFilter=trk.dataset.track; deptFilter.clear(); assigneeFilter.clear(); statusFilter.clear(); kfFilter.clear(); groupCollapsed.clear(); render();
+    if(isMemberView()) scrollToMemberStart();   // 안 하면 막대가 하나도 안 보이는 구간에 멈춰 있어 "비어 보인다"
+    return; }
   const fd=e.target.closest("[data-fd]"), fs=e.target.closest("[data-fs]"), fa=e.target.closest("[data-fa]"), fkf=e.target.closest("[data-fkf]");
   if(fd){ const k=fd.dataset.fd; if(k==="__all")deptFilter.clear(); else deptFilter.has(k)?deptFilter.delete(k):deptFilter.add(k); render(); return; }
   if(fs){ const k=fs.dataset.fs; if(k==="__all")statusFilter.clear(); else statusFilter.has(k)?statusFilter.delete(k):statusFilter.add(k); render(); return; }
@@ -1753,7 +1782,8 @@ document.querySelector(".topbar").addEventListener("click", e=>{
 /* ===== 컨텍스트 바 / 파이프라인 상호작용 ===== */
 const contextBar=document.getElementById("contextBar"), pipelineEl=document.getElementById("pipeline");
 contextBar.addEventListener("change", e=>{ const s=e.target.closest("#ctxMs"); if(s){ msFilter.clear(); if(s.value!=="__all") msFilter.add(s.value); render(); } });
-contextBar.addEventListener("click", e=>{ const trk=e.target.closest("[data-track]"); if(trk){ trackFilter=trk.dataset.track; deptFilter.clear(); assigneeFilter.clear(); statusFilter.clear(); kfFilter.clear(); groupCollapsed.clear(); render(); } });
+contextBar.addEventListener("click", e=>{ const trk=e.target.closest("[data-track]"); if(trk){ trackFilter=trk.dataset.track; deptFilter.clear(); assigneeFilter.clear(); statusFilter.clear(); kfFilter.clear(); groupCollapsed.clear(); render();
+  if(isMemberView()) scrollToMemberStart(); } });
 pipelineEl.addEventListener("click", e=>{ const st=e.target.closest("[data-pstep]"); if(st){ const k=st.dataset.pstep; statusFilter.has(k)?statusFilter.delete(k):statusFilter.add(k); render(); } });
 
 leftBody.addEventListener("change", e=>{
