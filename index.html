@@ -361,6 +361,7 @@
   .sp-row.sp-drag{ opacity:.4; }
   .sp-row.sp-over-top{ box-shadow:inset 0 3px 0 0 var(--accent); }
   .sp-row.sp-over-bot{ box-shadow:inset 0 -3px 0 0 var(--accent); }
+  .sp-row.sp-target{ background:rgba(99,102,241,.10); box-shadow:inset 0 0 0 1px var(--accent); }
   .sp-sec .sp-lab{ gap:6px; }
   .sp-sec .sp-lab .nm{ margin-right:auto; }
   .sp-bar .dt{ font-size:9px; font-weight:700; opacity:.6; margin-left:auto; padding-left:4px; }
@@ -2960,7 +2961,7 @@ function renderPlanGuide(){
 function renderPlan(){
   const pl=planState(), ed=spCanEdit(), W=spWeeks();
   document.getElementById("spSub").textContent = ed
-    ? "런칭일 기준 주차로 봅니다. 막대를 클릭해 고치고, 끌어서 옮기거나 양 끝으로 기간을 조절합니다."
+    ? "런칭일 기준 주차로 봅니다. 막대를 좌우로 끌면 주차, 위아래로 끌면 다른 트랙으로 옮겨집니다. 양 끝을 잡으면 기간 조절, 클릭하면 편집."
     : "런칭일 기준 주차로 봅니다. (읽기 전용)";
   renderPlanGuide();
   let html=spHeadHtml();
@@ -3157,29 +3158,48 @@ document.getElementById("spGrid").addEventListener("click", e=>{
     const wk=Math.max(0,Math.min(spWeeks()-1, Math.floor((e.clientX-r.left)/(r.width/spWeeks()))));
     openSpItemPop(tr, row.dataset.sprow, null, wk); }
 });
-/* 막대 드래그: 가운데=이동, 양 끝=기간 조절 (주 단위) */
+/* 막대 드래그
+ *  가로 = 시작 주차 이동 / 양 끝 = 기간 조절 (주 단위)
+ *  세로 = 다른 트랙으로 옮기기. 포인터 캡처 때문에 elementFromPoint 가 막대 자신을 돌려주므로,
+ *         드래그 시작 시점에 각 행의 사각형을 미리 재 두고 clientY 로 판정한다. */
 let spDragMoved=false;
 document.getElementById("spGrid").addEventListener("pointerdown", e=>{
   if(!spCanEdit()) return;
   const bar=e.target.closest("[data-spitem]"); if(!bar) return;
   if(e.button&&e.button!==0) return;
-  const [rid,iid]=bar.dataset.spitem.split("|"); const {it}=spFindItem(rid,iid); if(!it) return;
+  const [rid,iid]=bar.dataset.spitem.split("|"); const {row,it}=spFindItem(rid,iid); if(!it) return;
   e.preventDefault();
   const track=bar.closest(".sp-track"); const colW=track.getBoundingClientRect().width/spWeeks();
   const mode=e.target.classList.contains("l")?"l":e.target.classList.contains("r")?"r":"move";
-  const startX=e.clientX, s0=it.s, w0=it.w, W=spWeeks(); spDragMoved=false;
+  const startX=e.clientX, startY=e.clientY, s0=it.s, w0=it.w, W=spWeeks(); spDragMoved=false;
+  const rowRects=(mode==="move")
+    ? [...document.querySelectorAll("#spGrid [data-sprow]")].map(el=>({id:el.dataset.sprow, el, r:el.getBoundingClientRect()}))
+    : [];
+  let destRid=rid;
+  const mark=id=>{ rowRects.forEach(x=>x.el.classList.toggle("sp-target", !!id && x.id===id && x.id!==rid)); };
   bar.classList.add("dragging");
   try{ bar.setPointerCapture(e.pointerId); }catch(_){}
-  function mv(ev){ const dx=ev.clientX-startX; if(Math.abs(dx)>4) spDragMoved=true;
+  function mv(ev){
+    const dx=ev.clientX-startX, dy=ev.clientY-startY;
+    if(Math.abs(dx)>4 || Math.abs(dy)>4) spDragMoved=true;
     const d=Math.round(dx/colW);
-    if(mode==="move"){ it.s=Math.max(0,Math.min(W-w0,s0+d)); it.w=w0; }
+    if(mode==="move"){ it.s=Math.max(0,Math.min(W-w0,s0+d)); it.w=w0;
+      const hit=rowRects.find(x=>ev.clientY>=x.r.top && ev.clientY<=x.r.bottom);
+      destRid = hit ? hit.id : rid; mark(destRid); }
     else if(mode==="l"){ const ns=Math.max(0,Math.min(s0+w0-1,s0+d)); it.w=w0+(s0-ns); it.s=ns; }
     else { it.w=Math.max(1,Math.min(W-s0,w0+d)); }
     bar.style.left=`calc(${(it.s/W)*100}% + 3px)`; bar.style.width=`calc(${(it.w/W)*100}% - 6px)`; }
-  function up(){ bar.releasePointerCapture&&bar.releasePointerCapture(e.pointerId);
+  function up(){ try{ bar.releasePointerCapture(e.pointerId); }catch(_){}
     bar.removeEventListener("pointermove",mv); bar.removeEventListener("pointerup",up);
-    bar.classList.remove("dragging");
-    if(spDragMoved){ save(); renderPlan(); }
+    bar.classList.remove("dragging"); mark(null);
+    if(spDragMoved){
+      if(mode==="move" && destRid && destRid!==rid){        // 다른 트랙으로 이동
+        const {row:dst}=spFindRow(destRid);
+        if(dst && row){ row.items=(row.items||[]).filter(x=>x.id!==it.id);
+          if(!Array.isArray(dst.items)) dst.items=[]; dst.items.push(it); }
+      }
+      save(); renderPlan();
+    }
     setTimeout(()=>{ spDragMoved=false; },0); }
   bar.addEventListener("pointermove",mv); bar.addEventListener("pointerup",up);
 });
