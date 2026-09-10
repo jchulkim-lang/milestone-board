@@ -405,7 +405,7 @@
   .rm-notes{ display:flex; flex-wrap:wrap; gap:6px; margin:0 0 12px; }
   .rm-note{ font-size:11px; font-weight:700; color:var(--muted); background:var(--panel2); border:1px solid var(--line); border-radius:999px; padding:3px 10px; }
   .rm-scroll{ overflow:auto; max-height:70vh; border:1px solid var(--line); border-radius:11px; background:var(--bg); }
-  .rm-grid{ min-width:100%; }
+  .rm-grid{ min-width:100%; --rm-cw:176px; }
   .rm-row{ display:flex; align-items:stretch; border-bottom:1px solid var(--line); }
   .rm-row:last-child{ border-bottom:0; }
   .rm-label{ flex:0 0 210px; display:flex; align-items:center; gap:7px; padding:8px 10px; font-size:11.5px; font-weight:800; background:var(--rowhead); border-right:1px solid var(--line); position:sticky; left:0; z-index:2; }
@@ -419,7 +419,7 @@
   .rm-row.g-over-bot{ box-shadow:inset 0 -3px 0 0 var(--accent); }
   .rm-gedit{ margin-left:auto; background:none; border:0; color:var(--muted); cursor:pointer; font-size:11px; padding:2px 4px; border-radius:5px; flex:0 0 auto; }
   .rm-gedit:hover{ color:var(--text); background:var(--panel2); }
-  .rm-cell{ flex:1 1 176px; min-width:176px; min-height:44px; display:flex; flex-wrap:wrap; align-content:flex-start; column-gap:5px; row-gap:10px; padding:11px 7px 7px; border-right:1px solid var(--grid); }
+  .rm-cell{ flex:1 1 var(--rm-cw); min-width:var(--rm-cw); min-height:44px; display:flex; flex-wrap:wrap; align-content:flex-start; column-gap:5px; row-gap:10px; padding:11px 7px 7px; border-right:1px solid var(--grid); }
   .rm-cell:last-child{ border-right:0; }
   .rm-cell.drop{ background:rgba(99,102,241,.14); box-shadow:inset 0 0 0 1px var(--accent); }
   /* 마일스톤 마감 밴드 (월 헤더 아래) */
@@ -439,6 +439,16 @@
   .rm-row.rm-head{ position:sticky; top:0; z-index:6; background:var(--panel); }
   .rm-row.rm-head .rm-label{ background:var(--panel); }
   .rm-mh{ min-height:0; align-items:center; font-size:11.5px; font-weight:800; color:var(--text); padding:7px 10px; background:var(--panel); }
+  /* 월 칸 너비 조절 — 헤더 오른쪽 모서리를 잡고 끈다 */
+  .rm-mh{ position:relative; }
+  .rm-grip{ position:absolute; top:0; bottom:0; right:-3px; width:7px; cursor:col-resize; z-index:8; }
+  .rm-grip::after{ content:""; position:absolute; top:5px; bottom:5px; left:3px; width:2px; border-radius:2px; background:var(--line); }
+  .rm-grip:hover::after, .rm-grip.on::after{ background:var(--accent); }
+  .rm-cw{ display:flex; align-items:center; gap:6px; }
+  .rm-cw input[type=range]{ width:132px; accent-color:var(--accent); padding:0; background:none; border:0; cursor:ew-resize; }
+  .rm-cw b{ color:var(--text); font-weight:800; min-width:38px; text-align:right; }
+  .rm-cw button{ font-size:10.5px; font-weight:800; padding:2px 8px; border-radius:999px; border:1px solid var(--line); background:var(--panel2); color:var(--muted); cursor:pointer; }
+  .rm-cw button:hover{ color:var(--text); border-color:var(--accent); }
   .rm-mh.dim{ color:var(--muted); }
   .rm-chip{ position:relative; overflow:visible; display:inline-flex; align-items:center; gap:5px; max-width:100%; font-size:11px; font-weight:700; padding:3px 8px; border-radius:7px; background:var(--panel2); border:1px solid var(--line); border-left-width:3px; color:var(--text); cursor:pointer; user-select:none; }
   /* 타겟 마일스톤 배지 — 칩 좌측 상단에 겹쳐 붙는 원형 숫자 */
@@ -2439,6 +2449,21 @@ function seedRoadmap(){
     groups: RM_SEED.groups.map((g,gi)=>({ id:"rmg"+gi, name:g.name, color:g.color,
       items: g.items.map(([ym,text,date],ii)=>({ id:"rmg"+gi+"i"+ii, ym, text, date })) })) };
 }
+/* 월 칸 너비는 **개인 화면 설정**이다(localStorage). state 에 넣으면 볼 때마다 D1 쓰기가 생기고,
+   보는 사람마다 화면 폭이 달라서 공유값으로 두면 서로 덮어쓴다. */
+const RM_CW_KEY="ms_rm_colw", RM_CW_DEF=176, RM_CW_MIN=110, RM_CW_MAX=460;
+function rmColW(){ const v=Number(localStorage.getItem(RM_CW_KEY)); 
+  return (v&&isFinite(v)) ? Math.min(RM_CW_MAX,Math.max(RM_CW_MIN,v)) : RM_CW_DEF; }
+function rmSetColW(v, rerender){
+  const w=Math.min(RM_CW_MAX,Math.max(RM_CW_MIN,Math.round(v)));
+  try{ localStorage.setItem(RM_CW_KEY, String(w)); }catch(_){}
+  const g=document.getElementById("rmGrid"); if(g) g.style.setProperty("--rm-cw", w+"px");
+  const lb=document.getElementById("rmCwVal"); if(lb) lb.textContent=w+"px";
+  const sl=document.getElementById("rmCwRange"); if(sl && Number(sl.value)!==w) sl.value=w;
+  rmLayoutBandLabels();                       // 폭이 바뀌면 마감 라벨 겹침 재계산
+  if(rerender) renderRoadmap();
+  return w;
+}
 const rmCanEdit = () => !document.body.classList.contains("readonly");
 const RM_MAX_MONTHS=24;
 function rmMakeMonths(y,m,n){ const out=[];
@@ -2626,7 +2651,7 @@ function renderRoadmap(){
   let lastY=null;
   const head=`<div class="rm-row rm-head"><div class="rm-label rm-mh">항목</div>`+
     ms.map(x=>{ const showY = x.y!==lastY; lastY=x.y;
-      return `<div class="rm-cell rm-mh">${showY?x.y+"년 ":""}${x.m}월</div>`; }).join("")+
+      return `<div class="rm-cell rm-mh">${showY?x.y+"년 ":""}${x.m}월<span class="rm-grip" data-rmgrip="1" title="드래그하여 월 칸 너비 조절 (더블클릭: 기본값)"></span></div>`; }).join("")+
     `<div class="rm-cell rm-mh dim">미정</div></div>`;
 
   const cell=(g,ym)=>{
@@ -2648,15 +2673,20 @@ function renderRoadmap(){
     `${ed?`<button class="rm-gedit" data-rmgedit="${g.id}" title="그룹 이름·색 편집">✎</button>`:""}</div>`+
     ms.map(x=>cell(g,x.ym)).join("")+cell(g,"")+`</div>`).join("");
 
+  document.getElementById("rmGrid").style.setProperty("--rm-cw", rmColW()+"px");
   document.getElementById("rmGrid").innerHTML = head + rmBandHtml(ms) + rows +
     (ed?`<div class="rm-row"><div class="rm-label"><button class="rm-add" id="rmAddGroup">＋ 그룹</button></div></div>`:"");
 
   rmLayoutBandLabels();
-  document.getElementById("rmFoot").innerHTML = ed
+  const cw=rmColW();
+  const cwCtl=`<span class="rm-range rm-cw" title="이 설정은 내 화면에만 적용됩니다">칸 너비`+
+    `<input type="range" id="rmCwRange" min="${RM_CW_MIN}" max="${RM_CW_MAX}" step="2" value="${cw}">`+
+    `<b id="rmCwVal">${cw}px</b><button id="rmCwReset" title="기본값 ${RM_CW_DEF}px 으로">초기화</button></span>`;
+  document.getElementById("rmFoot").innerHTML = (ed
     ? `<span class="rm-range">시작 <input type="month" id="rmStart" value="${escapeHtml(rm.startYm||"2026-09")}">`+
       `표시 <select id="rmMonths">${[3,4,5,6,8,10,12].map(n=>`<option value="${n}" ${Number(rm.months)===n?"selected":""}>${n}개월</option>`).join("")}</select>`+
       `${rmAutoExtra?`<em class="rm-auto" title="마일스톤 마감이 잘리지 않도록 자동으로 늘렸습니다">+${rmAutoExtra}개월 자동</em>`:""}</span>`
-    : "";
+    : "") + cwCtl;
 }
 function openRoadmap(){ if(!state.roadmap) state.roadmap=seedRoadmap();
   if(rmAutoAssignMs() && rmCanEdit()) save();
@@ -2754,7 +2784,14 @@ document.getElementById("rmFilter").addEventListener("click", e=>{
   rmFilterMs = b.dataset.rmf===rmFilterMs && rmFilterMs!=="" ? "" : b.dataset.rmf;   // 같은 칩 다시 누르면 전체
   renderRoadmap();
 });
+document.getElementById("rmFoot").addEventListener("input", e=>{
+  const r=e.target.closest("#rmCwRange"); if(r) rmSetColW(Number(r.value));   // 끄는 즉시 반영
+});
+document.getElementById("rmFoot").addEventListener("click", e=>{
+  if(e.target.closest("#rmCwReset")) rmSetColW(RM_CW_DEF);
+});
 document.getElementById("rmFoot").addEventListener("change", e=>{
+  if(e.target.closest("#rmCwRange")) return;
   if(!rmCanEdit()) return;
   const st=e.target.closest("#rmStart"); if(st && st.value){ state.roadmap.startYm=st.value; save(); renderRoadmap(); return; }
   const mo=e.target.closest("#rmMonths"); if(mo){ state.roadmap.months=Number(mo.value)||5; save(); renderRoadmap(); }
@@ -2764,6 +2801,21 @@ document.getElementById("rmGrid").addEventListener("click", e=>{
   const ge=e.target.closest("[data-rmgedit]"); if(ge){ openRmGroupPop(ge, ge.dataset.rmgedit); return; }
   const ad=e.target.closest("[data-rmadd]"); if(ad){ const [gid,ym]=ad.dataset.rmadd.split("|"); openRmItemPop(ad, gid, null, ym); return; }
   const ch=e.target.closest("[data-rmitem]"); if(ch && rmCanEdit()){ const [gid,iid]=ch.dataset.rmitem.split("|"); openRmItemPop(ch, gid, iid); return; }
+});
+/* 월 헤더 오른쪽 모서리를 끌어 칸 너비 조절 (더블클릭이면 기본값) */
+document.getElementById("rmGrid").addEventListener("pointerdown", e=>{
+  const g=e.target.closest("[data-rmgrip]"); if(!g) return;
+  if(e.button&&e.button!==0) return;
+  e.preventDefault(); e.stopPropagation();
+  const startX=e.clientX, w0=rmColW(); g.classList.add("on");
+  try{ g.setPointerCapture(e.pointerId); }catch(_){}
+  const mv=ev=>rmSetColW(w0+(ev.clientX-startX));
+  const up=()=>{ g.classList.remove("on");
+    g.removeEventListener("pointermove",mv); g.removeEventListener("pointerup",up); };
+  g.addEventListener("pointermove",mv); g.addEventListener("pointerup",up);
+});
+document.getElementById("rmGrid").addEventListener("dblclick", e=>{
+  if(e.target.closest("[data-rmgrip]")) rmSetColW(RM_CW_DEF);
 });
 let rmDrag=null, rmGDrag=null;
 function rmClearDropMarks(){
