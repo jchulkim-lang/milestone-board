@@ -15,7 +15,7 @@ const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 �
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026091101;
+const APP_BUILD = 2026091103;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -515,7 +515,7 @@ async function handleApi(request, env, url, ctx){
     if(!row) return json({ data:{ tasks:[], milestones:[] }, version:0, presence }, 200, rh);
     const known = Number(q.get("v"));
     if(Number.isFinite(known) && known === row.version && q.get("v")!==null){
-      return json({ unchanged:true, version:row.version, presence }, 200, rh);   // 바뀐 게 없으면 본문 생략
+      return json({ unchanged:true, version:row.version, updatedAt:row.updated_at, updatedBy:row.updated_by, presence }, 200, rh);   // 본문만 생략(수정자 정보는 항상 보낸다)
     }
     let data; try{ data = JSON.parse(row.data); }catch(_){ data = { tasks:[], milestones:[] }; }
     return json({ data, version:row.version, updatedAt:row.updated_at, updatedBy:row.updated_by, presence }, 200, rh);
@@ -561,7 +561,7 @@ async function handleApi(request, env, url, ctx){
         await env.DB.prepare("DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY id DESC LIMIT 50)").run();
       }
     }catch(_){}
-    return json({ ok:true, version: row ? row.version : 1 });
+    return json({ ok:true, version: row ? row.version : 1, updatedBy:user.email, updatedAt:new Date().toISOString().slice(0,19).replace("T"," ") });
   }
 
   /* ===== 트렐로 관리(관리자 전용) ===== */

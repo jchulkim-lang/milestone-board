@@ -103,6 +103,7 @@
         if(!r.ok) return;
         const j = await r.json();
         if(j.presence) showPresence(j.presence);
+        showLastEdit(j.updatedBy, j.updatedAt);
         if(j.unchanged) return;                  // 서버와 버전 동일 — 할 일 없음
         const remoteData = (j.data && j.data.milestones) ? j.data : { milestones:[], tasks:[] };
         if(initial){
@@ -137,7 +138,7 @@
             if(cj && cj.data){ state = (typeof mergeState3==="function") ? mergeState3(remote.base, state, cj.data) : state; remote.base = clone(cj.data); remote.version = cj.version; }
             continue;
           }
-          if(r.ok){ const j = await r.json(); remote.version = j.version; state = merged; remote.base = clone(merged); dirty=false; buildTimeline(); if(!focusedControl()) render(); return; }
+          if(r.ok){ const j = await r.json(); remote.version = j.version; state = merged; remote.base = clone(merged); dirty=false; showLastEdit(j.updatedBy, j.updatedAt); buildTimeline(); if(!focusedControl()) render(); return; }
           dirty=false; return;   // 기타 오류
         }
         dirty=false;   // 재시도 소진 — 다음 편집/폴링에서 다시 반영
@@ -172,6 +173,33 @@
     });
     setStatus("☁ 동기화 중");
   }
+
+  /* 마지막으로 누가·언제 바꿨는지 (하단 바 왼쪽).
+     서버가 app_state 행에 갖고 있던 updated_by/updated_at 을 그동안 아무 데도 안 썼다. 추가 요청 없음. */
+  let _lastEdit={by:"",at:""};
+  function relTime(iso){
+    const t=Date.parse(String(iso||"").replace(" ","T")+((/[zZ]|[+-]\d\d:?\d\d$/.test(String(iso||"")))?"":"Z"));
+    if(!isFinite(t)) return "";
+    const s=Math.max(0,Math.round((Date.now()-t)/1000));
+    if(s<60) return "방금";
+    if(s<3600) return Math.floor(s/60)+"분 전";
+    if(s<86400) return Math.floor(s/3600)+"시간 전";
+    return Math.floor(s/86400)+"일 전";
+  }
+  function paintLastEdit(){
+    const el=document.getElementById("lastEdit"); if(!el) return;
+    if(!_lastEdit.by && !_lastEdit.at){ el.textContent=""; el.title=""; return; }
+    const who=(_lastEdit.by||"").split("@")[0];
+    const rel=relTime(_lastEdit.at);
+    el.textContent=`✎ ${who||"?"}${rel?" · "+rel:""}`;
+    el.title=`마지막 수정: ${_lastEdit.by||"?"}${_lastEdit.at?" · "+_lastEdit.at:""}`;
+  }
+  function showLastEdit(by, at){
+    if(by===undefined && at===undefined) return;
+    _lastEdit={ by: by||_lastEdit.by, at: at||_lastEdit.at };
+    paintLastEdit();
+  }
+  setInterval(paintLastEdit, 60000);          // "3분 전" 을 계속 맞춰 준다 (네트워크 호출 없음)
 
   /* 접속자 표시 — /api/state 응답에 함께 실려 온 값을 그리기만 한다(별도 요청 없음) */
   function showPresence(pr){

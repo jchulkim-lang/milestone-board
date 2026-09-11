@@ -142,6 +142,9 @@
   .dept-head-row .dept-slot i{box-shadow:0 0 0 1px rgba(255,255,255,.06);}
   .th-right-spacer{width:118px;flex:0 0 auto;}
   .th-right{display:flex;align-items:center;gap:5px;flex:0 0 auto;justify-content:flex-end;width:118px;padding-left:6px;}
+  .late-chip{flex:0 0 auto;font-size:9.5px;font-weight:800;color:#ff9b9b;background:rgba(239,68,68,.13);border:1px solid rgba(239,68,68,.5);border-radius:999px;padding:1px 6px;white-space:nowrap;}
+  .task.late .task-head{box-shadow:inset 3px 0 0 0 #ef4444;}
+  .fchip.late.on{background:#ef4444;border-color:#ef4444;color:#fff;}
   .lk{font-size:13px;text-decoration:none;flex:0 0 auto;opacity:.85;}
   .kf-chip{width:23px;height:23px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;line-height:1;border-radius:7px;cursor:pointer;flex:0 0 auto;user-select:none;background:var(--panel2);border:1.5px solid var(--line);}
   .kf-chip:hover{filter:brightness(1.15);}
@@ -449,6 +452,7 @@
   .rm-cw b{ color:var(--text); font-weight:800; min-width:38px; text-align:right; }
   .rm-cw button{ font-size:10.5px; font-weight:800; padding:2px 8px; border-radius:999px; border:1px solid var(--line); background:var(--panel2); color:var(--muted); cursor:pointer; }
   .rm-cw button:hover{ color:var(--text); border-color:var(--accent); }
+  .last-edit{ flex:0 0 auto; font-size:10.5px; font-weight:700; color:var(--dim); white-space:nowrap; margin-right:8px; }
   .rm-mh.dim{ color:var(--muted); }
   .rm-chip{ position:relative; overflow:visible; display:inline-flex; align-items:center; gap:5px; max-width:100%; font-size:11px; font-weight:700; padding:3px 8px; border-radius:7px; background:var(--panel2); border:1px solid var(--line); border-left-width:3px; color:var(--text); cursor:pointer; user-select:none; }
   /* 타겟 마일스톤 배지 — 칩 좌측 상단에 겹쳐 붙는 원형 숫자 */
@@ -650,6 +654,12 @@
   .pipe-mem b{ color:var(--text); font-size:12px; }
   .pipe-mem .bad b{ color:#ff9b9b; }
   .pipe-mem .warn b{ color:#fbbf24; }
+  .pipe-mem .pm-ctl{ display:inline-flex; align-items:center; gap:6px; }
+  .pipe-mem select{ background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:7px; padding:2px 5px; font-size:10.5px; font-weight:700; font-family:inherit; cursor:pointer; }
+  .pm-tgl{ font-size:10px; font-weight:800; padding:2px 9px; border-radius:999px; border:1px solid var(--line); background:var(--panel2); color:var(--muted); cursor:pointer; }
+  .pm-tgl:hover{ color:var(--text); }
+  .pm-tgl.on{ color:#fff; background:#ef4444; border-color:#ef4444; }
+  .mem-task.late .tn{ color:#ffb4b4; }
   .mem-head{ height:var(--task-h); display:flex; align-items:center; gap:8px; padding:0 10px 0 8px; cursor:pointer; }
   .mem-head:hover{ background:rgba(255,255,255,.03); }
   .mem-car{ width:12px; flex:0 0 auto; color:var(--muted); font-size:10px; transition:transform .12s ease; }
@@ -882,6 +892,7 @@
       <button class="btn ghost sm" id="themeBtn">☀ 라이트</button>
     </div>
     <span class="foot-spacer"></span>
+    <span class="last-edit" id="lastEdit" title="마지막 수정"></span>
     <div class="foot-tools" id="footTools">
       <button class="btn ghost sm" id="msBtn">⚙ 마일스톤 설정</button>
       <button class="btn ghost sm" id="notifyBtn">🔔 알림 멤버</button>
@@ -1154,6 +1165,7 @@ function nearestWorkdayIndex(ymdStr){ if(!ymdStr) return -1; const t=parseYmd(ym
 const uid=()=>Math.random().toString(36).slice(2,9);
 let state = { milestones:[{ id:"m1", name:"마일스톤 1", color:MS_PALETTE[0], start:"2026-06-01", end:"", plan:"", resource:"", dev:"", qa:"" }], tasks:[] };
 let deptFilter=new Set(), statusFilter=new Set(), msFilter=new Set(), assigneeFilter=new Set(), kfFilter=new Set();
+let lateOnly=false;        // 지연된 일감만 보기 (뷰 상태, 저장 안 함)
 let trackFilter="개발";   // 분류 탭(개발/아트) — '전체' 없음
 /* 부서 포커스: "__all" 또는 부서 key. 단일 선택. 개인 로컬 설정(공유 안 함) */
 let focusDept="__all";
@@ -1354,6 +1366,17 @@ const hasSched = seg => !!(seg && seg.on && seg.sched!==false);
 const deptSched = (t,k) => hasSched(t&&t.depts&&t.depts[k]);
 /* 부서 포커스 중이면 대상 부서 행만 렌더(나머지는 아예 표시하지 않음 — 세로 공간 확보) */
 const visibleDepts = t => activeDepts(t).filter(d => focusDept==="__all" || d.key===focusDept);
+/* 지연 = 부서 일정 종료일이 오늘보다 지났는데 아직 완료가 아닌 Task.
+ * 마감일 칩은 마일스톤 단위라서 개별 일감이 늦는 건 아무 데도 안 보였다(2026-09-11). */
+function taskLateDays(t){
+  if(isDone(t)) return 0;
+  const ti=indexOfToday(); if(ti<0) return 0;
+  let worst=0;
+  activeDepts(t).forEach(d=>{ const seg=t.depts[d.key]; if(!hasSched(seg)) return;
+    if(seg.end < ti) worst=Math.max(worst, ti-seg.end); });
+  return worst;
+}
+const isLate = t => taskLateDays(t)>0;
 function taskHasUnassigned(t){ const ad=activeDepts(t); if(!ad.length) return true; return ad.some(d=>!((t.depts[d.key].assignees)||[]).length); }
 function passFilter(t){
   if(focusDept!=="__all"){ const _sg=t.depts&&t.depts[focusDept]; if(!(_sg&&_sg.on)) return false; }   // 그 부서가 참여 중인 Task만 (일정 미정도 포함)
@@ -1363,6 +1386,7 @@ function passFilter(t){
   if(trackFilter!=="__all" && t.track!==trackFilter) return false;
   if(statusFilter.size && !statusFilter.has(t.status)) return false;
   if(kfFilter.size && !kfFilter.has(t.kickoff)) return false;
+  if(lateOnly && !isLate(t)) return false;
   if(assigneeFilter.size){
     let m=false;
     if(assigneeFilter.has("__unassigned") && taskHasUnassigned(t)) m=true;
@@ -1452,10 +1476,13 @@ function renderContext(){
 function renderPipeline(){
   const box=document.getElementById("pipeline"); if(!box) return;
   if(isMemberView()){ const s=memberSummary();
+    const SORTS=[["count","일감 많은 순"],["overlap","겹침 많은 순"],["load","부하 높은 순"],["name","이름순"]];
     box.innerHTML=`<div class="pipe-mem"><span>멤버 <b>${s.mem}</b>명</span><span>담당 일감 <b>${s.n}</b>건</span>`+
       `<span>완료 <b>${s.done}</b>/${s.n}</span>`+
       `<span class="warn">일정 미정 <b>${s.un}</b></span><span class="bad">겹치는 날 <b>${s.ov}</b></span>`+
-      `<span style="color:var(--dim);font-weight:700">· <b style="color:var(--muted)">${MEM_TRACK}</b> 분류만 집계 · 멤버 줄 클릭: 접기/펼치기 · 막대 클릭: 일정·담당자 편집</span></div>`;
+      `<span class="pm-ctl"><select id="memSort" title="멤버 정렬">${SORTS.map(([k,l])=>`<option value="${k}" ${memSort===k?"selected":""}>${l}</option>`).join("")}</select>`+
+      `<button class="pm-tgl ${memOvOnly?"on":""}" id="memOvOnly" title="같은 날 2건 이상 맡은 사람만 봅니다">⚠ 겹침만</button></span>`+
+      `<span style="color:var(--dim);font-weight:700">· <b style="color:var(--muted)">${MEM_TRACK}</b> 분류만 집계</span></div>`;
     return; }
   const sts=statusesFor(headTrack());
   const scope=state.tasks.filter(t=> (msFilter.size===0||msFilter.has(t.milestoneId)) && (t.track||"개발")===headTrack());
@@ -1488,7 +1515,7 @@ function renderFilter(){
   const trackTabs=TRACKS.map(tr=>`<span class="trtab ${trackFilter===tr?'on':''}" data-track="${tr}"><i class="trdot" style="background:${TRACK_COLORS[tr]||'#888'}"></i>${escapeHtml(tr)}</span>`).join("");
   const kfchips=KICKOFFS.map(k=>{ const on=kfFilter.has(k.k);
     return `<span class="fchip ${on?'on':''}" style="${on?'background:'+k.color:''}" data-fkf="${k.k}"><span style="font-size:11px">${k.icon}</span>${k.k}</span>`; }).join("");
-  const cnt=deptFilter.size+statusFilter.size+assigneeFilter.size+kfFilter.size+(searchQuery.trim()?1:0);
+  const cnt=deptFilter.size+statusFilter.size+assigneeFilter.size+kfFilter.size+(lateOnly?1:0)+(searchQuery.trim()?1:0);
   const allA=assigneeFilter.size===0;
   const aSec=`<div class="fsec"><span class="lh-label">담당자</span>
        <div class="fchips"><span class="fchip all ${allA?'on':''}" data-fa="__all">${allA?'✓ ':''}전체</span><span class="fchip ${assigneeFilter.has('__unassigned')?'on':''}" data-fa="__unassigned">${assigneeFilter.has('__unassigned')?'✓ ':''}미정</span></div>
@@ -1516,6 +1543,9 @@ function renderFilter(){
      <div class="filter-pop ${filterOpen?'show':''}" id="filterPop">
        <div class="fsec"><span class="lh-label">검색</span><input type="text" id="filterSearch" class="filter-search" placeholder="제목·담당자 단어 검색…" value="${escapeHtml(searchQuery)}"></div>
        <div class="fsec"><span class="lh-label">부서</span><div class="fchips"><span class="fchip all ${allD?'on':''}" data-fd="__all">전체</span>${dchips}</div></div>
+       <div class="fsec"><span class="lh-label">상태 점검</span><div class="fchips">`+
+         `<span class="fchip late ${lateOnly?'on':''}" data-flate="1" title="부서 일정이 끝났는데 완료가 아닌 일감만">${lateOnly?'✓ ':''}⚠ 지연만 (${state.tasks.filter(isLate).length})</span>`+
+       `</div></div>
        ${isMemberView()?"":`<div class="fsec"><span class="lh-label">진행 상태</span><div class="fchips"><span class="fchip all ${allS?'on':''}" data-fs="__all">전체</span>${schips}</div></div>
        <div class="fsec"><span class="lh-label">킥오프</span><div class="fchips"><span class="fchip all ${kfFilter.size===0?'on':''}" data-fkf="__all">전체</span>${kfchips}</div></div>`}
        ${aSec}
@@ -1581,6 +1611,7 @@ function taskHeadHtml(t){
       <span class="task-info"><select class="prio-sel p${t.priority||0}" data-prio="${t.id}" title="우선순위 선택 (없음·1~4)">${['','1','2','3','4'].map(v=>`<option value="${v}" ${String(t.priority||'')===v?'selected':''}>${v||'–'}</option>`).join('')}</select><span class="ms-tag"><i class="bd" style="background:${ms.color}"></i>${escapeHtml(ms.name)}</span><span class="task-name">${escapeHtml(t.name)}</span>${t.mirrorOf?'<span class="mirror-badge" title="아트에서 미러된 Task (아트 수정 시 갱신)">🔗 아트</span>':''}${t.trelloCardId?`<a class="trello-badge" href="${escapeHtml(trelloUrlOf(t))}" target="_blank" rel="noopener" title="트렐로 카드 열기${t.trelloList?' · 리스트 '+escapeHtml(t.trelloList):''}\n이름은 트렐로가 기준입니다. 이 Task를 지우면 카드도 삭제됩니다.">${TRELLO_ICON} 동기화</a>`:''}${links}${(t.track||"개발")==="개발"?"":asg}</span>
       ${(t.track||"개발")==="개발"?deptChipsInline(t):`<span class="dept-grid">${deptGridHtml(t)}</span>`}
       <span class="th-right"><span class="kf-chip" data-kf="${t.id}" style="border-color:${kf.color};box-shadow:0 0 0 2px ${kf.color}30" title="킥오프: ${t.kickoff} — 클릭하여 선택">${kf.icon}</span>
+      ${(()=>{const L=taskLateDays(t); return L?`<span class="late-chip" title="부서 일정 종료일이 ${L}영업일 지났는데 아직 완료가 아닙니다">지연 ${L}일</span>`:"";})()}
       ${doneChip}<select class="st-sel" data-status="${t.id}" title="${isArt?'종류':'진행 상태'}">${stOpts}</select>
       <span class="task-del" data-del="${t.id}" title="삭제">✕</span></span></div>`;
 }
@@ -1591,6 +1622,8 @@ function taskHeadHtml(t){
 const VIEW_MEMBER="멤버";
 const isMemberView = () => trackFilter===VIEW_MEMBER;
 let memCollapsed=new Set();                     // 접힌 멤버·부서 (개인 화면, 저장 안 함)
+let memSort="count";                            // count | overlap | load | name  (뷰 상태)
+let memOvOnly=false;                            // 겹침 있는 사람만
 const AV_COLORS=["#6366f1","#0ea5e9","#10b981","#f59e0b","#ec4899","#8b5cf6","#ef4444","#14b8a6"];
 function avColor(n){ let h=0; for(let i=0;i<n.length;i++) h=(h*31+n.charCodeAt(i))>>>0; return AV_COLORS[h%AV_COLORS.length]; }
 const memKey = m => "m:"+m.dept+"|"+m.name;
@@ -1626,9 +1659,17 @@ function memberGroups(){
   });
   const out=[];
   state.departments.forEach(dep=>{ const mm=byDept.get(dep.key); if(!mm) return;
-    out.push({ dept:dep.key, color:dep.color, members:[...mm.values()]
-      .sort((a,b)=> b.items.length-a.items.length || a.name.localeCompare(b.name)) }); });
-  if(unassigned.length) out.push({ dept:"미배정", color:"#5c6474",
+    let ms=[...mm.values()];
+    if(memOvOnly) ms=ms.filter(m=>memStats(m).ovDays>0);
+    ms.sort((a,b)=>{
+      if(memSort==="name") return a.name.localeCompare(b.name);
+      const A=memStats(a), B=memStats(b);
+      if(memSort==="overlap") return B.ovDays-A.ovDays || B.n-A.n || a.name.localeCompare(b.name);
+      if(memSort==="load")    return B.load-A.load   || B.n-A.n || a.name.localeCompare(b.name);
+      return B.n-A.n || a.name.localeCompare(b.name);       // count
+    });
+    if(ms.length) out.push({ dept:dep.key, color:dep.color, members:ms }); });
+  if(unassigned.length && !memOvOnly) out.push({ dept:"미배정", color:"#5c6474",
     members:[{ name:"미배정", dept:"미배정", color:"#5c6474", items:unassigned, none:true }] });
   return out;
 }
@@ -1688,8 +1729,11 @@ function renderMemberLeft(){
           `<select class="st-sel" data-status="${it.t.id}" title="진행 상태">`+
           sts.map(x=>`<option ${x.k===it.t.status?'selected':''}>${escapeHtml(x.k)}</option>`).join("")+
           `</select></span>`;
-        return `<div class="mem-task ${isDone(it.t)?'done':''}" data-memtask="${it.t.id}|${escapeHtml(it.dept)}" title="${escapeHtml(it.t.name)} — 클릭: 일정·담당자 편집">`+
+        const ti=indexOfToday();
+        const lateD=(!isDone(it.t) && ok && ti>=0 && it.seg.end<ti) ? (ti-it.seg.end) : 0;
+        return `<div class="mem-task ${isDone(it.t)?'done':''} ${lateD?'late':''}" data-memtask="${it.t.id}|${escapeHtml(it.dept)}" title="${escapeHtml(it.t.name)} — 클릭: 일정·담당자 편집">`+
           `${dp}<span class="tn">${escapeHtml(it.t.name)}</span>`+
+          `${lateD?`<span class="late-chip">지연 ${lateD}일</span>`:""}`+
           `<span class="tms" style="color:${ms?ms.color:'var(--dim)'}">${ms?escapeHtml(ms.name):''}</span>`+
           `${stSel}<span class="tdur ${ok?'':'none'}">${ok?(it.seg.end-it.seg.start+1)+'일':'일정 미정'}</span></div>`;
       }).join("");
@@ -1771,7 +1815,7 @@ function renderLeft(){
         const trelloBtn=trelloUrlOf(t)?`<a class="meta-btn set" href="${escapeHtml(trelloUrlOf(t))}" target="_blank" rel="noopener" title="Trello 열기">${TRELLO_ICON} Trello</a>`:`<button class="meta-btn dim" data-openedit="${t.id}" title="Trello 링크 추가">${TRELLO_ICON} Trello +</button>`;
         const trOpts=TRACKS.map(tr=>`<option value="${tr}" ${tr===t.track?'selected':''}>${tr}</option>`).join("");
         const meta=`<div class="meta-rows"><div class="meta-row"><button class="meta-btn" data-openpicker="${t.id}">＋ 부서</button><button class="meta-btn" data-openedit="${t.id}">✏️ 편집</button><button class="meta-btn" data-dup="${t.id}" title="이 Task 복제">⧉ 복제</button><button class="meta-btn" data-copylink="${t.id}" title="이 Task 링크 복사(전달용)">🔗 링크</button>${planBtn}${trelloBtn}<select class="meta-sel" data-settrack="${t.id}" title="분류">${trOpts}</select><select class="meta-sel" data-setms="${t.id}" title="마일스톤">${msOpts}</select></div></div>`;
-        html+=`<div class="task ${isOpen(t.id)?'open':''} ${t.kickoff==='Skip'?'skip':''} ${isCatTrack(t.track)&&t.done?'tdone':''} ${t.id===selectedId?'selected':''}" data-task="${t.id}" draggable="true">${taskHeadHtml(t)}${inner}${meta}</div>`;
+        html+=`<div class="task ${isOpen(t.id)?'open':''} ${isLate(t)?'late':''} ${t.kickoff==='Skip'?'skip':''} ${isCatTrack(t.track)&&t.done?'tdone':''} ${t.id===selectedId?'selected':''}" data-task="${t.id}" draggable="true">${taskHeadHtml(t)}${inner}${meta}</div>`;
       });
     }
   });
@@ -1862,6 +1906,7 @@ leftHead.addEventListener("click", e=>{
   if(fs){ const k=fs.dataset.fs; if(k==="__all")statusFilter.clear(); else statusFilter.has(k)?statusFilter.delete(k):statusFilter.add(k); render(); return; }
   if(fkf){ const k=fkf.dataset.fkf; if(k==="__all")kfFilter.clear(); else kfFilter.has(k)?kfFilter.delete(k):kfFilter.add(k); render(); return; }
   if(fa){ const k=fa.dataset.fa; if(k==="__all")assigneeFilter.clear(); else assigneeFilter.has(k)?assigneeFilter.delete(k):assigneeFilter.add(k); render(); return; }
+  if(e.target.closest("[data-flate]")){ lateOnly=!lateOnly; render(); return; }
 });
 leftHead.addEventListener("input", e=>{ const si=e.target.closest("#filterSearch"); if(si){ searchQuery=si.value; renderContext(); renderPipeline(); renderLegend(); renderLeft(); renderBody(); } });
 document.addEventListener("click", e=>{ if(filterOpen && !e.target.closest("#filterPop") && !e.target.closest("#filterBtn")){ filterOpen=false; renderFilter(); } });
@@ -1880,6 +1925,8 @@ contextBar.addEventListener("change", e=>{ const s=e.target.closest("#ctxMs"); i
 contextBar.addEventListener("click", e=>{ const trk=e.target.closest("[data-track]"); if(trk){ trackFilter=trk.dataset.track; deptFilter.clear(); assigneeFilter.clear(); statusFilter.clear(); kfFilter.clear(); groupCollapsed.clear(); render();
   if(isMemberView()) scrollToMemberStart(); } });
 pipelineEl.addEventListener("click", e=>{ const st=e.target.closest("[data-pstep]"); if(st){ const k=st.dataset.pstep; statusFilter.has(k)?statusFilter.delete(k):statusFilter.add(k); render(); } });
+pipelineEl.addEventListener("click", e=>{ if(e.target.closest("#memOvOnly")){ memOvOnly=!memOvOnly; render(); } });
+pipelineEl.addEventListener("change", e=>{ const s=e.target.closest("#memSort"); if(s){ memSort=s.value; render(); } });
 
 leftBody.addEventListener("change", e=>{
   const pr=e.target.closest("[data-prio]"); if(pr){ const t=findTask(pr.dataset.prio); const v=parseInt(pr.value,10); if(v>=1&&v<=4) t.priority=v; else delete t.priority; save(); render(); return; }
