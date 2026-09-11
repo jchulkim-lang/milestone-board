@@ -126,6 +126,7 @@
   .task-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0;}
   .task-info{flex:1 1 0;min-width:0;display:flex;align-items:center;gap:5px;overflow:hidden;}
   .prio-sel{flex:0 0 auto;-webkit-appearance:none;appearance:none;width:22px;height:19px;border-radius:5px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:11px;font-weight:800;text-align:center;text-align-last:center;cursor:pointer;padding:0;}
+  .prio-sel.pS{background:linear-gradient(135deg,#a855f7,#ec4899);color:#fff;border-color:transparent;box-shadow:0 0 0 1px rgba(236,72,153,.55);}
   .prio-sel.p1{background:#ef4444;color:#fff;border-color:transparent;}
   .prio-sel.p2{background:#f59e0b;color:#fff;border-color:transparent;}
   .prio-sel.p3{background:#3b82f6;color:#fff;border-color:transparent;}
@@ -1423,6 +1424,9 @@ const deptSched = (t,k) => hasSched(t&&t.depts&&t.depts[k]);
 const visibleDepts = t => activeDepts(t).filter(d => focusDept==="__all" || d.key===focusDept);
 /* 지연 = 부서 일정 종료일이 오늘보다 지났는데 아직 완료가 아닌 Task.
  * 마감일 칩은 마일스톤 단위라서 개별 일감이 늦는 건 아무 데도 안 보였다(2026-09-11). */
+/* 우선순위 정렬 순위: S(0) → 1~4 → 없음(99).
+   priority 는 S 일 때 문자열이라 그냥 빼면 NaN 이 된다. 비교는 반드시 이 함수를 거칠 것. */
+function prioRank(t){ const p=t&&t.priority; if(p==="S") return 0; const n=Number(p); return (n>=1&&n<=4)?n:99; }
 function taskLateDays(t){
   if(isDone(t)) return 0;
   const ti=indexOfToday(); if(ti<0) return 0;
@@ -1454,7 +1458,7 @@ function groupsToRender(){
   const vis=state.tasks.filter(passFilter);
   const cmp=sortMode==="name-asc"?(a,b)=>(a.name||"").localeCompare(b.name||"","ko",{numeric:true})
     :sortMode==="name-desc"?(a,b)=>(b.name||"").localeCompare(a.name||"","ko",{numeric:true})
-    :sortMode==="prio"?(a,b)=>((a.priority||99)-(b.priority||99))||(a.name||"").localeCompare(b.name||"","ko",{numeric:true}):null;
+    :sortMode==="prio"?(a,b)=>(prioRank(a)-prioRank(b))||(a.name||"").localeCompare(b.name||"","ko",{numeric:true}):null;
   return statusesFor(headTrack()).filter(s=> statusFilter.size===0 || statusFilter.has(s.k))
     .map(s=>{ let tasks=vis.filter(t=>t.status===s.k); if(cmp) tasks=tasks.slice().sort(cmp); return { s, tasks }; });
 }
@@ -1665,7 +1669,7 @@ function taskHeadHtml(t){
   return `<div class="task-head" data-toggleopen="${t.id}">
       <span class="drag-handle" data-drag="${t.id}" title="드래그하여 이동">⠿</span>
       <span class="caret">▶</span>
-      <span class="task-info"><select class="prio-sel p${t.priority||0}" data-prio="${t.id}" title="우선순위 선택 (없음·1~4)">${['','1','2','3','4'].map(v=>`<option value="${v}" ${String(t.priority||'')===v?'selected':''}>${v||'–'}</option>`).join('')}</select><span class="ms-tag"><i class="bd" style="background:${ms.color}"></i>${escapeHtml(ms.name)}</span><span class="task-name">${escapeHtml(t.name)}</span>${t.mirrorOf?'<span class="mirror-badge" title="아트에서 미러된 Task (아트 수정 시 갱신)">🔗 아트</span>':''}${t.trelloCardId?`<a class="trello-badge" href="${escapeHtml(trelloUrlOf(t))}" target="_blank" rel="noopener" title="트렐로 카드 열기${t.trelloList?' · 리스트 '+escapeHtml(t.trelloList):''}\n이름은 트렐로가 기준입니다. 이 Task를 지우면 카드도 삭제됩니다.">${TRELLO_ICON} 동기화</a>`:''}${links}${(t.track||"개발")==="개발"?"":asg}</span>
+      <span class="task-info"><select class="prio-sel p${t.priority||0}" data-prio="${t.id}" title="우선순위 선택 (없음 · S · 1~4)">${['','S','1','2','3','4'].map(v=>`<option value="${v}" ${String(t.priority||'')===v?'selected':''}>${v||'–'}</option>`).join('')}</select><span class="ms-tag"><i class="bd" style="background:${ms.color}"></i>${escapeHtml(ms.name)}</span><span class="task-name">${escapeHtml(t.name)}</span>${t.mirrorOf?'<span class="mirror-badge" title="아트에서 미러된 Task (아트 수정 시 갱신)">🔗 아트</span>':''}${t.trelloCardId?`<a class="trello-badge" href="${escapeHtml(trelloUrlOf(t))}" target="_blank" rel="noopener" title="트렐로 카드 열기${t.trelloList?' · 리스트 '+escapeHtml(t.trelloList):''}\n이름은 트렐로가 기준입니다. 이 Task를 지우면 카드도 삭제됩니다.">${TRELLO_ICON} 동기화</a>`:''}${links}${(t.track||"개발")==="개발"?"":asg}</span>
       ${(t.track||"개발")==="개발"?deptChipsInline(t):`<span class="dept-grid">${deptGridHtml(t)}</span>`}
       <span class="th-right"><span class="kf-chip" data-kf="${t.id}" style="border-color:${kf.color};box-shadow:0 0 0 2px ${kf.color}30" title="킥오프: ${t.kickoff} — 클릭하여 선택">${kf.icon}</span>
       ${(()=>{const L=taskLateDays(t); return L?`<span class="late-chip" title="부서 일정 종료일이 ${L}영업일 지났는데 아직 완료가 아닙니다">지연 ${L}일</span>`:"";})()}
@@ -1988,7 +1992,11 @@ pipelineEl.addEventListener("click", e=>{ if(e.target.closest("#memOvOnly")){ me
 pipelineEl.addEventListener("change", e=>{ const s=e.target.closest("#memSort"); if(s){ memSort=s.value; render(); } });
 
 leftBody.addEventListener("change", e=>{
-  const pr=e.target.closest("[data-prio]"); if(pr){ const t=findTask(pr.dataset.prio); const v=parseInt(pr.value,10); if(v>=1&&v<=4) t.priority=v; else delete t.priority; save(); render(); return; }
+  const pr=e.target.closest("[data-prio]"); if(pr){ const t=findTask(pr.dataset.prio);
+    const raw=pr.value;
+    if(raw==="S") t.priority="S";                       // S = 1보다 위 (문자열로 저장)
+    else { const v=parseInt(raw,10); if(v>=1&&v<=4) t.priority=v; else delete t.priority; }
+    save(); render(); return; }
   const st=e.target.closest("[data-status]"); if(st){ findTask(st.dataset.status).status=st.value; save(); render(); return; }
   const sm=e.target.closest("[data-setms]"); if(sm){ findTask(sm.dataset.setms).milestoneId=sm.value; buildTimeline(); save(); render(); return; }
   const str=e.target.closest("[data-settrack]"); if(str){ const tk=findTask(str.dataset.settrack); tk.track=str.value; const ss=statusesFor(tk.track); if(!ss.some(s=>s.k===tk.status)) tk.status=ss[0].k; if(tk.milestoneId===FREE_MS && !trackAllowsFree(tk.track)){ const rm=state.milestones.find(m=>!m.free); if(rm) tk.milestoneId=rm.id; } save(); render(); return; }
