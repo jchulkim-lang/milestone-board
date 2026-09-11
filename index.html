@@ -204,6 +204,26 @@
   .grid-col{position:absolute;top:0;bottom:0;width:var(--day-w);border-left:1px solid var(--grid);}
   .grid-col.mon{border-left:1px solid var(--mon);}
   .grid-col.today{background:rgba(99,102,241,.09);}
+  /* 공휴일 — 표시만 한다(영업일 계산에서 빼지 않음) */
+  .day-cell.hol{ color:#ff9b9b; background:rgba(239,68,68,.10); }
+  .day-cell.hol .dow{ color:#ff9b9b; font-weight:800; }
+  .day-cell.today.hol{ background:linear-gradient(180deg, rgba(239,68,68,.22), rgba(99,102,241,.14)); }
+  .grid-col.hol{ background:rgba(239,68,68,.055); }
+  .hol-note{ font-size:10.5px; color:#ff9b9b; font-weight:700; margin-left:6px; }
+  .hol-add{ display:flex; gap:6px; align-items:center; margin:10px 0 8px; }
+  .hol-add input[type=date]{ width:150px; }
+  .hol-add input{ background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:8px; padding:6px 8px; font-size:12.5px; font-family:inherit; }
+  .hol-add input#holName{ flex:1; min-width:0; }
+  .hol-list{ max-height:46vh; overflow:auto; border:1px solid var(--line); border-radius:10px; }
+  .hol-y{ position:sticky; top:0; background:var(--panel2); padding:5px 10px; font-size:11px; font-weight:800; color:var(--muted); border-bottom:1px solid var(--line); }
+  .hol-row{ display:flex; align-items:center; gap:9px; padding:6px 10px; border-bottom:1px solid var(--grid); font-size:12px; }
+  .hol-row:last-child{ border-bottom:0; }
+  .hol-row .d{ flex:0 0 92px; font-weight:800; color:#ff9b9b; }
+  .hol-row .w{ flex:0 0 18px; color:var(--dim); font-size:10.5px; }
+  .hol-row .n{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .hol-row .x{ background:none; border:0; color:var(--muted); cursor:pointer; font-size:12px; padding:2px 5px; border-radius:5px; }
+  .hol-row .x:hover{ color:#ff9b9b; background:rgba(239,68,68,.12); }
+  .modal.hol-readonly .hol-add, .modal.hol-readonly .hol-row .x, .modal.hol-readonly #holReset{ display:none; }
   .mline{position:absolute;top:0;bottom:0;width:2px;opacity:.4;}
   .tl-task{border-bottom:1px solid var(--line);position:relative;}
   .tl-task-head{height:var(--task-h);position:relative;}
@@ -995,6 +1015,18 @@
           <button class="btn" id="trelloImport">가져오기 실행</button></div></div>
     </div>
   </div>
+  <div class="modal-bg" id="holModal">
+    <div class="modal"><h3>공휴일 관리 🎌</h3>
+      <div class="msub" id="holSub">타임라인에 빨갛게 표시됩니다. 영업일 계산에서 빼지는 않습니다.</div>
+      <div class="hol-add" id="holAdd">
+        <input type="date" id="holDate"><input id="holName" placeholder="예: 창립기념일">
+        <button class="btn sm" id="holAddBtn">＋ 추가</button>
+      </div>
+      <div class="hol-list scrollbar" id="holList"></div>
+      <div class="modal-actions"><button class="linkrow" id="holReset" title="기본 공휴일표(2026~2027)로 되돌립니다">↺ 기본값으로 되돌리기</button>
+        <div class="right"><button class="btn" data-close>닫기</button></div></div>
+    </div>
+  </div>
   <div class="modal-bg" id="planModal">
     <div class="modal sp-modal"><h3>서비스 플랜 📅</h3>
       <div class="msub" id="spSub">런칭 이후 라이브 운영 일정입니다. 행 = 운영 트랙, 열 = 런칭 기준 주차.</div>
@@ -1138,6 +1170,28 @@ const DOW = ["일","월","화","수","목","금","토"];
 const stripTime = d => new Date(d.getFullYear(),d.getMonth(),d.getDate());
 const parseYmd = s => { const p=s.split("-").map(Number); return new Date(p[0],p[1]-1,p[2]); };
 let ORIGIN, WORKDAYS=[], N=0;
+/* ===== 한국 공휴일 =====
+ * 표시만 한다. WORKDAYS 에서 빼지 않는다 — seg.start/end 가 WORKDAYS 의 **인덱스**라서
+ * 배열 구성이 바뀌면 저장된 막대가 전부 밀린다(2026-09-11 판단). 기간 계산에는 안내만 덧붙인다.
+ * 음력·대체공휴일은 계산할 수 없으므로 표를 둔다. 오래돼도 관리자가 직접 추가할 수 있게 편집 가능. */
+const HOLIDAY_SEED = {
+  "2026-01-01":"새해","2026-02-16":"설날 연휴","2026-02-17":"설날","2026-02-18":"설날 연휴",
+  "2026-03-01":"삼일절","2026-03-02":"대체공휴일","2026-05-05":"어린이날","2026-05-24":"부처님오신날",
+  "2026-05-25":"대체공휴일","2026-06-06":"현충일","2026-08-15":"광복절","2026-08-17":"대체공휴일",
+  "2026-09-24":"추석 연휴","2026-09-25":"추석","2026-09-26":"추석 연휴","2026-10-03":"개천절",
+  "2026-10-05":"대체공휴일","2026-10-09":"한글날","2026-12-25":"성탄절",
+  "2027-01-01":"새해","2027-02-06":"설날 연휴","2027-02-07":"설날","2027-02-08":"설날 연휴",
+  "2027-02-09":"대체공휴일","2027-03-01":"삼일절","2027-05-05":"어린이날","2027-05-13":"부처님오신날",
+  "2027-06-06":"현충일","2027-08-15":"광복절","2027-08-16":"대체공휴일","2027-09-14":"추석 연휴",
+  "2027-09-15":"추석","2027-09-16":"추석 연휴","2027-10-03":"개천절","2027-10-04":"대체공휴일",
+  "2027-10-09":"한글날","2027-10-11":"대체공휴일","2027-12-25":"성탄절","2027-12-27":"대체공휴일"
+};
+function holidayMap(){ if(!state.holidays || typeof state.holidays!=="object") state.holidays={...HOLIDAY_SEED}; return state.holidays; }
+const holidayOf = d => holidayMap()[ymd(d)] || "";
+const holidayAt = i => (i>=0 && i<N) ? holidayOf(WORKDAYS[i]) : "";
+/* 구간 안에 낀 휴일 수 (주말은 애초에 WORKDAYS 에 없다) */
+function holidaysIn(si, ei){ let n=0; for(let i=si;i<=ei;i++) if(holidayAt(i)) n++; return n; }
+
 function buildTimeline(){
   const starts = state.milestones.filter(m=>!m.free && m.start).map(m=>parseYmd(m.start));
   if(!starts.length) starts.push(parseYmd("2026-06-01"));
@@ -1224,6 +1278,7 @@ function migrate(){
   // 아트 개발 부서 1회 시드(스킬/아웃게임/콘텐츠 개발). 삭제 후 재추가 방지 위해 플래그 사용.
   if(!state.devDeptsSeeded){ [["스킬 개발","#0ea5e9"],["아웃 게임 개발","#a78bfa"],["콘텐츠 개발","#fb923c"]].forEach(([k,c])=>{ if(!state.departments.some(d=>d.key===k)) state.departments.push({ key:k, color:c, tracks:["아트"], owners:[] }); }); state.devDeptsSeeded=true; }
   // '조립' 개발 부서 1회 시드(개발 트랙에만). 삭제 후 재추가 방지 위해 플래그 사용.
+  if(!state.holidays || typeof state.holidays!=="object") state.holidays={...HOLIDAY_SEED};   // 공휴일 1회 시드(이후 관리자가 편집)
   if(!state.assembleDeptSeeded){ if(!state.departments.some(d=>d.key==="조립")) state.departments.push({ key:"조립", color:"#14b8a6", tracks:["개발"], owners:[] }); state.assembleDeptSeeded=true; }
   DEPARTMENTS = state.departments;
   // 아트 종류(분류) 시드
@@ -1497,7 +1552,8 @@ function renderLegend(){
   const stLabel = `<button class="lbl legend-edit" id="catLegendBtn" title="${art?'종류':'상태'} 추가·편집">${art?'종류':'상태'} 편집 ✎</button>`;
   document.getElementById("footbar").innerHTML=
     `<button class="lbl legend-edit" id="deptLegendBtn" title="부서 편집·추가">부서 편집 ✎</button>`+
-    `<div class="grp">${stLabel}</div>`;
+    `<div class="grp">${stLabel}</div>`+
+    `<button class="lbl legend-edit" id="holLegendBtn" title="공휴일 목록 보기·편집">휴일 ✎</button>`;
 }
 
 function renderFilter(){
@@ -1569,7 +1625,8 @@ function renderHead(){
       if(i<N){ mo=d.getMonth(); mStart=i; } } }
   const todayIdx=indexOfToday(); let days="";
   for(let i=0;i<N;i++){ const d=WORKDAYS[i],mon=d.getDay()===1;
-    days+=`<div class="day-cell ${mon?'mon':''} ${i===todayIdx?'today':''}" style="left:${i*DAY_W}px"><div>${d.getDate()}</div><div class="dow">${DOW[d.getDay()]}</div></div>`; }
+    const hol=holidayOf(d);
+    days+=`<div class="day-cell ${mon?'mon':''} ${i===todayIdx?'today':''} ${hol?'hol':''}" style="left:${i*DAY_W}px"${hol?` title="${escapeHtml(hol)} (공휴일)"`:''}><div>${d.getDate()}</div><div class="dow">${hol?'휴':DOW[d.getDay()]}</div></div>`; }
   const msList=state.milestones.filter(m=>(msFilter.size===0||msFilter.has(m.id)) && !m.free);
   const multi=msList.length>1;
   const msbars=msList.map(m=>{
@@ -1749,7 +1806,8 @@ function renderMemberLeft(){
 function renderMemberBody(){
   const body=document.getElementById("tlBody"); const todayIdx=indexOfToday(); const gs=memberGroups();
   let grid="";
-  for(let i=0;i<N;i++){ const mon=WORKDAYS[i].getDay()===1; grid+=`<div class="grid-col ${mon?'mon':''} ${i===todayIdx?'today':''}" style="left:${i*DAY_W}px"></div>`; }
+  for(let i=0;i<N;i++){ const mon=WORKDAYS[i].getDay()===1; const hol=holidayAt(i);
+    grid+=`<div class="grid-col ${mon?'mon':''} ${i===todayIdx?'today':''} ${hol?'hol':''}" style="left:${i*DAY_W}px"${hol?` title="${escapeHtml(hol)} (공휴일)"`:''}></div>`; }
   const mlines=markerEntries().map(({mk,v})=>`<div class="mline" style="left:${nearestWorkdayIndex(v)*DAY_W + DAY_W/2}px;background:${mk.color}"></div>`).join("");
   let rows="";
   gs.forEach(g=>{
@@ -1826,7 +1884,8 @@ function renderBody(){
   if(isMemberView()) return renderMemberBody();
   const body=document.getElementById("tlBody"); const todayIdx=indexOfToday(); const groups=groupsToRender();
   let grid="";
-  for(let i=0;i<N;i++){ const mon=WORKDAYS[i].getDay()===1; grid+=`<div class="grid-col ${mon?'mon':''} ${i===todayIdx?'today':''}" style="left:${i*DAY_W}px"></div>`; }
+  for(let i=0;i<N;i++){ const mon=WORKDAYS[i].getDay()===1; const hol=holidayAt(i);
+    grid+=`<div class="grid-col ${mon?'mon':''} ${i===todayIdx?'today':''} ${hol?'hol':''}" style="left:${i*DAY_W}px"${hol?` title="${escapeHtml(hol)} (공휴일)"`:''}></div>`; }
   const mlines=markerEntries().map(({mk,v})=>`<div class="mline" style="left:${nearestWorkdayIndex(v)*DAY_W + DAY_W/2}px;background:${mk.color}"></div>`).join("");
   let rows="";
   if(state.tasks.length) groups.forEach(({s,tasks})=>{
@@ -2031,6 +2090,7 @@ let editing=null;
 const taskModal=document.getElementById("taskModal"), taskInput=document.getElementById("taskInput"), taskMs=document.getElementById("taskMs");
 const roadmapModal=document.getElementById("roadmapModal"), trelloModal=document.getElementById("trelloModal");
 const planModal=document.getElementById("planModal");
+const holModal=document.getElementById("holModal");
 const deptModal=document.getElementById("deptModal"), linkModal=document.getElementById("linkModal"), schedModal=document.getElementById("schedModal"), msModal=document.getElementById("msModal"), deptMgrModal=document.getElementById("deptMgrModal"), catMgrModal=document.getElementById("catMgrModal"), titleModal=document.getElementById("titleModal"), dashModal=document.getElementById("dashModal"), historyModal=document.getElementById("historyModal"), notifyModal=document.getElementById("notifyModal"), noticePopup=document.getElementById("noticePopup"), noticeEditModal=document.getElementById("noticeEditModal");
 /* 부서 칩 클릭으로 막 켠 부서인데 일정을 정하지 않고 닫으면 → 부서를 다시 끈다 */
 function cancelPendingDept(){
@@ -2039,9 +2099,9 @@ function cancelPendingDept(){
   editing.justOn=false;
   if(sg && sg.on && sg.sched===false){ sg.on=false; save(); render(); }
 }
-function closeModals(){ cancelPendingDept(); closeRmPop(); closeSpPop(); [taskModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.classList.remove("show")); }
+function closeModals(){ cancelPendingDept(); closeRmPop(); closeSpPop(); [taskModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.classList.remove("show")); }
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=closeModals);
-[taskModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
+[taskModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
 
 /* ===== 종류 관리 (아트·전투 등 종류 방식 분류) ===== */
 let catMgrTrack="아트", catEditKey=null;
@@ -2374,7 +2434,9 @@ document.getElementById("schedAssignees").addEventListener("click",e=>{ const c=
   const t=findTask(editing.tid); toggleDeptAssignee(t, editing.dep, c.dataset.aname); save();
   document.getElementById("schedAssignees").innerHTML=deptAssigneeChips(t, editing.dep); render(); });
 function updateSchedDur(){ const si=nearestWorkdayIndex(document.getElementById("schedStart").value); let ei=nearestWorkdayIndex(document.getElementById("schedEnd").value); if(ei<si) ei=si;
-  document.getElementById("schedDur").textContent=`기간: ${ei-si+1} 영업일 (${fmt(dateOf(si))} ~ ${fmt(dateOf(ei))})`; }
+  const hn=holidaysIn(si,ei);
+  document.getElementById("schedDur").innerHTML=`기간: ${ei-si+1} 영업일 (${fmt(dateOf(si))} ~ ${fmt(dateOf(ei))})`+
+    (hn?`<span class="hol-note">· 공휴일 ${hn}일 포함 → 실제 ${ei-si+1-hn}일</span>`:``); }
 document.getElementById("schedStart").addEventListener("change",updateSchedDur);
 document.getElementById("schedEnd").addEventListener("change",updateSchedDur);
 document.getElementById("schedSaveOk").onclick=()=>{ const t=findTask(editing.tid); const seg=t.depts[editing.dep];
@@ -3334,6 +3396,50 @@ document.getElementById("spGrid").addEventListener("drop", e=>{
   spClearMarks(); save(); renderPlan(); });
 document.addEventListener("click", e=>{ if(spPopMode && !e.target.closest("#spPop") && !e.target.closest("[data-spitem]") && !e.target.closest("[data-sprowedit]") && !e.target.closest("[data-sprowadd]") && !e.target.closest("[data-spguide]") && !e.target.closest("[data-spsecedit]") && !e.target.closest(".sp-track")) closeSpPop(); });
 document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeSpPop(); });
+
+/* ===== 공휴일 관리 (열람 전원 · 편집 관리자) ===== */
+const DOW_K=["일","월","화","수","목","금","토"];
+function renderHolList(){
+  const map=holidayMap();
+  const keys=Object.keys(map).sort();
+  const ed=msCanEdit();
+  holModal.querySelector(".modal").classList.toggle("hol-readonly", !ed);
+  document.getElementById("holSub").textContent = ed
+    ? "타임라인에 빨갛게 표시됩니다. 영업일 계산에서 빼지는 않습니다. 회사 휴무일도 추가할 수 있어요."
+    : "타임라인에 빨갛게 표시됩니다. (편집은 관리자만)";
+  if(!keys.length){ document.getElementById("holList").innerHTML=`<div class="dm-empty" style="padding:14px">등록된 휴일이 없습니다.</div>`; return; }
+  let h="", curY="";
+  keys.forEach(k=>{
+    const y=k.slice(0,4);
+    if(y!==curY){ curY=y; h+=`<div class="hol-y">${y}년 · ${keys.filter(x=>x.startsWith(y)).length}일</div>`; }
+    const d=parseYmd(k);
+    h+=`<div class="hol-row"><span class="d">${k.slice(5).replace("-","/")}</span>`+
+       `<span class="w">${DOW_K[d.getDay()]}</span><span class="n">${escapeHtml(map[k])}</span>`+
+       `<button class="x" data-holdel="${k}" title="삭제">✕</button></div>`;
+  });
+  document.getElementById("holList").innerHTML=h;
+}
+function openHolModal(){ holidayMap(); renderHolList(); holModal.classList.add("show");
+  const t=document.getElementById("holDate"); if(t && !t.value) t.value=ymd(stripTime(new Date())); }
+document.getElementById("footbar").addEventListener("click", e=>{ if(e.target.closest("#holLegendBtn")) openHolModal(); });
+document.getElementById("holAddBtn").onclick=()=>{
+  if(!msCanEdit()) return;
+  const d=document.getElementById("holDate").value, n=document.getElementById("holName").value.trim();
+  if(!d){ alert("날짜를 선택하세요."); return; }
+  holidayMap()[d]=n||"휴일";
+  document.getElementById("holName").value="";
+  save(); renderHolList(); render();
+};
+document.getElementById("holName").addEventListener("keydown", e=>{ if(e.key==="Enter") document.getElementById("holAddBtn").click(); });
+document.getElementById("holList").addEventListener("click", e=>{
+  const x=e.target.closest("[data-holdel]"); if(!x || !msCanEdit()) return;
+  delete holidayMap()[x.dataset.holdel]; save(); renderHolList(); render();
+});
+document.getElementById("holReset").onclick=()=>{
+  if(!msCanEdit()) return;
+  if(!confirm("기본 공휴일표(2026~2027)로 되돌릴까요?\n직접 추가하신 휴무일은 사라집니다.")) return;
+  state.holidays={...HOLIDAY_SEED}; save(); renderHolList(); render();
+};
 
 /* ===== 마일스톤 관리 ===== */
 function renderMsList(){
