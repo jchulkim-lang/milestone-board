@@ -66,6 +66,19 @@
     setTimeout(reloadFresh, 4000);
   }
 
+  /* 세션이 끊겼을 때 — 예전엔 !r.ok 로 조용히 return 해서 낡은 화면을 계속 보여 줬다.
+     이제는 명확히 알리고 폴링을 멈춘다(무한 401 재시도 방지). */
+  function blockSessionExpired(){
+    if(_blocked) return; _blocked = true;
+    try{ remote.active = false; }catch(_){}
+    const o = document.createElement("div"); o.id = "sessionExpiredBlock";
+    o.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:rgba(8,11,20,.96);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;font-family:'Pretendard',-apple-system,sans-serif;padding:24px";
+    o.innerHTML = '<div style="font-size:20px;font-weight:800">로그인이 만료되었습니다</div><div style="font-size:14px;color:#c7cfdf;line-height:1.7">화면의 내용이 최신이 아닐 수 있습니다.<br>다시 로그인하면 이어서 사용할 수 있습니다.</div>';
+    const b = document.createElement("button"); b.textContent = "다시 로그인";
+    b.style.cssText = "background:#2563eb;color:#fff;border:0;border-radius:9px;padding:10px 18px;font-weight:800;font-size:14px;cursor:pointer";
+    b.onclick = ()=>location.reload(); o.appendChild(b); document.body.appendChild(o);
+  }
+
   function setupSync(){
     remote.active = true; remote.version = -1; remote._t = null; remote.base = null;   // base = 서버와의 공통 기준
     const clone = (o)=> (typeof _clone==="function") ? _clone(o) : (o==null?o:JSON.parse(JSON.stringify(o)));
@@ -86,6 +99,7 @@
         if(initial || nowT - lastBeat > BEAT_GAP){ q.set("beat","1"); lastBeat = nowT; }
         const r = await fetch("/api/state?"+q.toString(), { credentials:"same-origin", headers:{ "X-App-Version": APPVER() } });
         if(r.status===426){ blockOldVersion(); return; }
+        if(r.status===401){ blockSessionExpired(); return; }
         if(!r.ok) return;
         const j = await r.json();
         if(j.presence) showPresence(j.presence);
@@ -111,11 +125,13 @@
         for(let attempt=0; attempt<5; attempt++){
           const r0 = await fetch("/api/state", { credentials:"same-origin", headers:{ "X-App-Version": APPVER() } });   // 저장 직전 서버 최신
           if(r0.status===426){ blockOldVersion(); return; }
+          if(r0.status===401){ blockSessionExpired(); return; }
           if(r0.ok){ const j0 = await r0.json(); if(j0 && j0.data){ state = (typeof mergeState3==="function") ? mergeState3(remote.base, state, j0.data) : state; remote.base = clone(j0.data); remote.version = j0.version; } }
           const merged = state;
           const r = await fetch("/api/state", { method:"PUT", credentials:"same-origin",
             headers:{ "content-type":"application/json", "X-App-Version": APPVER() }, body: JSON.stringify({ data: merged, baseVersion: remote.version }) });
           if(r.status===426){ blockOldVersion(); return; }
+          if(r.status===401){ blockSessionExpired(); return; }   // 저장분이 조용히 사라지지 않도록 알린다
           if(r.status===409){   // 충돌: 서버 최신으로 재병합 후 재시도(내 변경·남의 변경 모두 보존)
             let cj=null; try{ cj = await r.json(); }catch(_){}
             if(cj && cj.data){ state = (typeof mergeState3==="function") ? mergeState3(remote.base, state, cj.data) : state; remote.base = clone(cj.data); remote.version = cj.version; }

@@ -15,7 +15,7 @@ const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 �
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026091001;
+const APP_BUILD = 2026091101;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -126,6 +126,16 @@ async function createSessionToken(user, env){
 }
 function sessionCookie(t){ return `session=${t}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL}`; }
 function clearCookie(){ return `session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`; }
+/* 세션 연장 — 페이지를 계속 열어 두면 폴링이 쿠키를 갱신해 준다.
+ * 예전엔 로그인 때 딱 한 번만 발급해서 12시간이 지나면 /api/state 가 401 을 내고,
+ * 클라이언트는 조용히 갱신을 멈춘 채 낡은 화면을 보여 줬다(2026-09-11 수정).
+ * 요청 수는 늘지 않는다 — 기존 응답에 Set-Cookie 를 얹을 뿐이다. */
+const SESSION_RENEW_AT = SESSION_TTL / 2;      // 남은 시간이 절반 아래면 재발급
+async function renewHeader(user, env){
+  if(!user || !user.exp) return {};
+  if(user.exp - Math.floor(Date.now()/1000) > SESSION_RENEW_AT) return {};
+  try{ return { "Set-Cookie": sessionCookie(await createSessionToken(user, env)) }; }catch(_){ return {}; }
+}
 async function verifySession(request, env){
   const c = request.headers.get("Cookie") || ""; const m = c.match(/(?:^|;\s*)session=([^;]+)/); if(!m) return null;
   const [p, sig] = m[1].split("."); if(!p||!sig) return null;
@@ -134,7 +144,7 @@ async function verifySession(request, env){
   if(!ok) return null;
   let pl; try{ pl = JSON.parse(dec.decode(bytesFromB64url(p))); }catch(_){ return null; }
   if(!pl.exp || pl.exp < Math.floor(Date.now()/1000)) return null;
-  return { email:pl.email, name:pl.name };
+  return { email:pl.email, name:pl.name, exp:pl.exp };
 }
 
 let JWKS = { keys:null, exp:0 };
@@ -501,13 +511,14 @@ async function handleApi(request, env, url, ctx){
       try{ const { results } = await env.DB.prepare("SELECT email,name FROM users WHERE last_seen > datetime('now','-180 seconds') ORDER BY name").all();
         presence = { users: results || [], count: (results||[]).length }; }catch(_){}
     }
-    if(!row) return json({ data:{ tasks:[], milestones:[] }, version:0, presence });
+    const rh = await renewHeader(user, env);          // 세션 자동 연장(요청 수 증가 없음)
+    if(!row) return json({ data:{ tasks:[], milestones:[] }, version:0, presence }, 200, rh);
     const known = Number(q.get("v"));
     if(Number.isFinite(known) && known === row.version && q.get("v")!==null){
-      return json({ unchanged:true, version:row.version, presence });   // 바뀐 게 없으면 본문 생략
+      return json({ unchanged:true, version:row.version, presence }, 200, rh);   // 바뀐 게 없으면 본문 생략
     }
     let data; try{ data = JSON.parse(row.data); }catch(_){ data = { tasks:[], milestones:[] }; }
-    return json({ data, version:row.version, updatedAt:row.updated_at, updatedBy:row.updated_by, presence });
+    return json({ data, version:row.version, updatedAt:row.updated_at, updatedBy:row.updated_by, presence }, 200, rh);
   }
   if(p === "/api/state" && request.method === "PUT"){
     const role = await effectiveRole(env, user.email);
