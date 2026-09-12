@@ -474,6 +474,14 @@
   .rm-cw button{ font-size:10.5px; font-weight:800; padding:2px 8px; border-radius:999px; border:1px solid var(--line); background:var(--panel2); color:var(--muted); cursor:pointer; }
   .rm-cw button:hover{ color:var(--text); border-color:var(--accent); }
   .last-edit{ flex:0 0 auto; font-size:10.5px; font-weight:700; color:var(--dim); white-space:nowrap; margin-right:8px; }
+  /* Task 단위 트렐로 연결 */
+  .tr-link{ margin-top:9px; border:1px solid var(--line); border-radius:9px; background:var(--panel2); padding:9px 11px; }
+  .tr-link .st{ font-size:11.5px; font-weight:700; color:var(--muted); display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+  .tr-link .st b{ color:var(--text); }
+  .tr-link .ok{ color:#6ee7b7; }
+  .tr-link .btns{ display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+  .tr-link .msg{ margin-top:7px; font-size:11px; font-weight:700; }
+  .tr-link .msg.good{ color:#6ee7b7; } .tr-link .msg.bad{ color:#ff9b9b; } .tr-link .msg.busy{ color:var(--muted); }
   .rm-mh.dim{ color:var(--muted); }
   .rm-chip{ position:relative; overflow:visible; display:inline-flex; align-items:center; gap:5px; max-width:100%; font-size:11px; font-weight:700; padding:3px 8px; border-radius:7px; background:var(--panel2); border:1px solid var(--line); border-left-width:3px; color:var(--text); cursor:pointer; user-select:none; }
   /* 타겟 마일스톤 배지 — 칩 좌측 상단에 겹쳐 붙는 원형 숫자 */
@@ -940,7 +948,8 @@
     <div class="modal"><h3>Task 편집</h3><div class="msub" id="linkModalSub"></div>
       <label>Task 이름</label><input id="editName" placeholder="Task 이름" />
       <label>기획서 링크</label><input id="linkPlan" placeholder="https://..." />
-      <label>Trello 링크</label><input id="linkTrello" placeholder="https://trello.com/..." />
+      <label>Trello 링크</label><input id="linkTrello" placeholder="https://trello.com/c/..." />
+      <div class="tr-link" id="trLinkBox"></div>
       <div class="modal-actions"><span></span><div class="right"><button class="btn ghost" data-close>취소</button><button class="btn" id="linkSaveOk">저장</button></div></div></div>
   </div>
   <div class="modal-bg" id="schedModal">
@@ -1882,8 +1891,9 @@ function renderLeft(){
         const msOpts=msFor(t.track).map(m=>`<option value="${m.id}" ${m.id===t.milestoneId?'selected':''}>${escapeHtml(m.name)}</option>`).join("");
         const planBtn=t.links.plan?`<a class="meta-btn set" href="${escapeHtml(t.links.plan)}" target="_blank" rel="noopener" title="기획서 열기">📄 기획서</a>`:`<button class="meta-btn dim" data-openedit="${t.id}" title="기획서 링크 추가">📄 기획서 +</button>`;
         const trelloBtn=trelloUrlOf(t)?`<a class="meta-btn set" href="${escapeHtml(trelloUrlOf(t))}" target="_blank" rel="noopener" title="Trello 열기">${TRELLO_ICON} Trello</a>`:`<button class="meta-btn dim" data-openedit="${t.id}" title="Trello 링크 추가">${TRELLO_ICON} Trello +</button>`;
+        const trSyncBtn=t.trelloCardId?`<button class="meta-btn" data-trsync="${t.id}" title="이 Task를 트렐로 카드 기준으로 다시 맞춥니다">🔄 동기화</button>`:"";
         const trOpts=TRACKS.map(tr=>`<option value="${tr}" ${tr===t.track?'selected':''}>${tr}</option>`).join("");
-        const meta=`<div class="meta-rows"><div class="meta-row"><button class="meta-btn" data-openpicker="${t.id}">＋ 부서</button><button class="meta-btn" data-openedit="${t.id}">✏️ 편집</button><button class="meta-btn" data-dup="${t.id}" title="이 Task 복제">⧉ 복제</button><button class="meta-btn" data-copylink="${t.id}" title="이 Task 링크 복사(전달용)">🔗 링크</button>${planBtn}${trelloBtn}<select class="meta-sel" data-settrack="${t.id}" title="분류">${trOpts}</select><select class="meta-sel" data-setms="${t.id}" title="마일스톤">${msOpts}</select></div></div>`;
+        const meta=`<div class="meta-rows"><div class="meta-row"><button class="meta-btn" data-openpicker="${t.id}">＋ 부서</button><button class="meta-btn" data-openedit="${t.id}">✏️ 편집</button><button class="meta-btn" data-dup="${t.id}" title="이 Task 복제">⧉ 복제</button><button class="meta-btn" data-copylink="${t.id}" title="이 Task 링크 복사(전달용)">🔗 링크</button>${planBtn}${trelloBtn}${trSyncBtn}<select class="meta-sel" data-settrack="${t.id}" title="분류">${trOpts}</select><select class="meta-sel" data-setms="${t.id}" title="마일스톤">${msOpts}</select></div></div>`;
         html+=`<div class="task ${isOpen(t.id)?'open':''} ${isLate(t)?'late':''} ${t.kickoff==='Skip'?'skip':''} ${isCatTrack(t.track)&&t.done?'tdone':''} ${t.id===selectedId?'selected':''}" data-task="${t.id}" draggable="true">${taskHeadHtml(t)}${inner}${meta}</div>`;
       });
     }
@@ -2029,6 +2039,17 @@ leftBody.addEventListener("click", e=>{
     } return; }
   const dup=e.target.closest("[data-dup]"); if(dup){ e.stopPropagation(); duplicateTask(dup.dataset.dup); return; }
   const cpl=e.target.closest("[data-copylink]"); if(cpl){ e.stopPropagation(); copyTaskLink(cpl.dataset.copylink, cpl); return; }
+  const trs=e.target.closest("[data-trsync]"); if(trs){ e.stopPropagation();
+    const tid=trs.dataset.trsync; trs.textContent="🔄 동기화 중…"; trs.disabled=true;
+    editing={tid};
+    (async()=>{ const r=await trTaskCall("sync");
+      /* render() 로 이 버튼이 새로 그려졌을 수 있으니 id 로 다시 찾는다 */
+      const b2=document.querySelector(`[data-trsync="${tid}"]`); if(!b2) { if(r&&!r.ok) alert(r.msg); return; }
+      b2.disabled=false; b2.textContent = r&&r.ok ? "✓ 동기화됨" : "⚠ 실패";
+      if(r&&!r.ok) b2.title=r.msg;
+      setTimeout(()=>{ const b3=document.querySelector(`[data-trsync="${tid}"]`); if(b3) b3.textContent="🔄 동기화"; }, 1800);
+    })();
+    return; }
   const lnk=e.target.closest("[data-openedit]"); if(lnk){ e.stopPropagation(); openEditModal(lnk.dataset.openedit); return; }
   const open=e.target.closest("[data-toggleopen]"); if(open){ if(e.target.closest("[data-drag]")) return; const t=findTask(open.dataset.toggleopen); selectedId=t.id; setOpen(t.id, !isOpen(t.id)); render(); scrollToTask(t); }   // 펼침은 개인 로컬(공유 안 함)
 });
@@ -2428,10 +2449,60 @@ document.getElementById("deptPickGrid").addEventListener("click",e=>{ const c=e.
 document.getElementById("deptAssignArea").addEventListener("click",e=>{ const c=e.target.closest("[data-aassign]"); if(!c) return;
   const t=findTask(editing.tid); toggleDeptAssignee(t, c.dataset.aassign, c.dataset.aname); save(); openDeptModal(editing.tid); render(); });
 
+/* ===== Task 단위 트렐로 연결/동기화 (2026-09-12) =====
+ * 예전엔 연결이 '가져오기·웹훅'으로만 생겼다. 이제 카드 주소를 붙여넣고 직접 연결할 수 있다.
+ * 서버가 카드 1장을 읽어 이름·리스트·링크를 맞춘다(이름은 트렐로가 기준). */
+function trLinkMsg(txt, cls){ const el=document.getElementById("trLinkMsg"); if(el){ el.className="msg "+(cls||""); el.textContent=txt||""; } }
+function renderTrLink(){
+  const box=document.getElementById("trLinkBox"); if(!box) return;
+  const t=findTask(editing.tid); if(!t){ box.innerHTML=""; return; }
+  const linked=!!t.trelloCardId;
+  const ro=document.body.classList.contains("readonly");
+  box.innerHTML =
+    `<div class="st">${linked
+      ? `<span class="ok">✅ 트렐로 카드와 연결됨</span>${t.trelloList?`<span>· 리스트 <b>${escapeHtml(t.trelloList)}</b></span>`:""}`
+      : `<span>🔗 연결 안 됨 — 위에 카드 주소를 넣고 <b>연결</b>을 누르세요</span>`}</div>`+
+    (ro?"":`<div class="btns">`+
+      (linked
+        ? `<button class="btn sm" data-trtask="sync">🔄 지금 동기화</button>`+
+          `<button class="btn ghost sm" data-trtask="link">주소로 다시 연결</button>`+
+          `<button class="btn ghost sm" data-trtask="unlink">연결 해제</button>`
+        : `<button class="btn sm" data-trtask="link">🔗 이 카드와 연결</button>`)+
+      `</div>`)+
+    `<div class="msg" id="trLinkMsg"></div>`;
+}
+async function trTaskCall(action){
+  const t=findTask(editing.tid); if(!t) return { ok:false, msg:"Task 없음" };
+  const body={ taskId:t.id, action };
+  if(action==="link") body.url=(document.getElementById("linkTrello").value||"").trim();
+  if(action==="link" && !body.url){ trLinkMsg("트렐로 카드 주소를 먼저 입력하세요.","bad"); return { ok:false, msg:"주소 없음" }; }
+  trLinkMsg(action==="unlink"?"해제 중…":"트렐로에서 불러오는 중…","busy");
+  try{
+    const r=await fetch("/api/trello/task",{ method:"POST", credentials:"same-origin",
+      headers:{ "content-type":"application/json", "X-App-Version":String(APP_VERSION||0) }, body:JSON.stringify(body) });
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok){ trLinkMsg(j.error || `실패 (${r.status})`, "bad"); return { ok:false, msg:(j.error||`실패 (${r.status})`) }; }
+    if(typeof remote!=="undefined" && remote.active && remote.pull) await remote.pull(false);   // 서버가 고친 state 를 받아온다
+    const t2=findTask(editing.tid);
+    if(t2){ document.getElementById("editName").value=t2.name||"";
+      document.getElementById("linkTrello").value=(t2.links&&t2.links.trello)||""; }
+    renderTrLink();
+    const okMsg = action==="unlink" ? "연결을 해제했습니다. (트렐로 카드는 그대로입니다)"
+      : `동기화 완료 — ${(j.card&&j.card.name)||""}${j.card&&j.card.closed?" (보관된 카드)":""}`;
+    trLinkMsg(okMsg, "good");
+    render();
+    return { ok:true, msg:okMsg };
+  }catch(e){ const m="네트워크 오류: "+String(e&&e.message||e); trLinkMsg(m,"bad"); return { ok:false, msg:m }; }
+}
+document.getElementById("trLinkBox").addEventListener("click", e=>{
+  const b=e.target.closest("[data-trtask]"); if(!b) return; trTaskCall(b.dataset.trtask);
+});
+
 function openEditModal(tid){ editing={tid}; const t=findTask(tid);
   document.getElementById("linkModalSub").textContent="이름과 링크를 편집합니다. (담당자는 부서 막대를 클릭하거나 ‘부서 지정’에서)";
   document.getElementById("editName").value=t.name||"";
   document.getElementById("linkPlan").value=t.links.plan||""; document.getElementById("linkTrello").value=t.links.trello||"";
+  renderTrLink(); trLinkMsg("");
   linkModal.classList.add("show"); }
 document.getElementById("linkSaveOk").onclick=()=>{ const t=findTask(editing.tid);
   const nm=document.getElementById("editName").value.trim(); if(nm) t.name=nm;

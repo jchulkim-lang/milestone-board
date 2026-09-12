@@ -15,7 +15,7 @@ const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 �
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026091201;
+const APP_BUILD = 2026091202;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -277,6 +277,29 @@ function attachOrCreate(st, card, listName){
   }
   st.tasks.unshift(taskFromCard(st, card, listName));
   return "added";
+}
+
+/* 붙여넣은 트렐로 카드 주소에서 식별자(shortLink 또는 24자리 id)를 뽑는다.
+ *   https://trello.com/c/AbCdEfGh/123-카드이름  → AbCdEfGh
+ *   생 id 나 shortLink 만 붙여넣어도 받아 준다. */
+function trelloCardKey(v){
+  const s0 = String(v||"").trim(); if(!s0) return "";
+  const m = s0.match(/trello\.com\/c\/([A-Za-z0-9]+)/i);
+  if(m) return m[1];
+  if(/^[A-Za-z0-9]{8,24}$/.test(s0)) return s0;
+  return "";
+}
+/* Task 1건을 카드와 맞춘다. 이름·리스트·링크를 트렐로 기준으로 갱신. */
+function applyCardToTask(st, t, card, listName){
+  let ch=false;
+  const nm=(card.name||"").trim() || "(제목 없음)";
+  if(t.trelloCardId !== card.id){ t.trelloCardId = card.id; ch=true; }
+  if((t.trelloList||"") !== (listName||"")){ t.trelloList = listName||""; ch=true; }
+  if(t.name !== nm){ t.name = nm; ch=true; }                    // 이름은 트렐로가 기준
+  if(!t.links) t.links={plan:"",trello:""};
+  const u=cardUrl(card);
+  if(u && t.links.trello !== u){ t.links.trello = u; ch=true; }
+  return ch;
 }
 
 /* 상태를 읽어 고치고 저장(낙관적 잠금 재시도). fn(st) 이 true 를 돌려주면 저장한다. */
@@ -549,6 +572,63 @@ async function handleApi(request, env, url, ctx){
       }
     }catch(_){}
     return json({ ok:true, version: row ? row.version : 1, updatedBy:user.email, updatedAt:new Date().toISOString().slice(0,19).replace("T"," ") });
+  }
+
+    /* Task 1건 ↔ 카드 1장 — 붙여넣은 주소로 연결하거나(url), 이미 연결된 카드를 다시 읽어온다.
+     편집 권한이면 누구나. 카드 1장만 읽으므로 요청 부담이 없다. (2026-09-12) */
+  if(p === "/api/trello/task" && request.method === "POST"){
+    if(!trelloReady(env)) return json({ error:"trello not configured" }, 400);
+    if(!canEdit(await effectiveRole(env, user.email))) return json({ error:"forbidden" }, 403);
+    let body={}; try{ body = await request.json(); }catch(_){}
+    const taskId = String(body.taskId||"");
+    const action = String(body.action||"sync");          // link | sync | unlink
+    if(!taskId) return json({ error:"taskId 가 없습니다" }, 400);
+
+    if(action === "unlink"){
+      let found=false;
+      const r = await mutateState(env, "trello-unlink:"+user.email, st=>{
+        const t=(st.tasks||[]).find(x=>x&&x.id===taskId); if(!t) return false;
+        found=true; if(!t.trelloCardId) return false;
+        delete t.trelloCardId; delete t.trelloList; return true;
+      });
+      if(!found) return json({ error:"Task 를 찾을 수 없습니다" }, 404);
+      return json({ ok:true, action:"unlink", ...r });
+    }
+
+    /* 카드 찾기 — link 면 붙여넣은 주소, sync 면 이미 저장된 cardId */
+    let key = trelloCardKey(body.url);
+    if(!key){
+      const cur = await env.DB.prepare("SELECT data FROM app_state WHERE id='main'").first();
+      let st0={}; try{ st0=JSON.parse(cur&&cur.data||"{}"); }catch(_){}
+      const t0=(st0.tasks||[]).find(x=>x&&x.id===taskId);
+      if(!t0) return json({ error:"Task 를 찾을 수 없습니다" }, 404);
+      key = t0.trelloCardId || trelloCardKey(t0.links && t0.links.trello);
+      if(!key) return json({ error:"연결할 트렐로 카드 주소를 입력하세요" }, 400);
+    }
+    let card;
+    try{ card = await trelloFetch(env, `/cards/${encodeURIComponent(key)}?fields=id,name,idList,shortLink,shortUrl,closed`); }
+    catch(e){ return json({ error:"카드를 찾지 못했습니다: "+String(e&&e.message||e) }, 502); }
+    if(!card || !card.id) return json({ error:"카드를 찾지 못했습니다" }, 404);
+
+    let listName="";
+    try{ const l = await trelloFetch(env, `/lists/${card.idList}?fields=name`); listName = (l&&l.name)||""; }catch(_){}
+
+    let dup=false, found=false, applied=null;
+    const r = await mutateState(env, "trello-link:"+user.email, st=>{
+      const t=(st.tasks||[]).find(x=>x&&x.id===taskId); if(!t) return false;
+      found=true;
+      const other=(st.tasks||[]).find(x=>x&&x.id!==taskId&&x.trelloCardId===card.id);
+      if(other){ dup=true; return false; }                 // 한 카드가 두 Task 에 붙는 것 방지
+      if(Array.isArray(st.trelloIgnored) && st.trelloIgnored.includes(card.id)){
+        st.trelloIgnored = st.trelloIgnored.filter(x=>x!==card.id);   // 직접 연결했으면 제외 해제
+      }
+      const ch = applyCardToTask(st, t, card, listName);
+      applied = { name:t.name, list:t.trelloList, url:(t.links&&t.links.trello)||"" };
+      return ch || true;
+    });
+    if(!found) return json({ error:"Task 를 찾을 수 없습니다" }, 404);
+    if(dup) return json({ error:"이 카드는 이미 다른 Task 에 연결돼 있습니다" }, 409);
+    return json({ ok:true, action, card:{ id:card.id, name:card.name, list:listName, closed:!!card.closed }, applied, ...r });
   }
 
   /* ===== 트렐로 관리(관리자 전용) ===== */
