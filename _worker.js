@@ -15,7 +15,7 @@ const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 �
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026091105;
+const APP_BUILD = 2026091201;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -383,7 +383,11 @@ async function trelloImportAll(env, who, opts){
     if(!Array.isArray(st.tasks)) st.tasks = [];
     let changed = false;
 
+    /* 보드에서 일부러 지운 Task 의 카드가 가져오기로 되살아나지 않게 한다(2026-09-12) */
+    const ignored = new Set(Array.isArray(st.trelloIgnored) ? st.trelloIgnored : []);
+    const skipped = new Set();                             // Set 으로 세야 재시도 때 중복 집계되지 않는다
     inScope.forEach(c => {
+      if(ignored.has(c.id)){ skipped.add(c.id); summary.ignored = skipped.size; return; }
       const nm = (c.name||"").trim() || "(제목 없음)";
       const listName = byId[c.idList];
       const i = st.tasks.findIndex(t => t && t.trelloCardId === c.id);
@@ -419,20 +423,6 @@ async function trelloImportAll(env, who, opts){
 }
 
 /* 보드에서 연결된 Task 를 지우면 트렐로 카드도 삭제 (PUT /api/state 이후 백그라운드) */
-async function trelloDeleteRemoved(env, prevRaw, nextRaw){
-  try{
-    if(!trelloReady(env)) return;
-    const prev = JSON.parse(prevRaw || "{}"), next = JSON.parse(nextRaw || "{}");
-    if(!Array.isArray(prev.tasks) || !Array.isArray(next.tasks)) return;
-    const alive = new Set(next.tasks.map(t => t && t.id));
-    const gone = prev.tasks.filter(t => t && t.trelloCardId && !alive.has(t.id));
-    if(!gone.length || gone.length > TRELLO_MAX_AUTO_DELETE) return;   // 대량 삭제는 반영하지 않는다
-    for(const t of gone){
-      try{ await trelloFetch(env, `/cards/${t.trelloCardId}`, { method:"DELETE" }); }catch(_){}
-    }
-  }catch(_){}
-}
-
 async function handleApi(request, env, url, ctx){
   const p = url.pathname;
 
@@ -544,11 +534,8 @@ async function handleApi(request, env, url, ctx){
       await env.DB.prepare("UPDATE app_state SET data=?, version=version+1, updated_at=datetime('now'), updated_by=? WHERE id='main'").bind(payload, user.email).run();
     }
     if(ctx && ctx.waitUntil) ctx.waitUntil(notifyStatusChanges(env, cur && cur.data, payload, user.name || user.email, url.origin));
-    /* 보드에서 연결된 Task 를 지웠으면 트렐로 카드도 삭제 (응답을 막지 않도록 백그라운드) */
-    if(trelloReady(env)){
-      const job = trelloDeleteRemoved(env, cur && cur.data, payload);
-      if(ctx && ctx.waitUntil) ctx.waitUntil(job.catch(()=>{}));
-    }
+    /* 2026-09-12: 보드에서 Task 를 지워도 **트렐로 카드는 건드리지 않는다**(사용자 요청).
+       예전엔 여기서 trelloDeleteRemoved() 로 카드를 DELETE 했다. 되살리지 말 것. */
     const row = await env.DB.prepare("SELECT version FROM app_state WHERE id='main'").first();
     /* 히스토리 스냅샷(최근 50개 보관).
      * 최적화(2026-08-22): 예전엔 저장할 때마다 전체 상태를 통째로 복사해 넣었다(0.8초 디바운스라 하루 수천 건).
