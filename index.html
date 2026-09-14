@@ -692,6 +692,46 @@
   .mem-tr{ flex:0 0 auto; display:inline-flex; align-items:center; line-height:1; padding:2px 3px; border-radius:5px; opacity:.85; }
   .mem-tr:hover{ opacity:1; background:rgba(24,104,219,.18); }
   .mem-task.done .mem-tr{ opacity:.5; }
+  /* ===== 체크리스트 점검 ===== */
+  #auditModal .modal{ width:min(1080px,94vw); max-width:94vw; }
+  .au-scan{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; padding:8px 11px; margin:8px 0 10px;
+            background:var(--panel2); border:1px solid var(--line); border-radius:9px; font-size:11px; color:var(--muted); font-weight:700; }
+  .au-scan b{ color:var(--text); }
+  .au-scan .sp{ flex:1; }
+  .au-fc{ font-size:10.5px; font-weight:800; padding:3px 9px; border-radius:999px; border:1px solid var(--line);
+          background:var(--panel); color:var(--muted); cursor:pointer; display:inline-flex; align-items:center; gap:5px; }
+  .au-fc i{ width:7px; height:7px; border-radius:50%; }
+  .au-fc.on{ color:#fff; background:var(--accent); border-color:var(--accent); }
+  .au-list{ max-height:60vh; overflow:auto; border:1px solid var(--line); border-radius:11px; background:var(--bg); }
+  .au-sec{ border-bottom:1px solid var(--line); }
+  .au-sec:last-child{ border-bottom:0; }
+  .au-h{ display:flex; align-items:center; gap:9px; padding:9px 12px; cursor:pointer; background:var(--rowhead); font-size:12px; font-weight:800; }
+  .au-h .car{ color:var(--dim); font-size:10px; width:10px; flex:0 0 auto; }
+  .au-h .why{ font-size:10.5px; font-weight:700; color:var(--dim); }
+  .au-h .n{ margin-left:auto; font-size:11px; font-weight:800; border-radius:999px; padding:1px 9px; }
+  .au-h.bad .n{ color:#ff9b9b; background:rgba(239,68,68,.14); }
+  .au-h.warn .n{ color:#fbbf24; background:rgba(245,158,11,.14); }
+  .au-h.info .n{ color:#7dd3fc; background:rgba(14,165,233,.14); }
+  .au-r{ display:flex; align-items:center; gap:9px; padding:6px 12px 6px 30px; border-top:1px solid var(--grid); font-size:11.5px; cursor:pointer; }
+  .au-r:hover{ background:rgba(255,255,255,.03); }
+  .au-r .ms{ flex:0 0 auto; font-size:9.5px; font-weight:800; }
+  .au-r .tk{ flex:0 0 200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); font-weight:700; }
+  .au-r .ar{ color:var(--dim); flex:0 0 auto; }
+  .au-r .ci{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:700; }
+  .au-r .due{ flex:0 0 auto; font-size:10.5px; font-weight:800; }
+  .au-r .due.bad{ color:#ff9b9b; } .au-r .due.warn{ color:#fbbf24; } .au-r .due.dim{ color:var(--dim); }
+  .au-r .ov{ flex:0 0 auto; font-size:10px; font-weight:800; border-radius:5px; padding:1px 6px; }
+  .au-r .ov.end{ color:#ff9b9b; background:rgba(239,68,68,.12); border:1px solid rgba(239,68,68,.4); }
+  .au-r .ov.dev{ color:#fbbf24; background:rgba(245,158,11,.12); border:1px solid rgba(245,158,11,.4); }
+  .au-r .mem{ flex:0 0 92px; text-align:right; font-size:10.5px; font-weight:700; color:var(--muted); }
+  .au-r .mem.none{ color:#fbbf24; }
+  .au-empty{ padding:26px; text-align:center; color:var(--muted); font-size:12px; }
+  .au-note{ font-size:10.5px; color:var(--dim); font-weight:700; }
+  /* Task 줄 배지 */
+  .au-badge{ flex:0 0 auto; font-size:9.5px; font-weight:800; border-radius:999px; padding:1px 6px; cursor:pointer; white-space:nowrap; }
+  .au-badge.w{ color:#fbbf24; background:rgba(245,158,11,.13); border:1px solid rgba(245,158,11,.5); }
+  .au-badge.b{ color:#ff9b9b; background:rgba(239,68,68,.13); border:1px solid rgba(239,68,68,.5); }
+  .fchip.au.on{ background:#f59e0b; border-color:#f59e0b; color:#221a06; }
   .mem-head{ height:var(--task-h); display:flex; align-items:center; gap:8px; padding:0 10px 0 8px; cursor:pointer; }
   .mem-head:hover{ background:rgba(255,255,255,.03); }
   .mem-car{ width:12px; flex:0 0 auto; color:var(--muted); font-size:10px; transition:transform .12s ease; }
@@ -917,6 +957,7 @@
       <button class="btn ghost sm" id="dashBtn">📊 대시보드</button>
       <button class="btn ghost sm" id="roadmapBtn">🗺 발주 로드맵</button>
       <button class="btn ghost sm" id="planBtn">📅 서비스 플랜</button>
+      <button class="btn ghost sm" id="auditBtn">🔍 점검</button>
       <button class="btn ghost sm" id="trelloBtn" style="display:none">🔗 트렐로 동기화</button>
       <button class="btn ghost sm" id="historyBtn">🕘 히스토리</button>
       <button class="btn ghost sm" id="forceReloadBtn" style="display:none">🔄 강제 새로고침</button>
@@ -1026,6 +1067,15 @@
           <button class="btn ghost" id="trelloHookOn">웹훅 등록</button>
           <button class="btn ghost" id="trelloDry">미리보기</button>
           <button class="btn" id="trelloImport">가져오기 실행</button></div></div>
+    </div>
+  </div>
+  <div class="modal-bg" id="auditModal">
+    <div class="modal au-modal"><h3>트렐로 체크리스트 점검 🔍</h3>
+      <div class="msub" id="auSub">연결된 Task 의 체크리스트 항목에서 문제만 모아 봅니다.</div>
+      <div class="au-scan" id="auScan"></div>
+      <div class="au-list scrollbar" id="auList"></div>
+      <div class="modal-actions"><span class="au-note">줄을 누르면 트렐로 카드가 열립니다 · 고치는 건 트렐로에서</span>
+        <div class="right"><button class="btn" data-close>닫기</button></div></div>
     </div>
   </div>
   <div class="modal-bg" id="holModal">
@@ -1233,6 +1283,7 @@ const uid=()=>Math.random().toString(36).slice(2,9);
 let state = { milestones:[{ id:"m1", name:"마일스톤 1", color:MS_PALETTE[0], start:"2026-06-01", end:"", plan:"", resource:"", dev:"", qa:"" }], tasks:[] };
 let deptFilter=new Set(), statusFilter=new Set(), msFilter=new Set(), assigneeFilter=new Set(), kfFilter=new Set();
 let lateOnly=false;        // 지연된 일감만 보기 (뷰 상태, 저장 안 함)
+let auditOnly=false;       // 체크리스트 문제 있는 일감만 (뷰 상태)
 let trackFilter="개발";   // 분류 탭(개발/아트) — '전체' 없음
 /* 부서 포커스: "__all" 또는 부서 key. 단일 선택. 개인 로컬 설정(공유 안 함) */
 let focusDept="__all";
@@ -1465,6 +1516,7 @@ function passFilter(t){
   if(statusFilter.size && !statusFilter.has(t.status)) return false;
   if(kfFilter.size && !kfFilter.has(t.kickoff)) return false;
   if(lateOnly && !isLate(t)) return false;
+  if(auditOnly && !auCount(t.id)) return false;
   if(assigneeFilter.size){
     let m=false;
     if(assigneeFilter.has("__unassigned") && taskHasUnassigned(t)) m=true;
@@ -1594,7 +1646,7 @@ function renderFilter(){
   const trackTabs=TRACKS.map(tr=>`<span class="trtab ${trackFilter===tr?'on':''}" data-track="${tr}"><i class="trdot" style="background:${TRACK_COLORS[tr]||'#888'}"></i>${escapeHtml(tr)}</span>`).join("");
   const kfchips=KICKOFFS.map(k=>{ const on=kfFilter.has(k.k);
     return `<span class="fchip ${on?'on':''}" style="${on?'background:'+k.color:''}" data-fkf="${k.k}"><span style="font-size:11px">${k.icon}</span>${k.k}</span>`; }).join("");
-  const cnt=deptFilter.size+statusFilter.size+assigneeFilter.size+kfFilter.size+(lateOnly?1:0)+(searchQuery.trim()?1:0);
+  const cnt=deptFilter.size+statusFilter.size+assigneeFilter.size+kfFilter.size+(lateOnly?1:0)+(auditOnly?1:0)+(searchQuery.trim()?1:0);
   const allA=assigneeFilter.size===0;
   const aSec=`<div class="fsec"><span class="lh-label">담당자</span>
        <div class="fchips"><span class="fchip all ${allA?'on':''}" data-fa="__all">${allA?'✓ ':''}전체</span><span class="fchip ${assigneeFilter.has('__unassigned')?'on':''}" data-fa="__unassigned">${assigneeFilter.has('__unassigned')?'✓ ':''}미정</span></div>
@@ -1624,6 +1676,7 @@ function renderFilter(){
        <div class="fsec"><span class="lh-label">부서</span><div class="fchips"><span class="fchip all ${allD?'on':''}" data-fd="__all">전체</span>${dchips}</div></div>
        <div class="fsec"><span class="lh-label">상태 점검</span><div class="fchips">`+
          `<span class="fchip late ${lateOnly?'on':''}" data-flate="1" title="부서 일정이 끝났는데 완료가 아닌 일감만">${lateOnly?'✓ ':''}⚠ 지연만 (${state.tasks.filter(isLate).length})</span>`+
+         `<span class="fchip au ${auditOnly?'on':''}" data-fau="1" title="트렐로 체크리스트에 문제가 있는 일감만">${auditOnly?'✓ ':''}🔍 체크리스트 문제 (${state.tasks.filter(t=>auCount(t.id)>0).length})</span>`+
        `</div></div>
        ${isMemberView()?"":`<div class="fsec"><span class="lh-label">진행 상태</span><div class="fchips"><span class="fchip all ${allS?'on':''}" data-fs="__all">전체</span>${schips}</div></div>
        <div class="fsec"><span class="lh-label">킥오프</span><div class="fchips"><span class="fchip all ${kfFilter.size===0?'on':''}" data-fkf="__all">전체</span>${kfchips}</div></div>`}
@@ -1692,6 +1745,7 @@ function taskHeadHtml(t){
       ${(t.track||"개발")==="개발"?deptChipsInline(t):`<span class="dept-grid">${deptGridHtml(t)}</span>`}
       <span class="th-right"><span class="kf-chip" data-kf="${t.id}" style="border-color:${kf.color};box-shadow:0 0 0 2px ${kf.color}30" title="킥오프: ${t.kickoff} — 클릭하여 선택">${kf.icon}</span>
       ${(()=>{const L=taskLateDays(t); return L?`<span class="late-chip" title="부서 일정 종료일이 ${L}영업일 지났는데 아직 완료가 아닙니다">지연 ${L}일</span>`:"";})()}
+      ${auBadgeHtml(t)}
       ${doneChip}<select class="st-sel" data-status="${t.id}" title="${isArt?'종류':'진행 상태'}">${stOpts}</select>
       <span class="task-del" data-del="${t.id}" title="삭제">✕</span></span></div>`;
 }
@@ -1992,6 +2046,7 @@ leftHead.addEventListener("click", e=>{
   if(fkf){ const k=fkf.dataset.fkf; if(k==="__all")kfFilter.clear(); else kfFilter.has(k)?kfFilter.delete(k):kfFilter.add(k); render(); return; }
   if(fa){ const k=fa.dataset.fa; if(k==="__all")assigneeFilter.clear(); else assigneeFilter.has(k)?assigneeFilter.delete(k):assigneeFilter.add(k); render(); return; }
   if(e.target.closest("[data-flate]")){ lateOnly=!lateOnly; render(); return; }
+  if(e.target.closest("[data-fau]")){ auditOnly=!auditOnly; render(); return; }
 });
 leftHead.addEventListener("input", e=>{ const si=e.target.closest("#filterSearch"); if(si){ searchQuery=si.value; renderContext(); renderPipeline(); renderLegend(); renderLeft(); renderBody(); } });
 document.addEventListener("click", e=>{ if(filterOpen && !e.target.closest("#filterPop") && !e.target.closest("#filterBtn")){ filterOpen=false; renderFilter(); } });
@@ -2055,6 +2110,7 @@ leftBody.addEventListener("click", e=>{
       setTimeout(()=>{ const b3=document.querySelector(`[data-trsync="${tid}"]`); if(b3) b3.textContent="🔄 동기화"; }, 1800);
     })();
     return; }
+  const ao=e.target.closest("[data-auopen]"); if(ao){ e.stopPropagation(); openAudit(ao.dataset.auopen); return; }
   const lnk=e.target.closest("[data-openedit]"); if(lnk){ e.stopPropagation(); openEditModal(lnk.dataset.openedit); return; }
   const open=e.target.closest("[data-toggleopen]"); if(open){ if(e.target.closest("[data-drag]")) return; const t=findTask(open.dataset.toggleopen); selectedId=t.id; setOpen(t.id, !isOpen(t.id)); render(); scrollToTask(t); }   // 펼침은 개인 로컬(공유 안 함)
 });
@@ -2132,6 +2188,7 @@ const taskModal=document.getElementById("taskModal"), taskInput=document.getElem
 const roadmapModal=document.getElementById("roadmapModal"), trelloModal=document.getElementById("trelloModal");
 const planModal=document.getElementById("planModal");
 const holModal=document.getElementById("holModal");
+const auditModal=document.getElementById("auditModal");
 const deptModal=document.getElementById("deptModal"), linkModal=document.getElementById("linkModal"), schedModal=document.getElementById("schedModal"), msModal=document.getElementById("msModal"), deptMgrModal=document.getElementById("deptMgrModal"), catMgrModal=document.getElementById("catMgrModal"), titleModal=document.getElementById("titleModal"), dashModal=document.getElementById("dashModal"), historyModal=document.getElementById("historyModal"), notifyModal=document.getElementById("notifyModal"), noticePopup=document.getElementById("noticePopup"), noticeEditModal=document.getElementById("noticeEditModal");
 /* 부서 칩 클릭으로 막 켠 부서인데 일정을 정하지 않고 닫으면 → 부서를 다시 끈다 */
 function cancelPendingDept(){
@@ -2140,9 +2197,9 @@ function cancelPendingDept(){
   editing.justOn=false;
   if(sg && sg.on && sg.sched===false){ sg.on=false; save(); render(); }
 }
-function closeModals(){ cancelPendingDept(); closeRmPop(); closeSpPop(); [taskModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.classList.remove("show")); }
+function closeModals(){ cancelPendingDept(); closeRmPop(); closeSpPop(); [taskModal,auditModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.classList.remove("show")); }
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=closeModals);
-[taskModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
+[taskModal,auditModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
 
 /* ===== 종류 관리 (아트·전투 등 종류 방식 분류) ===== */
 let catMgrTrack="아트", catEditKey=null;
@@ -3497,6 +3554,125 @@ document.getElementById("spGrid").addEventListener("drop", e=>{
   spClearMarks(); save(); renderPlan(); });
 document.addEventListener("click", e=>{ if(spPopMode && !e.target.closest("#spPop") && !e.target.closest("[data-spitem]") && !e.target.closest("[data-sprowedit]") && !e.target.closest("[data-sprowadd]") && !e.target.closest("[data-spguide]") && !e.target.closest("[data-spsecedit]") && !e.target.closest(".sp-track")) closeSpPop(); });
 document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeSpPop(); });
+
+/* ===== 트렐로 체크리스트 점검 (2026-09-14) =====
+ * 체크항목은 Task 보다 한 단계 아래 데이터다. Task 줄에는 **개수 배지 하나만** 붙이고
+ * 상세는 이 모달에만 둔다 — 목록에 펼치면 76건이 300줄이 된다(사용자 우려). */
+const AU_KINDS = [
+  ["overdue", "⚠ 기한 지남",        "체크항목 기한이 오늘보다 이전인데 미완료", "bad"],
+  ["overEnd", "🚩 마일스톤 종료 초과", "체크항목 기한이 마일스톤 종료일 이후",       "bad"],
+  ["overDev", "🚩 개발 마감 초과",     "체크항목 기한이 개발 마감 이후",            "warn"],
+  ["noDue",   "📌 담당만 있고 기한 없음", "언제 할지 아무도 모름",                  "warn"],
+  ["noMember","📅 기한만 있고 담당 없음", "누가 할지 아무도 모름",                  "info"],
+];
+const AU_SEVERE = new Set(["overdue","overEnd"]);      // 빨강으로 볼 유형
+let auOpen = new Set(["overdue","overEnd","overDev"]); // 펼쳐 둘 섹션
+let auMsFilter = "";                                    // "" = 전체
+let auTaskFilter = "";                                  // Task 배지로 들어왔을 때
+const auditData = () => (state.trelloAudit && typeof state.trelloAudit==="object") ? state.trelloAudit : null;
+const auCount = tid => { const a=auditData(); return (a && a.counts && a.counts[tid]) || 0; };
+function auSevereFor(tid){
+  const a=auditData(); if(!a || !Array.isArray(a.items)) return false;
+  return a.items.some(x => x.tid===tid && AU_SEVERE.has(x.kind));
+}
+function auBadgeHtml(t){
+  const n = auCount(t.id); if(!n) return "";
+  const sev = auSevereFor(t.id);
+  const a = auditData();
+  const by = {};
+  (a && a.items || []).filter(x=>x.tid===t.id).forEach(x=>{ by[x.kind]=(by[x.kind]||0)+1; });
+  const tip = AU_KINDS.filter(([k])=>by[k]).map(([k,label])=>label.replace(/^\S+\s/,"")+" "+by[k]).join(" · ");
+  return `<span class="au-badge ${sev?'b':'w'}" data-auopen="${t.id}" title="${escapeHtml(tip||"체크리스트 문제 "+n+"건")} — 클릭하면 점검 화면">⚠ ${n}</span>`;
+}
+function auRelTime(iso){
+  const t=Date.parse(iso||""); if(!isFinite(t)) return "";
+  const s=Math.max(0,Math.round((Date.now()-t)/1000));
+  if(s<60) return "방금"; if(s<3600) return Math.floor(s/60)+"분 전";
+  if(s<86400) return Math.floor(s/3600)+"시간 전"; return Math.floor(s/86400)+"일 전";
+}
+function auVisible(){
+  const a=auditData(); if(!a || !Array.isArray(a.items)) return [];
+  return a.items.filter(x =>
+    (!auMsFilter || x.msId===auMsFilter) && (!auTaskFilter || x.tid===auTaskFilter));
+}
+function renderAuditScan(){
+  const a=auditData(), ed=!document.body.classList.contains("readonly");
+  const msList=(state.milestones||[]).filter(m=>!m.free);
+  const cnt={}; (a&&a.items||[]).forEach(x=>{ cnt[x.msId]=(cnt[x.msId]||0)+1; });
+  const chip=(k,label,color,n)=>`<button class="au-fc ${auMsFilter===k?'on':''}" data-aums="${k}">`+
+    `${color?`<i style="background:${color}"></i>`:""}${escapeHtml(label)}<b style="opacity:.7">${n}</b></button>`;
+  const head = a
+    ? `마지막 스캔 <b>${auRelTime(a.at)}</b> · 카드 <b>${a.cards}</b> · 체크항목 <b>${a.checkItems}</b> · 문제 <b style="color:#ff9b9b">${a.total}</b>`
+      + (a.truncated?` <span style="color:#fbbf24">· 목록은 ${(a.items||[]).length}건까지만 표시</span>`:"")
+    : `<b>아직 스캔하지 않았습니다.</b> 오른쪽 버튼을 눌러 트렐로에서 가져오세요.`;
+  document.getElementById("auScan").innerHTML =
+    head +
+    (auTaskFilter?` <button class="au-fc on" data-auclear="1">Task 1건만 보는 중 ✕</button>`:"") +
+    `<span class="sp"></span>` +
+    (a ? chip("","전체",null,(a.items||[]).length) + msList.map(m=>chip(m.id,m.name,m.color,cnt[m.id]||0)).join("") : "") +
+    (ed?`<button class="btn sm" id="auScanBtn">🔄 ${a?"다시 스캔":"스캔"}</button>`:"");
+}
+function renderAuditList(){
+  const a=auditData();
+  const box=document.getElementById("auList");
+  if(!a){ box.innerHTML=`<div class="au-empty">스캔하면 결과가 여기에 나옵니다.<br><span style="color:var(--dim);font-size:11px">트렐로 보드를 2번 호출합니다 — 카드가 많아도 부담이 없습니다.</span></div>`; return; }
+  const vis=auVisible();
+  if(!vis.length){ box.innerHTML=`<div class="au-empty">이 조건에는 문제가 없습니다. 👍</div>`; return; }
+  let html="";
+  AU_KINDS.forEach(([kind,label,why,tone])=>{
+    const rows=vis.filter(x=>x.kind===kind); if(!rows.length) return;
+    const op=auOpen.has(kind);
+    html+=`<div class="au-sec"><div class="au-h ${tone}" data-auk="${kind}">`+
+      `<span class="car">${op?"▾":"▸"}</span>${escapeHtml(label)}`+
+      `<span class="why">— ${escapeHtml(why)}</span><span class="n">${rows.length}</span></div>`;
+    if(op) rows.forEach(x=>{
+      const ms=findMs(x.msId);
+      const dueCls = kind==="overdue" ? "bad" : (x.due?"warn":"dim");
+      let dueTxt="";
+      if(x.due){
+        const d=parseYmd(x.due), t0=stripTime(new Date());
+        const diff=Math.round((stripTime(d)-t0)/86400000);
+        dueTxt = `${d.getMonth()+1}/${d.getDate()}` + (diff<0?` · ${-diff}일 지남`:"");
+      } else dueTxt = "기한 없음";
+      const ov = x.limit ? `<span class="ov ${kind==="overEnd"?"end":"dev"}">${escapeHtml(x.limit)} 초과</span>` : "";
+      html+=`<div class="au-r" data-aucard="${escapeHtml(x.cid)}" title="${escapeHtml(x.task)} ▸ ${escapeHtml(x.cl)} ▸ ${escapeHtml(x.ci)}">`+
+        `<span class="ms" style="color:${ms?ms.color:'var(--dim)'}">${ms?escapeHtml(ms.name):''}</span>`+
+        `<span class="tk">${escapeHtml(x.task)}</span><span class="ar">▸</span>`+
+        `<span class="ci">${escapeHtml(x.ci)}</span>`+
+        `<span class="due ${dueCls}">${escapeHtml(dueTxt)}</span>${ov}`+
+        `<span class="mem ${x.mem?'':'none'}">${escapeHtml(x.mem||"담당 없음")}</span></div>`;
+    });
+    html+=`</div>`;
+  });
+  box.innerHTML=html;
+}
+function renderAudit(){ renderAuditScan(); renderAuditList(); }
+function openAudit(taskId){ auTaskFilter=taskId||""; renderAudit(); auditModal.classList.add("show"); }
+async function runAuditScan(btn){
+  const o=btn?btn.textContent:""; if(btn){ btn.textContent="🔄 스캔 중…"; btn.disabled=true; }
+  try{
+    const r=await fetch("/api/trello/audit",{ method:"POST", credentials:"same-origin",
+      headers:{ "content-type":"application/json", "X-App-Version":String(APP_VERSION||0) } });
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok){ alert("스캔 실패: "+(j.error||r.status)); return; }
+    if(typeof remote!=="undefined" && remote.active && remote.pull) await remote.pull(false);
+    else if(j.audit) state.trelloAudit=j.audit;
+    renderAudit(); render();
+  }catch(e){ alert("네트워크 오류: "+String(e&&e.message||e)); }
+  finally{ if(btn){ btn.disabled=false; btn.textContent=o||"🔄 다시 스캔"; } }
+}
+document.getElementById("auditBtn").onclick=()=>openAudit("");
+document.getElementById("auScan").addEventListener("click", e=>{
+  if(e.target.closest("#auScanBtn")) return runAuditScan(e.target.closest("#auScanBtn"));
+  const m=e.target.closest("[data-aums]"); if(m){ auMsFilter=m.dataset.aums; renderAudit(); return; }
+  if(e.target.closest("[data-auclear]")){ auTaskFilter=""; renderAudit(); }
+});
+document.getElementById("auList").addEventListener("click", e=>{
+  const h=e.target.closest("[data-auk]");
+  if(h){ const k=h.dataset.auk; auOpen.has(k)?auOpen.delete(k):auOpen.add(k); renderAuditList(); return; }
+  const r=e.target.closest("[data-aucard]");
+  if(r) window.open("https://trello.com/c/"+r.dataset.aucard, "_blank", "noopener");
+});
 
 /* ===== 공휴일 관리 (열람 전원 · 편집 관리자) ===== */
 const DOW_K=["일","월","화","수","목","금","토"];

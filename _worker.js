@@ -15,7 +15,7 @@ const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 �
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026091401;
+const APP_BUILD = 2026091402;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -574,7 +574,64 @@ async function handleApi(request, env, url, ctx){
     return json({ ok:true, version: row ? row.version : 1, updatedBy:user.email, updatedAt:new Date().toISOString().slice(0,19).replace("T"," ") });
   }
 
-    /* Task 1건 ↔ 카드 1장 — 붙여넣은 주소로 연결하거나(url), 이미 연결된 카드를 다시 읽어온다.
+    /* ===== 트렐로 체크리스트 점검 (2026-09-14) =====
+ * 보드 단위 엔드포인트 2번이면 전수 검사가 끝난다. 카드마다 부르지 않는다 — 76건이든 300건이든 호출 수가 같다.
+ * 4가지만 본다: 기한 지남 / 마일스톤 초과(개발·종료 2단계) / 담당만 있음 / 기한만 있음. */
+const AUDIT_MAX_ITEMS = 300;               // state 비대화 방지 — 이 개수까지만 저장
+const AUDIT_KINDS = ["overdue","overEnd","overDev","noDue","noMember"];
+function auditDay(v){ const s0=String(v||""); return s0 ? s0.slice(0,10) : ""; }   // ISO → YYYY-MM-DD
+async function trelloAudit(env){
+  const bid = trelloBoardId(env);
+  const [chks, mems] = await Promise.all([
+    trelloFetch(env, `/boards/${bid}/checklists?fields=name,idCard&checkItems=all&checkItem_fields=name,state,due,idMember`),
+    trelloFetch(env, `/boards/${bid}/members?fields=fullName,username`).catch(()=>[]),
+  ]);
+  const memName = {};
+  (mems||[]).forEach(m => { if(m && m.id) memName[m.id] = m.fullName || m.username || m.id; });
+
+  const cur = await env.DB.prepare("SELECT data FROM app_state WHERE id='main'").first();
+  let st={}; try{ st = JSON.parse((cur&&cur.data)||"{}"); }catch(_){}
+  const byCard = {};
+  (st.tasks||[]).forEach(t => { if(t && t.trelloCardId) byCard[t.trelloCardId] = t; });
+  const msById = {};
+  (st.milestones||[]).forEach(m => { if(m && !m.free) msById[m.id] = m; });
+
+  const today = new Date().toISOString().slice(0,10);
+  const items = [], counts = {};
+  let nCards = new Set(), nItems = 0;
+
+  (chks||[]).forEach(cl => {
+    const t = byCard[cl && cl.idCard]; if(!t) return;           // 보드에 연결된 카드만 본다
+    nCards.add(cl.idCard);
+    const ms = msById[t.milestoneId] || null;
+    (cl.checkItems||[]).forEach(ci => {
+      nItems++;
+      if(!ci || ci.state === "complete") return;                 // 완료된 항목은 문제 아님
+      const due = auditDay(ci.due);
+      const mid = ci.idMember || (Array.isArray(ci.idMembers) ? ci.idMembers[0] : "");
+      const mem = mid ? (memName[mid] || "(보드 밖 멤버)") : "";
+      let kind = "", limit = "";
+      if(due && due < today) kind = "overdue";
+      else if(due && ms && ms.end && due > ms.end){ kind = "overEnd"; limit = "종료 " + ms.end; }
+      else if(due && ms && ms.dev && due > ms.dev){ kind = "overDev"; limit = "개발마감 " + ms.dev; }
+      else if(mem && !due) kind = "noDue";
+      else if(due && !mem) kind = "noMember";
+      if(!kind) return;
+      counts[t.id] = (counts[t.id]||0) + 1;
+      if(items.length < AUDIT_MAX_ITEMS){
+        items.push({ tid:t.id, cid:cl.idCard, task:t.name, msId:t.milestoneId,
+          cl:cl.name||"", ci:ci.name||"", due, mem, kind, limit });
+      }
+    });
+  });
+  const order = k => AUDIT_KINDS.indexOf(k);
+  items.sort((a,b) => order(a.kind)-order(b.kind) || String(a.due).localeCompare(String(b.due)));
+  return { at:new Date().toISOString(), cards:nCards.size, checkItems:nItems,
+           total:Object.values(counts).reduce((a,b)=>a+b,0), truncated: items.length>=AUDIT_MAX_ITEMS,
+           counts, items };
+}
+
+/* Task 1건 ↔ 카드 1장 — 붙여넣은 주소로 연결하거나(url), 이미 연결된 카드를 다시 읽어온다.
      편집 권한이면 누구나. 카드 1장만 읽으므로 요청 부담이 없다. (2026-09-12) */
   if(p === "/api/trello/task" && request.method === "POST"){
     if(!trelloReady(env)) return json({ error:"trello not configured" }, 400);
@@ -629,6 +686,20 @@ async function handleApi(request, env, url, ctx){
     if(!found) return json({ error:"Task 를 찾을 수 없습니다" }, 404);
     if(dup) return json({ error:"이 카드는 이미 다른 Task 에 연결돼 있습니다" }, 409);
     return json({ ok:true, action, card:{ id:card.id, name:card.name, list:listName, closed:!!card.closed }, applied, ...r });
+  }
+
+  /* 체크리스트 점검 스캔 — 편집 권한이면 누구나. 보드 단위 호출 2회. */
+  if(p === "/api/trello/audit" && request.method === "POST"){
+    if(!trelloReady(env)) return json({ error:"trello not configured" }, 400);
+    if(!canEdit(await effectiveRole(env, user.email))) return json({ error:"forbidden" }, 403);
+    let res;
+    try{ res = await trelloAudit(env); }
+    catch(e){ return json({ error:String(e && e.message || e) }, 502); }
+    /* 배지가 새로고침 후에도 남도록 결과를 상태에 저장(수동 스캔이라 쓰기 빈도가 낮다) */
+    await mutateState(env, "trello-audit:"+user.email, st=>{
+      st.trelloAudit = res; return true;
+    });
+    return json({ ok:true, audit:res });
   }
 
   /* ===== 트렐로 관리(관리자 전용) ===== */
