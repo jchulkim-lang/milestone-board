@@ -689,6 +689,9 @@
   .pm-tgl:hover{ color:var(--text); }
   .pm-tgl.on{ color:#fff; background:#ef4444; border-color:#ef4444; }
   .mem-task.late .tn{ color:#ffb4b4; }
+  .mem-tr{ flex:0 0 auto; display:inline-flex; align-items:center; line-height:1; padding:2px 3px; border-radius:5px; opacity:.85; }
+  .mem-tr:hover{ opacity:1; background:rgba(24,104,219,.18); }
+  .mem-task.done .mem-tr{ opacity:.5; }
   .mem-head{ height:var(--task-h); display:flex; align-items:center; gap:8px; padding:0 10px 0 8px; cursor:pointer; }
   .mem-head:hover{ background:rgba(255,255,255,.03); }
   .mem-car{ width:12px; flex:0 0 auto; color:var(--muted); font-size:10px; transition:transform .12s ease; }
@@ -1808,10 +1811,12 @@ function renderMemberLeft(){
           `</select></span>`;
         const ti=indexOfToday();
         const lateD=(!isDone(it.t) && ok && ti>=0 && it.seg.end<ti) ? (ti-it.seg.end) : 0;
+        const trUrl=trelloUrlOf(it.t);
         return `<div class="mem-task ${isDone(it.t)?'done':''} ${lateD?'late':''}" data-memtask="${it.t.id}|${escapeHtml(it.dept)}" title="${escapeHtml(it.t.name)} — 클릭: 일정·담당자 편집">`+
           `${dp}<span class="tn">${escapeHtml(it.t.name)}</span>`+
           `${lateD?`<span class="late-chip">지연 ${lateD}일</span>`:""}`+
           `<span class="tms" style="color:${ms?ms.color:'var(--dim)'}">${ms?escapeHtml(ms.name):''}</span>`+
+          `${trUrl?`<a class="mem-tr" href="${escapeHtml(trUrl)}" target="_blank" rel="noopener" title="트렐로 카드 열기${it.t.trelloList?' · '+escapeHtml(it.t.trelloList):''}">${TRELLO_ICON}</a>`:""}`+
           `${stSel}<span class="tdur ${ok?'':'none'}">${ok?(it.seg.end-it.seg.start+1)+'일':'일정 미정'}</span></div>`;
       }).join("");
       html+=`<div class="task mem ${op?'open':''}">`+
