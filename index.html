@@ -684,6 +684,7 @@
   .pipe-mem .bad b{ color:#ff9b9b; }
   .pipe-mem .warn b{ color:#fbbf24; }
   .pipe-mem .pm-ctl{ display:inline-flex; align-items:center; gap:6px; }
+  .pipe-mem .pm-idle{ font-style:normal; color:var(--dim); font-size:10px; font-weight:800; margin-left:5px; border:1px dashed var(--line); border-radius:999px; padding:1px 7px; }
   .pipe-mem select{ background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:7px; padding:2px 5px; font-size:10.5px; font-weight:700; font-family:inherit; cursor:pointer; }
   .pm-tgl{ font-size:10px; font-weight:800; padding:2px 9px; border-radius:999px; border:1px solid var(--line); background:var(--panel2); color:var(--muted); cursor:pointer; }
   .pm-tgl:hover{ color:var(--text); }
@@ -759,6 +760,11 @@
   .mem-task.done .dp{ opacity:.6; }
   .mem-st.ok{ color:#6ee7b7; border-color:rgba(16,185,129,.4); background:rgba(16,185,129,.10); }
   .mem-st.ok b{ color:#6ee7b7; }
+  .mem-st.none{ color:var(--dim); border-style:dashed; background:transparent; }
+  .task.mem.memempty .mem-name{ color:var(--muted); font-weight:700; }
+  .task.mem.memempty .mem-av{ opacity:.45; }
+  .task.mem.memempty .mem-car{ opacity:0; pointer-events:none; }
+  .pm-tgl.neu.on{ background:#475569; border-color:#475569; color:#fff; }
   .mem-task .tdur.none{ color:#fbbf24; }
   .tl-ovz{ position:absolute; top:0; bottom:0; background:rgba(239,68,68,.13); border-left:1px solid rgba(239,68,68,.42); border-right:1px solid rgba(239,68,68,.42); pointer-events:none; z-index:0; }
   .bar.ovl{ outline:1.5px solid rgba(239,68,68,.8); outline-offset:1px; }
@@ -1607,11 +1613,12 @@ function renderPipeline(){
   const box=document.getElementById("pipeline"); if(!box) return;
   if(isMemberView()){ const s=memberSummary();
     const SORTS=[["count","일감 많은 순"],["overlap","겹침 많은 순"],["load","부하 높은 순"],["name","이름순"]];
-    box.innerHTML=`<div class="pipe-mem"><span>멤버 <b>${s.mem}</b>명</span><span>담당 일감 <b>${s.n}</b>건</span>`+
+    box.innerHTML=`<div class="pipe-mem"><span>멤버 <b>${s.mem}</b>명${s.idle?`<i class="pm-idle">일감 0 · ${s.idle}</i>`:""}</span><span>담당 일감 <b>${s.n}</b>건</span>`+
       `<span>완료 <b>${s.done}</b>/${s.n}</span>`+
       `<span class="warn">일정 미정 <b>${s.un}</b></span><span class="bad">겹치는 날 <b>${s.ov}</b></span>`+
       `<span class="pm-ctl"><select id="memSort" title="멤버 정렬">${SORTS.map(([k,l])=>`<option value="${k}" ${memSort===k?"selected":""}>${l}</option>`).join("")}</select>`+
-      `<button class="pm-tgl ${memOvOnly?"on":""}" id="memOvOnly" title="같은 날 2건 이상 맡은 사람만 봅니다">⚠ 겹침만</button></span>`+
+      `<button class="pm-tgl ${memOvOnly?"on":""}" id="memOvOnly" title="같은 날 2건 이상 맡은 사람만 봅니다">⚠ 겹침만</button>`+
+      `<button class="pm-tgl neu ${memHideEmpty?"on":""}" id="memHideEmpty" title="부서 명단에는 있지만 배정된 일감이 없는 사람을 숨깁니다">일감 0 숨기기</button></span>`+
       `<span style="color:var(--dim);font-weight:700">· <b style="color:var(--muted)">${MEM_TRACK}</b> 분류만 집계</span></div>`;
     return; }
   const sts=statusesFor(headTrack());
@@ -1758,6 +1765,7 @@ const isMemberView = () => trackFilter===VIEW_MEMBER;
 let memCollapsed=new Set();                     // 접힌 멤버·부서 (개인 화면, 저장 안 함)
 let memSort="count";                            // count | overlap | load | name  (뷰 상태)
 let memOvOnly=false;                            // 겹침 있는 사람만
+let memHideEmpty=false;                         // 부서 명단에만 있고 배정 일감이 0인 사람 숨기기
 const AV_COLORS=["#6366f1","#0ea5e9","#10b981","#f59e0b","#ec4899","#8b5cf6","#ef4444","#14b8a6"];
 function avColor(n){ let h=0; for(let i=0;i<n.length;i++) h=(h*31+n.charCodeAt(i))>>>0; return AV_COLORS[h%AV_COLORS.length]; }
 const memKey = m => "m:"+m.dept+"|"+m.name;
@@ -1791,6 +1799,22 @@ function memberGroups(){
       });
     });
   });
+  /* 부서 명단(owners)에 새로 추가됐지만 아직 배정된 일감이 없는 사람도 목록에 세운다.
+     (이전에는 일감에서만 멤버를 만들어서, 부서에 추가해도 배정 전에는 안 보였다 — 2026-09-14) */
+  if(!memHideEmpty){
+    const q2=searchQuery.trim().toLowerCase();
+    depsFor(MEM_TRACK).forEach(d=>{
+      if(focusDept!=="__all" && d.key!==focusDept) return;
+      if(deptFilter.size && !deptFilter.has(d.key)) return;
+      (d.owners||[]).forEach(n=>{
+        if(assigneeFilter.size && !assigneeFilter.has(n)) return;
+        if(q2 && !n.toLowerCase().includes(q2)) return;
+        if(!byDept.has(d.key)) byDept.set(d.key,new Map());
+        const mm=byDept.get(d.key);
+        if(!mm.has(n)) mm.set(n,{name:n,dept:d.key,color:d.color,items:[],empty:true});
+      });
+    });
+  }
   const out=[];
   state.departments.forEach(dep=>{ const mm=byDept.get(dep.key); if(!mm) return;
     let ms=[...mm.values()];
@@ -1828,6 +1852,7 @@ function memLoadDenom(){
   return Math.max(1, b-a+1);
 }
 function memStatChips(st){
+  if(!st.n) return `<span class="mem-st none">일감 없음</span>`;
   let h=`<span class="mem-st">일감 <b>${st.n}</b></span>`;
   h+=`<span class="mem-st ${st.done===st.n&&st.n?'ok':''}" title="완료된 일감">완료 <b>${st.done}/${st.n}</b></span>`;
   if(st.un) h+=`<span class="mem-st warn">미정 <b>${st.un}</b></span>`;
@@ -1873,7 +1898,7 @@ function renderMemberLeft(){
           `${trUrl?`<a class="mem-tr" href="${escapeHtml(trUrl)}" target="_blank" rel="noopener" title="트렐로 카드 열기${it.t.trelloList?' · '+escapeHtml(it.t.trelloList):''}">${TRELLO_ICON}</a>`:""}`+
           `${stSel}<span class="tdur ${ok?'':'none'}">${ok?(it.seg.end-it.seg.start+1)+'일':'일정 미정'}</span></div>`;
       }).join("");
-      html+=`<div class="task mem ${op?'open':''}">`+
+      html+=`<div class="task mem ${op?'open':''} ${m.empty?'memempty':''}">`+
         `<div class="task-head mem-head" data-memtoggle="${escapeHtml(memKey(m))}">`+
         `<span class="mem-car">▼</span>${av}<span class="mem-name">${escapeHtml(m.name)}</span>`+
         `${m.none?'':`<span class="mem-dept">${escapeHtml(m.dept)}</span>`}`+
@@ -1920,9 +1945,9 @@ function scrollToMemberStart(){
   el.scrollLeft=Math.max(0,(mn-2)*DAY_W);
 }
 function memberSummary(){
-  const gs=memberGroups(); let mem=0, n=0, un=0, ov=0, done=0;
-  gs.forEach(g=>g.members.forEach(m=>{ const st=memStats(m); if(!m.none) mem++; n+=st.n; un+=st.un; ov+=st.ovDays; done+=st.done; }));
-  return {mem,n,un,ov,done};
+  const gs=memberGroups(); let mem=0, n=0, un=0, ov=0, done=0, idle=0;
+  gs.forEach(g=>g.members.forEach(m=>{ const st=memStats(m); if(!m.none){ mem++; if(!st.n) idle++; } n+=st.n; un+=st.un; ov+=st.ovDays; done+=st.done; }));
+  return {mem,n,un,ov,done,idle};
 }
 function renderLeft(){
   if(isMemberView()) return renderMemberLeft();
@@ -2065,7 +2090,8 @@ contextBar.addEventListener("change", e=>{ const s=e.target.closest("#ctxMs"); i
 contextBar.addEventListener("click", e=>{ const trk=e.target.closest("[data-track]"); if(trk){ trackFilter=trk.dataset.track; deptFilter.clear(); assigneeFilter.clear(); statusFilter.clear(); kfFilter.clear(); groupCollapsed.clear(); render();
   if(isMemberView()) scrollToMemberStart(); } });
 pipelineEl.addEventListener("click", e=>{ const st=e.target.closest("[data-pstep]"); if(st){ const k=st.dataset.pstep; statusFilter.has(k)?statusFilter.delete(k):statusFilter.add(k); render(); } });
-pipelineEl.addEventListener("click", e=>{ if(e.target.closest("#memOvOnly")){ memOvOnly=!memOvOnly; render(); } });
+pipelineEl.addEventListener("click", e=>{ if(e.target.closest("#memOvOnly")){ memOvOnly=!memOvOnly; render(); return; }
+  if(e.target.closest("#memHideEmpty")){ memHideEmpty=!memHideEmpty; render(); } });
 pipelineEl.addEventListener("change", e=>{ const s=e.target.closest("#memSort"); if(s){ memSort=s.value; render(); } });
 
 leftBody.addEventListener("change", e=>{
