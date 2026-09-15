@@ -544,6 +544,10 @@
     --grad:linear-gradient(135deg,#6366f1 0%,#8b5cf6 55%,#a855f7 100%);
     --grad-soft:linear-gradient(135deg,rgba(99,102,241,.20),rgba(168,85,247,.18));
     --glow:0 6px 18px rgba(99,102,241,.32);
+    /* 진행 게이지의 'QA 검증 중' 구간 — 완료 채움(보라 그라데이션)과 확실히 갈리는 시안.
+       색을 바꾸려면 아래 4줄만 고치면 된다(다크), 라이트는 body.light 쪽. */
+    --qa-c:#22d3ee; --qa-c-dim:rgba(34,211,238,.30);
+    --qa-c-bg:rgba(34,211,238,.13); --qa-c-bd:rgba(34,211,238,.50);
   }
   body.light{
     --bg:#eef1f8; --panel:#ffffff; --panel2:#f2f5fa; --line:#e2e7f0; --grid:#eef1f6;
@@ -551,6 +555,8 @@
     --rowhead:#f2f5fa; --rowhead-h:#e9eef6; --mon:#d3dae7; --scroll:#c5cdda;
     --grad-soft:linear-gradient(135deg,rgba(99,102,241,.12),rgba(168,85,247,.10));
     --glow:0 6px 18px rgba(99,102,241,.20);
+    --qa-c:#0891b2; --qa-c-dim:rgba(8,145,178,.30);
+    --qa-c-bg:rgba(8,145,178,.12); --qa-c-bd:rgba(8,145,178,.45);
   }
   html,body{ font-family:'Pretendard Variable','Pretendard',-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',sans-serif; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
   body{ background:
@@ -656,10 +662,18 @@
   .ctxbar{ flex:0 0 auto; display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:9px 16px; background:var(--panel); border-bottom:1px solid var(--line); }
   .ctx-ms{ background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:9px; padding:7px 10px; font-size:13px; font-weight:700; cursor:pointer; }
   .ctx-prog{ display:flex; align-items:center; gap:9px; margin-left:auto; flex:0 0 auto; }
-  .ctx-track{ width:170px; height:9px; border-radius:99px; background:var(--panel2); overflow:hidden; }
-  .ctx-fill{ display:block; height:100%; background:var(--grad); border-radius:99px; transition:width .3s ease; }
+  .ctx-track{ width:170px; height:9px; border-radius:99px; background:var(--panel2); overflow:hidden; display:flex; }
+  .ctx-fill{ display:block; height:100%; background:var(--grad); border-radius:99px; transition:width .3s ease; flex:0 0 auto; }
   .ctx-num{ font-size:12.5px; font-weight:800; }
   .ctx-num span{ color:var(--muted); font-weight:600; }
+  /* QA 검증 중 구간 — 완료 채움 바로 뒤에 이어 붙는다(빗금 = 아직 완료 아님) */
+  .ctx-track.hasqa .ctx-fill{ border-radius:99px 0 0 99px; }
+  .ctx-qa{ display:block; height:100%; flex:0 0 auto; min-width:6px; border-radius:0 99px 99px 0;
+    background:repeating-linear-gradient(115deg, var(--qa-c) 0 3px, var(--qa-c-dim) 3px 7px);
+    box-shadow:inset 1px 0 0 rgba(255,255,255,.9); transition:width .3s ease; }
+  .ctx-qachip{ font-size:10.5px; font-weight:800; border-radius:999px; padding:2px 8px; white-space:nowrap;
+    flex:0 0 auto; color:var(--qa-c); background:var(--qa-c-bg); border:1px solid var(--qa-c-bd); }
+  .ctx-qachip i{ font-style:normal; color:var(--text); font-weight:900; }
   .ctx-dday{ display:flex; align-items:center; gap:5px; font-size:12px; margin-left:8px; flex:1 1 0; white-space:nowrap; min-width:0; overflow-x:auto; scrollbar-width:none; }
   .ctx-dday::-webkit-scrollbar{ height:0; width:0; }
   .dlbar-ms{ font-size:11px; font-weight:800; flex:0 0 auto; margin-right:2px; }
@@ -884,6 +898,10 @@
   .ctx-prog{ gap:7px; margin-left:auto; }
   .ctx-track{ width:150px; height:7px; }
   .ctx-num{ font-size:11.5px; }
+  .ctx-qachip{ font-size:10px; padding:1px 7px; }
+  /* 칩이 52px를 먹는데 .ctx-dday 는 flex:1 1 0 라 줄바꿈 대신 '잘린다'.
+     좁은 창에서는 칩을 접고 게이지 구간 + 툴팁만 남긴다. */
+  @media (max-width:1200px){ .ctx-qachip{ display:none; } }
   .ctx-dday{ font-size:11px; gap:6px; }
   .dday-badge{ font-size:11px; padding:2px 8px; }
   .seg-group{ padding:2px; border-radius:9px; gap:2px; }
@@ -1215,6 +1233,17 @@ const statusesFor = track => listFor(track).map(c=>({k:c.key,color:c.color,done:
 function allStatusDefs(){ let all=[]; ["개발","아트","전투","네러티브"].forEach(tr=>{ all=all.concat(listFor(tr).map(c=>({k:c.key,color:c.color}))); }); return all.filter((s,i,a)=>a.findIndex(x=>x.k===s.k)===i); }
 const tsOf = k => allStatusDefs().find(x=>x.k===k) || { k, color:"#64748b" };
 const isDone = t => { if(isCatTrack(t.track)) return !!t.done; const s=listFor(t.track).find(x=>x.key===t.status); return !!(s&&s.done); };
+/* 진행 게이지에 덧붙일 'QA 검증 중' 단계.
+   ① 이름에 QA·검증이 들어간 상태가 있으면 그것, ② 없으면 완료 바로 앞 단계.
+   상태 목록은 사용자가 편집하므로(이름·순서) 둘 다 두어 이름을 바꿔도 순서를 바꿔도 살아남게 한다.
+   아트·전투는 '종류' 방식이라 단계 개념이 없다 → null. */
+function qaStageOf(track){
+  if(isCatTrack(track)) return null;
+  const open=listFor(track).filter(s=>!s.done);
+  if(open.length<2) return null;                       // 단계가 하나뿐이면 '검증 중'이라 부를 게 없다
+  return open.find(s=>/qa|검증/i.test(s.key)) || open[open.length-1];
+}
+const qaLabelOf = st => /qa/i.test(st.key) ? "QA" : (st.key.length>6 ? st.key.slice(0,6) : st.key);
 // 전투 종류 중 아트에서 미러된(아트 종류와 같은 이름) 것인지
 const catIsArtMirror = key => (state.artCategories||[]).some(c=>c.key===key);
 const TRACKS = ["개발","아트","전투","네러티브"];   // 분류 탭 ('콘텐츠'는 2026-08-21 제거)
@@ -1601,11 +1630,21 @@ function renderContext(){
   const scope=state.tasks.filter(t=> (msFilter.size===0||msFilter.has(t.milestoneId)) &&
     (t.track||"개발")===(isMemberView()?MEM_TRACK:headTrack()));
   const tot=scope.length, done=scope.filter(isDone).length, pct=tot?Math.round(done/tot*100):0;
+  /* QA 검증 중 구간: 완료 채움 뒤에 이어 붙인다. 남은 폭이 없으면(완료 100%) 표시하지 않는다. */
+  const qst=qaStageOf(isMemberView()?MEM_TRACK:headTrack());
+  const qaN=qst ? scope.filter(t=>!isDone(t) && t.status===qst.key).length : 0;
+  const room=Math.max(0,100-pct), qaW=tot?Math.min(qaN/tot*100, room):0;
+  const showQa = qaN>0 && room>0.5;
+  const qaSeg = showQa ? `<span class="ctx-qa" style="width:${qaW}%"></span>` : "";
+  const qaChip= showQa ? `<span class="ctx-qachip">${escapeHtml(qaLabelOf(qst))} <i>${qaN}</i></span>` : "";
+  const qaTip = showQa
+    ? `완료 ${done}건 · ${pct}%\n${qst.key} ${qaN}건 · ${Math.round(qaN/tot*1000)/10}%  (검증 중)\n남은 일감 ${tot-done-qaN}건\n이 단계가 다 끝나면 ${done+qaN}/${tot} · ${Math.round((done+qaN)/tot*100)}%`
+    : `완료 ${done}건 · ${pct}%\n남은 일감 ${tot-done}건`;
   box.innerHTML=
     `<span class="lh-label">마일스톤</span><select class="ctx-ms" id="ctxMs">${msOpts}</select>`+
     `<span class="lh-label" style="margin-left:6px">분류</span><div class="seg-group">${trackTabs}</div>`+
     `<div class="ctx-dday">${deadlineBarHtml()}</div>`+
-    `<div class="ctx-prog"><span class="lh-label">진행</span><span class="ctx-track"><span class="ctx-fill" style="width:${pct}%"></span></span><span class="ctx-num">${pct}% <span>(${done}/${tot})</span></span></div>`;
+    `<div class="ctx-prog" title="${escapeHtml(qaTip)}"><span class="lh-label">진행</span><span class="ctx-track ${showQa?'hasqa':''}"><span class="ctx-fill" style="width:${pct}%"></span>${qaSeg}</span>${qaChip}<span class="ctx-num">${pct}% <span>(${done}/${tot})</span></span></div>`;
 }
 
 // 상태 파이프라인 스테퍼 (클릭 시 해당 상태만 필터)
