@@ -230,16 +230,16 @@
   .modal.hol-readonly .hol-add, .modal.hol-readonly .hol-row .x, .modal.hol-readonly #holReset{ display:none; }
   .mline{position:absolute;top:0;bottom:0;width:2px;opacity:.4;}
   .tl-task{border-bottom:1px solid var(--line);position:relative;}
-  .tl-task-head{height:var(--task-h);position:relative;display:flex;align-items:center;justify-content:flex-end;}
+  .tl-task-head{height:var(--task-h);position:relative;display:flex;align-items:center;justify-content:flex-start;}
   /* 마일스톤 마감 라벨 — 가로 스크롤과 무관하게 간트 오른쪽 끝에 붙박이(sticky).
      막대(.bar)·킥오프(.kf)는 absolute 라 flex 흐름에 끼지 않는다. 이 라벨만 유일한 flow 자식. */
-  .tl-dl{ position:sticky; right:10px; flex:0 0 auto; display:inline-flex; align-items:center; gap:7px;
-    font-size:10px; font-weight:800; padding:2px 9px; border-radius:999px; white-space:nowrap;
-    background:rgba(14,19,32,.86); border:1px solid var(--line); border-left:3px solid var(--line);
-    box-shadow:0 2px 8px rgba(0,0,0,.45); pointer-events:none; z-index:6; }
-  .tl-dl .d{ display:inline-flex; align-items:center; gap:4px; color:var(--muted); }
-  .tl-dl .d i{ width:6px; height:6px; border-radius:50%; flex:0 0 auto; }
-  .tl-dl .d b{ color:var(--text); font-weight:800; }
+  .tl-dl{ position:sticky; left:12px; flex:0 0 auto; display:inline-flex; align-items:center; gap:11px;
+    font-size:12.5px; font-weight:800; padding:4px 13px; border-radius:999px; white-space:nowrap;
+    background:rgba(14,19,32,.90); border:1px solid var(--line); border-left:4px solid var(--line);
+    box-shadow:0 3px 12px rgba(0,0,0,.55); pointer-events:none; z-index:6; }
+  .tl-dl .d{ display:inline-flex; align-items:center; gap:6px; color:var(--muted); }
+  .tl-dl .d i{ width:8px; height:8px; border-radius:50%; flex:0 0 auto; }
+  .tl-dl .d b{ color:var(--text); font-weight:900; font-size:13px; }
   .tl-dl .d.over b{ color:#ff9b9b; }
   .tl-dl .d.over i{ box-shadow:0 0 0 2px rgba(239,68,68,.35); }
   body.light .tl-dl{ background:rgba(255,255,255,.92); }
