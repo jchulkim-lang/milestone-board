@@ -13,7 +13,10 @@
   :root{
     --bg:#0e1014; --panel:#161922; --panel2:#1d2129; --line:#272c36; --grid:#1b1f27;
     --text:#e7eaf0; --muted:#8b93a3; --accent:#6366f1;
-    --day-w:34px; --row-h:40px; --task-h:46px; --meta-h:40px; --group-h:34px; --left-w:660px; --head-h:104px;
+    --day-w:34px; --row-h:40px; --task-h:46px; --meta-h:40px; --group-h:34px; --head-h:104px;
+    /* 좌측 패널 기본값 = 창 폭의 58% (660~1200px). 2026-10-01 사용자 지시.
+       개인이 드래그한 값은 localStorage(ms_leftw)에 px 로 저장되어 이 기본값을 덮는다. */
+    --left-w:clamp(660px, 58vw, 1200px);
     --rowhead:#1a1e27; --rowhead-h:#1f2430; --mon:#2b313c; --scroll:#2f3441;
   }
   body.light{
@@ -227,7 +230,19 @@
   .modal.hol-readonly .hol-add, .modal.hol-readonly .hol-row .x, .modal.hol-readonly #holReset{ display:none; }
   .mline{position:absolute;top:0;bottom:0;width:2px;opacity:.4;}
   .tl-task{border-bottom:1px solid var(--line);position:relative;}
-  .tl-task-head{height:var(--task-h);position:relative;}
+  .tl-task-head{height:var(--task-h);position:relative;display:flex;align-items:center;justify-content:flex-end;}
+  /* 마일스톤 마감 라벨 — 가로 스크롤과 무관하게 간트 오른쪽 끝에 붙박이(sticky).
+     막대(.bar)·킥오프(.kf)는 absolute 라 flex 흐름에 끼지 않는다. 이 라벨만 유일한 flow 자식. */
+  .tl-dl{ position:sticky; right:10px; flex:0 0 auto; display:inline-flex; align-items:center; gap:7px;
+    font-size:10px; font-weight:800; padding:2px 9px; border-radius:999px; white-space:nowrap;
+    background:rgba(14,19,32,.86); border:1px solid var(--line); border-left:3px solid var(--line);
+    box-shadow:0 2px 8px rgba(0,0,0,.45); pointer-events:none; z-index:6; }
+  .tl-dl .d{ display:inline-flex; align-items:center; gap:4px; color:var(--muted); }
+  .tl-dl .d i{ width:6px; height:6px; border-radius:50%; flex:0 0 auto; }
+  .tl-dl .d b{ color:var(--text); font-weight:800; }
+  .tl-dl .d.over b{ color:#ff9b9b; }
+  .tl-dl .d.over i{ box-shadow:0 0 0 2px rgba(239,68,68,.35); }
+  body.light .tl-dl{ background:rgba(255,255,255,.92); }
   .tl-dept-lane{height:var(--row-h);position:relative;border-top:1px solid var(--grid);}
   .tl-meta-lane{height:var(--meta-h);border-top:1px solid var(--grid);}
   .dept-inline{display:flex;align-items:center;gap:4px;overflow:hidden;min-width:0;flex:0 0 auto;}
@@ -1735,6 +1750,22 @@ function renderFilter(){
      </div>`;
 }
 
+/* 간트 행 오른쪽 끝에 붙는 마일스톤 마감 라벨 (2026-10-01).
+   상단 ctxbar 는 '선택한' 마일스톤 하나만 보여주지만, 마일스톤을 「전체」로 보면
+   M10/M11/M12 일감이 섞인다 — 이 라벨은 각 행이 자기 마일스톤 마감을 들고 있게 한다. */
+const DL_KEYS = [["resource","리소스"],["dev","개발"],["qa","QA"],["end","종료"]];
+function msDeadlineHtml(t){
+  const m=findMs(t.milestoneId); if(!m || m.free) return "";
+  const today=stripTime(new Date()).getTime();
+  const parts=DL_KEYS.map(([k,l])=>{ if(!m[k]) return "";
+    const c=(MARKERS.find(x=>x.k===k)||{}).color||"#64748b";
+    const over=parseYmd(m[k]).getTime()<today;
+    return `<span class="d ${over?'over':''}"><i style="background:${c}"></i>${l} <b>${fmt(parseYmd(m[k]))}</b></span>`;
+  }).filter(Boolean).join("");
+  if(!parts) return "";
+  return `<span class="tl-dl" style="border-left-color:${m.color}" title="${escapeHtml(m.name)} 마감일">${parts}</span>`;
+}
+
 function markerEntries(){
   const msList=state.milestones.filter(m=> (msFilter.size===0 || msFilter.has(m.id)) && !m.free);
   const multi=msList.length>1; const out=[];
@@ -2051,7 +2082,7 @@ function renderBody(){
             if(!ok) return `<div class="tl-dept-lane nosched"><span class="tl-nosched">${escapeHtml(d.key)} · 일정 미정</span></div>`;
             const kfm = d.key==="기획" ? `<span class="kf" style="left:${Math.max(0,seg.start*DAY_W-7)}px;top:50%;background:${kf.color}">${kf.icon}</span>` : "";
             return `<div class="tl-dept-lane">${kfm}<div class="bar" data-bar="${t.id}:${d.key}" style="left:${seg.start*DAY_W}px;width:${(seg.end-seg.start+1)*DAY_W}px;background:${d.color}"><div class="handle l"></div><span class="lbl">${d.key} · ${seg.end-seg.start+1}일</span><span class="lbl-r">${(seg.assignees&&seg.assignees.length)?escapeHtml(seg.assignees.join(', ')):'미정'}</span><div class="handle r"></div></div></div>`; }).join("");
-          rows+=`<div class="tl-task ${skip}"><div class="tl-task-head"></div>${lanes}<div class="tl-meta-lane"></div></div>`;
+          rows+=`<div class="tl-task ${skip}"><div class="tl-task-head">${msDeadlineHtml(t)}</div>${lanes}<div class="tl-meta-lane"></div></div>`;
         } else {
           let merged="";
           active.slice().reverse().forEach(d=>{ const seg=t.depts[d.key]; if(!hasSched(seg)) return;
@@ -2059,7 +2090,7 @@ function renderBody(){
             merged+=`<div class="bar mbar ${isMiniDept(d.key)?'dim':''}" data-mbar="${t.id}" data-mdep="${escapeHtml(d.key)}" style="left:${seg.start*DAY_W}px;width:${(seg.end-seg.start+1)*DAY_W}px;top:10px;background:${d.color}" title="${d.key} · 담당: ${escapeHtml(sa)} (가운데 드래그: 이동 · 끝 드래그: 기간 조절 · 클릭: 펼치기)"><div class="handle l"></div><span class="mbar-r">${escapeHtml(sa)}</span><div class="handle r"></div></div>`; });
           const planSeg = hasSched(t.depts["기획"]) ? t.depts["기획"] : null;
           const kfMark = planSeg ? `<span class="kf" data-mbar="${t.id}" style="left:${Math.max(0,planSeg.start*DAY_W-7)}px;top:23px;background:${kf.color}">${kf.icon}</span>` : "";
-          rows+=`<div class="tl-task ${skip}"><div class="tl-task-head">${merged}${kfMark}</div></div>`;
+          rows+=`<div class="tl-task ${skip}"><div class="tl-task-head">${merged}${kfMark}${msDeadlineHtml(t)}</div></div>`;
         }
       });
     }
@@ -3840,7 +3871,10 @@ document.getElementById("msDelete").onclick=()=>{ if(!msCanEdit()) return; if(st
 /* ===== 좌우 구분선 드래그 ===== */
 const divider=document.getElementById("divider");
 divider.addEventListener("pointerdown", e=>{ e.preventDefault(); divider.classList.add("drag");
-  const startX=e.clientX, startW=parseInt(getComputedStyle(document.documentElement).getPropertyValue("--left-w"))||370;
+  /* --left-w 가 clamp() 라서 getPropertyValue 는 "clamp(660px, 58vw, 1200px)" 문자열을 돌려준다.
+     parseInt 하면 NaN → 370px 으로 튄다. 실제 패널 폭을 재서 쓴다. */
+  const _lp=document.querySelector(".left");
+  const startX=e.clientX, startW=Math.round((_lp?_lp.getBoundingClientRect().width:0))||660;
   try{ divider.setPointerCapture(e.pointerId);}catch(_){}
   function mv(ev){ const maxW=Math.max(900,window.innerWidth-240); let w=Math.min(Math.max(260,startW+(ev.clientX-startX)),maxW); document.documentElement.style.setProperty("--left-w",w+"px"); }
   function up(){ divider.classList.remove("drag"); divider.removeEventListener("pointermove",mv); divider.removeEventListener("pointerup",up);
