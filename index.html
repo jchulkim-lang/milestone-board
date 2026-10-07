@@ -263,7 +263,8 @@
   .mx.und:hover{ background:rgba(245,158,11,.12); }
   .mx.none{ background:transparent; border:1px dashed var(--line); color:var(--dim); font-weight:600; }  /* 없음 — 담당 부서 아님 */
   .mx.none:hover{ border-color:var(--accent); border-style:solid; color:var(--text); }
-  .mx.focus{ box-shadow:0 0 0 2px rgba(255,255,255,.45); }
+  /* 포커스된 부서 열 — 흰 링(rgba(255,255,255,.45))은 밝은 배경에서 타 보여 어두운 안쪽 링으로 바꿨다. */
+  .mx.focus{ box-shadow:inset 0 0 0 2px rgba(0,0,0,.52); }
   /* --- 부서 단위 완료 체크(seg.done) — 2026-10-07 ---
      opacity 로 가라앉히면 ✓ 배지까지 흐려지므로, 패널색 '베일'을 덮어 색만 뺀다.
      이름(.nm)과 배지(.dnb)는 베일 위(z-index)로 올린다. */
@@ -295,6 +296,21 @@
   .sd-done i{ font-style:normal; font-size:11px; font-weight:600; color:var(--muted); }
   .sd-done.off{ opacity:.5; cursor:not-allowed; }
   .sd-done.off input{ cursor:not-allowed; }
+  /* 상태(종류) 칩 — 전체 폭 파이프라인 바를 대신해 좌측 헤더 1행에 들어간다(2026-10-07).
+     담당자 머리글 줄(2행)은 매트릭스 536px + 우측 140px 이 이미 먹어서 369px 밖에 안 남아 칩이 잘린다.
+     1행은 484px 가 나오고 패널 900px 에서도 6칸이 다 들어간다 — 반드시 1행에 둘 것. */
+  .pipebar.hide{ display:none; }
+  .st-head{ display:flex; align-items:center; gap:4px; flex:0 1 auto; min-width:0; overflow:hidden; margin-left:10px; }
+  .st-head .s{ display:inline-flex; align-items:center; gap:4px; flex:0 0 auto; font-size:10.5px; font-weight:800;
+     color:var(--muted); background:var(--panel2); border:1px solid var(--line); border-radius:999px;
+     padding:2px 7px; cursor:pointer; white-space:nowrap; }
+  .st-head .s:hover{ color:var(--text); border-color:var(--accent); }
+  .st-head .s i{ width:7px; height:7px; border-radius:50%; flex:0 0 auto; }
+  .st-head .s b{ color:var(--text); font-weight:900; }
+  /* 선택 상태: 옅게 깔지 말고 **또렷하게 채운다**. 예전 .pstep.on 은 --grad-soft(반투명 보라)라
+     배경이 밝아진 뒤로 '하얗게 타 보인다'는 제보가 있었다(2026-10-07). */
+  .st-head .s.on{ color:#fff; border-color:transparent; text-shadow:0 1px 1px rgba(0,0,0,.35); }
+  .st-head .s.on b{ color:#fff; }
   .mx-head{ display:flex; gap:3px; flex:0 0 auto; }
   .mx-head .h{ width:var(--mxw); flex:0 0 var(--mxw); text-align:center; font-size:10.5px; font-weight:800;
        color:var(--muted); border-bottom:2px solid var(--line); padding-bottom:2px; cursor:pointer; }
@@ -667,7 +683,7 @@
   .kf-chip:hover{ transform:scale(1.08); }
 
   /* 선택/플래시 */
-  .task.selected{ background:var(--grad-soft); box-shadow:inset 3px 0 0 0 var(--accent); }
+  .task.selected{ background:rgba(99,102,241,.10); box-shadow:inset 3px 0 0 0 var(--accent); }
   .group-dot{ box-shadow:0 0 0 3px rgba(255,255,255,.05); }
 
   /* 오늘 컬럼 강조 */
@@ -858,7 +874,7 @@
   .tl-nosched.mem{ opacity:.75; }
   .pstep{ flex:1 1 0; min-width:0; display:flex; flex-direction:row; align-items:center; justify-content:center; gap:6px; padding:5px 8px; border-radius:8px; cursor:pointer; transition:background .13s ease; }
   .pstep:hover{ background:var(--panel2); }
-  .pstep.on{ background:var(--grad-soft); box-shadow:inset 0 0 0 1px var(--accent); }
+  .pstep.on{ background:rgba(99,102,241,.16); box-shadow:inset 0 0 0 1px var(--accent); }
   .pstep .pd{ width:8px; height:8px; border-radius:50%; flex:0 0 auto; }
   .pstep .pnm{ font-size:11.5px; font-weight:700; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .pstep .pcnt{ font-size:11px; font-weight:800; min-width:18px; text-align:center; background:var(--panel2); border-radius:99px; padding:1px 6px; flex:0 0 auto; }
@@ -1729,7 +1745,7 @@ function renderContext(){
 // 상태 파이프라인 스테퍼 (클릭 시 해당 상태만 필터)
 function renderPipeline(){
   const box=document.getElementById("pipeline"); if(!box) return;
-  if(isMemberView()){ const s=memberSummary();
+  if(isMemberView()){ box.classList.remove("hide"); const s=memberSummary();
     const SORTS=[["count","일감 많은 순"],["overlap","겹침 많은 순"],["load","부하 높은 순"],["name","이름순"]];
     box.innerHTML=`<div class="pipe-mem"><span>멤버 <b>${s.mem}</b>명${s.idle?`<i class="pm-idle">일감 0 · ${s.idle}</i>`:""}</span><span>담당 일감 <b>${s.n}</b>건</span>`+
       `<span>완료 <b>${s.done}</b>/${s.n}</span>`+
@@ -1739,6 +1755,9 @@ function renderPipeline(){
       `<button class="pm-tgl neu ${memHideEmpty?"on":""}" id="memHideEmpty" title="부서 명단에는 있지만 배정된 일감이 없는 사람을 숨깁니다">일감 0 숨기기</button></span>`+
       `<span style="color:var(--dim);font-weight:700">· <b style="color:var(--muted)">${MEM_TRACK}</b> 분류만 집계</span></div>`;
     return; }
+  /* 상태 칩은 좌측 헤더 1행으로 옮겼다 → 전체 폭 바는 숨긴다(세로 22px 회수).
+     멤버 뷰는 여기에 요약(.pipe-mem)을 쓰므로 그대로 둔다 — 위에서 이미 return 했다. */
+  box.classList.add("hide"); box.innerHTML=""; return;
   const sts=statusesFor(headTrack());
   const scope=state.tasks.filter(t=> (msFilter.size===0||msFilter.has(t.milestoneId)) && (t.track||"개발")===headTrack());
   box.innerHTML=sts.map((s,i)=>{ const n=scope.filter(t=>t.status===s.k).length; const on=statusFilter.has(s.k);
@@ -1791,6 +1810,7 @@ function renderFilter(){
     `<div class="lh-row">
        <button class="btn sm" id="addTaskBtn">＋ Task</button>
        <span class="lh-label" style="margin-left:4px">${isMemberView()?"멤버 · 담당 일감 · 일정 (개발 분류)":"TASK · 부서 · 킥오프"}</span>
+       ${statusChipsHtml()}
        <button class="filter-btn" id="toggleAllBtn" style="margin-left:auto" title="모두 펼침/접기 (개인 화면)">${_allOpen?'⊖ 모두 접기':'⊕ 모두 펼치기'}</button>
        <button class="filter-btn ${sortMode!=='manual'?'active':''}" id="sortBtn" title="정렬 (클릭: 수동 → 이름↑ → 이름↓ → 우선순위)">${sortMode==='name-asc'?'이름 ↑':sortMode==='name-desc'?'이름 ↓':sortMode==='prio'?'우선순위':'↕ 정렬'}</button>
        <button class="filter-btn ${cnt?'active':''}" id="filterBtn">필터${cnt?' ('+cnt+')':''} ▾</button>
@@ -1825,6 +1845,20 @@ function msDeadlineHtml(t){
   }).filter(Boolean).join("");
   if(!parts) return "";
   return `<span class="tl-dl" style="border-left-color:${m.color}" title="${escapeHtml(m.name)} 마감일">${parts}</span>`;
+}
+
+/* 좌측 헤더 1행에 붙는 상태(종류) 칩. 클릭 = 그 상태만 보기 토글 — 기존 [data-pstep] 과 같은 동작. */
+function statusChipsHtml(){
+  if(isMemberView()) return "";
+  const sts=statusesFor(headTrack());
+  const scope=state.tasks.filter(t=> (msFilter.size===0||msFilter.has(t.milestoneId)) && (t.track||"개발")===headTrack());
+  return `<span class="st-head">`+sts.map(s=>{
+    const n=scope.filter(t=>t.status===s.k).length, on=statusFilter.has(s.k);
+    const at=(headTrack()==="전투" && catIsArtMirror(s.k))?'<span class="art-tag">아트</span>':'';
+    return `<span class="s ${on?'on':''}" data-pstep="${escapeHtml(s.k)}"`+
+      ` style="${on?`background:${s.color}`:''}" title="${escapeHtml(s.k)} ${n}건 — 클릭하면 이 상태만 보기">`+
+      `<i style="background:${on?'#fff':s.color}"></i>${escapeHtml(s.k)}${at} <b>${n}</b></span>`;
+  }).join("")+`</span>`;
 }
 
 function markerEntries(){
@@ -2205,6 +2239,8 @@ window.addEventListener("resize", closeKfPop);
 /* ===== 좌측 상호작용 ===== */
 const leftBody=document.getElementById("leftBody"), leftHead=document.getElementById("leftHead");
 leftHead.addEventListener("click", e=>{
+  const stp=e.target.closest("[data-pstep]");
+  if(stp){ const k=stp.dataset.pstep; statusFilter.has(k)?statusFilter.delete(k):statusFilter.add(k); render(); return; }
   if(e.target.closest("#addTaskBtn")){ openTaskModal(); return; }
   if(e.target.closest("#filterBtn")){ filterOpen=!filterOpen; renderFilter(); return; }
   if(e.target.closest("#sortBtn")){ sortMode=sortMode==="manual"?"name-asc":sortMode==="name-asc"?"name-desc":sortMode==="name-desc"?"prio":"manual"; try{localStorage.setItem("ms_sortmode",sortMode);}catch(_){}  render(); return; }
