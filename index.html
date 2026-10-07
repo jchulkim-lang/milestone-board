@@ -269,22 +269,26 @@
      이름(.nm)과 배지(.dnb)는 베일 위(z-index)로 올린다. */
   .mx{ position:relative; overflow:hidden; }
   .mx .nm, .mx .pl{ position:relative; z-index:1; }
-  .mx.dn::before{ content:""; position:absolute; inset:0; border-radius:inherit;
-     background:var(--panel); opacity:.48; pointer-events:none; }
+  /* 완료 칸은 '가라앉히지' 않고 **도드라지게** 한다 — 사용자 재지시(2026-10-07):
+     "완료된 항목이 좀 더 눈에 잘 띄었으면".
+     이전에는 패널색 베일(opacity .48)을 덮어 색을 뺐는데, 그러면 7칸 중 완료가 오히려 묻혔다.
+     지금은 연초록 안쪽 테두리 + 채도·명도 올림. 테두리를 inset 으로 두는 이유는
+     바깥 box-shadow 로 두면 칸 사이 간격(3px)을 넘어 옆 칸을 침범하기 때문. */
+  .mx.dn{ box-shadow:inset 0 0 0 2px #bbf7d0; filter:saturate(1.25) brightness(1.18); }
   /* ✓ 는 이름 왼쪽의 '인라인 슬롯'. 모서리에 absolute 로 띄웠더니 옆 칸·패널 끝에서 잘렸다(2026-10-07 재작업).
      슬롯은 완료 여부와 무관하게 늘 자리를 차지한다 — 안 그러면 hover·체크할 때마다 글자가 밀린다. */
-  .mx .dnb{ position:relative; z-index:2; flex:0 0 auto; width:11px; height:11px; border-radius:50%;
-     display:flex; align-items:center; justify-content:center; font-size:8px; font-weight:900;
+  .mx .dnb{ position:relative; z-index:2; flex:0 0 auto; width:14px; height:14px; border-radius:50%;
+     display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:900;
      line-height:1; cursor:pointer; opacity:0; transition:opacity .12s; }
   .mx.has:hover .dnb{ opacity:1; background:rgba(0,0,0,.3); color:rgba(255,255,255,.8);
      box-shadow:inset 0 0 0 1px rgba(255,255,255,.6); }
-  .mx.has:hover .dnb:hover{ background:#10b981; color:#fff; box-shadow:none; }
-  .mx.dn .dnb, .mx.dn:hover .dnb{ opacity:1; background:#10b981; color:#fff; box-shadow:none; }
+  .mx.has:hover .dnb:hover{ background:#fff; color:#0b8f5e; box-shadow:none; }
+  .mx.dn .dnb, .mx.dn:hover .dnb{ opacity:1; background:#fff; color:#0b8f5e; box-shadow:none; }
   /* 간트 막대 — 완료된 부서 구간은 가라앉히고 빗금.
      막대 배경색은 인라인 style 이라 CSS background 로는 못 덮는다 → ::after 오버레이. */
-  .bar.segdone{ opacity:.58; }
+  .bar.segdone{ opacity:.9; box-shadow:inset 0 0 0 2px #bbf7d0; }
   .bar.segdone::after{ content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
-     background:repeating-linear-gradient(115deg, rgba(255,255,255,.22) 0 4px, transparent 4px 9px); }
+     background:repeating-linear-gradient(115deg, rgba(255,255,255,.26) 0 4px, transparent 4px 9px); }
   /* 일정 창의 '이 부서 작업 완료' 체크 */
   .sd-done{ display:flex; align-items:center; gap:8px; margin-top:12px; font-size:12.5px; font-weight:700; cursor:pointer; }
   .sd-done input{ width:15px; height:15px; accent-color:#10b981; cursor:pointer; }
