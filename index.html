@@ -264,6 +264,30 @@
   .mx.none{ background:transparent; border:1px dashed var(--line); color:var(--dim); font-weight:600; }  /* 없음 — 담당 부서 아님 */
   .mx.none:hover{ border-color:var(--accent); border-style:solid; color:var(--text); }
   .mx.focus{ box-shadow:0 0 0 2px rgba(255,255,255,.45); }
+  /* --- 부서 단위 완료 체크(seg.done) — 2026-10-07 ---
+     opacity 로 가라앉히면 ✓ 배지까지 흐려지므로, 패널색 '베일'을 덮어 색만 뺀다.
+     이름(.nm)과 배지(.dnb)는 베일 위(z-index)로 올린다. */
+  .mx{ position:relative; overflow:visible; }
+  .mx .nm, .mx .pl{ position:relative; z-index:1; }
+  .mx.dn::before{ content:""; position:absolute; inset:0; border-radius:inherit;
+     background:var(--panel); opacity:.48; pointer-events:none; }
+  .mx .dnb{ position:absolute; top:-5px; right:-5px; width:15px; height:15px; border-radius:50%;
+     display:none; align-items:center; justify-content:center; font-size:9.5px; font-weight:900;
+     line-height:1; cursor:pointer; box-shadow:0 0 0 2px var(--panel); z-index:3; }
+  .mx.has:hover .dnb{ display:flex; background:var(--panel2); color:var(--muted); border:1px solid var(--line); }
+  .mx.has:hover .dnb:hover{ background:#10b981; color:#fff; border-color:#10b981; }
+  .mx.dn .dnb, .mx.dn:hover .dnb{ display:flex; background:#10b981; color:#fff; border:0; }
+  /* 간트 막대 — 완료된 부서 구간은 가라앉히고 빗금.
+     막대 배경색은 인라인 style 이라 CSS background 로는 못 덮는다 → ::after 오버레이. */
+  .bar.segdone{ opacity:.58; }
+  .bar.segdone::after{ content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+     background:repeating-linear-gradient(115deg, rgba(255,255,255,.22) 0 4px, transparent 4px 9px); }
+  /* 일정 창의 '이 부서 작업 완료' 체크 */
+  .sd-done{ display:flex; align-items:center; gap:8px; margin-top:12px; font-size:12.5px; font-weight:700; cursor:pointer; }
+  .sd-done input{ width:15px; height:15px; accent-color:#10b981; cursor:pointer; }
+  .sd-done i{ font-style:normal; font-size:11px; font-weight:600; color:var(--muted); }
+  .sd-done.off{ opacity:.5; cursor:not-allowed; }
+  .sd-done.off input{ cursor:not-allowed; }
   .mx-head{ display:flex; gap:3px; flex:0 0 auto; }
   .mx-head .h{ width:var(--mxw); flex:0 0 var(--mxw); text-align:center; font-size:10.5px; font-weight:800;
        color:var(--muted); border-bottom:2px solid var(--line); padding-bottom:2px; cursor:pointer; }
@@ -576,9 +600,13 @@
 <style id="modern-skin">
   /* ===== 모던·생동감 스킨 (시각 전용 오버라이드 — 기능/레이아웃 변수 미변경) ===== */
   :root{
-    --bg:#0a0d15; --panel:#141a28; --panel2:#1c2333; --line:#2a3346; --grid:#171d2b;
-    --text:#eef1f8; --muted:#97a2ba; --accent:#6366f1; --accent2:#a855f7;
-    --rowhead:#161c2a; --rowhead-h:#1e2638; --mon:#313b4e; --scroll:#3a445a;
+    /* 배경 팔레트 「슬레이트」 — 2026-10-07 사용자 요청("너무 다크한데").
+       이전 값(거의 검정): bg #0a0d15 / panel #141a28 / panel2 #1c2333 / line #2a3346 / grid #171d2b
+       / rowhead #161c2a / rowhead-h #1e2638 / mon #313b4e / scroll #3a445a / muted #97a2ba
+       색조는 그대로 두고 명도만 한 단계 올렸다. 되돌리려면 위 값으로 바꾸면 된다. */
+    --bg:#171c28; --panel:#1f2535; --panel2:#2a3246; --line:#39425a; --grid:#212838;
+    --text:#eef1f8; --muted:#9fabc4; --accent:#6366f1; --accent2:#a855f7;
+    --rowhead:#202738; --rowhead-h:#2a3245; --mon:#3f4b63; --scroll:#4a5570;
     --grad:linear-gradient(135deg,#6366f1 0%,#8b5cf6 55%,#a855f7 100%);
     --grad-soft:linear-gradient(135deg,rgba(99,102,241,.20),rgba(168,85,247,.18));
     --glow:0 6px 18px rgba(99,102,241,.32);
@@ -598,8 +626,8 @@
   }
   html,body{ font-family:'Pretendard Variable','Pretendard',-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',sans-serif; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
   body{ background:
-      radial-gradient(1100px 560px at 10% -12%, rgba(99,102,241,.16), transparent 60%),
-      radial-gradient(1000px 560px at 102% -4%, rgba(168,85,247,.13), transparent 55%),
+      radial-gradient(1100px 560px at 10% -12%, rgba(99,102,241,.10), transparent 60%),
+      radial-gradient(1000px 560px at 102% -4%, rgba(168,85,247,.08), transparent 55%),
       var(--bg); background-attachment:fixed; }
   body.light{ background:
       radial-gradient(1100px 560px at 10% -12%, rgba(99,102,241,.09), transparent 60%),
@@ -1069,6 +1097,7 @@
       <label>종료일</label><input type="date" id="schedEnd" />
       <div class="dur" id="schedDur"></div>
       <label>담당자 (이 부서)</label><div class="pickgrid" id="schedAssignees"></div>
+      <label class="sd-done" id="schedDoneRow"><input type="checkbox" id="schedDone" /><span>이 부서 작업 완료</span><i id="schedDoneHint"></i></label>
       <div class="modal-actions">
         <button class="linkrow" id="schedRemove" title="이 Task에서 이 부서를 아예 빼냅니다 (일정·담당자도 함께 사라집니다)">✕ 이 Task에서 부서 빼기</button>
         <div class="right"><button class="btn ghost" data-close>취소</button><button class="btn ghost" id="schedUnset" title="부서는 그대로 두고 날짜만 비워 둡니다 (목록에 ‘일정 미정’으로 표시)">일정 미정</button><button class="btn" id="schedSaveOk">저장</button></div></div></div>
@@ -1843,9 +1872,11 @@ function deptChipsInline(t){
     const as=(seg.assignees||[]), ns=!hasSched(seg);
     if(!as.length) return `<span class="mx und" data-setsched="${t.id}|${dk}" title="${dk} · 담당자 미할당${ns?' · 일정 미정':''} — 클릭하면 담당자·일정 지정">미정</span>`;
     const more=as.length>1?`<span class="pl">+${as.length-1}</span>`:'';
-    return `<span class="mx has ${focusDept===d.key?'focus':''}" data-setsched="${t.id}|${dk}" style="background:${d.color}"`+
-      ` title="${dk} · ${escapeHtml(as.join(', '))}${ns?' · 일정 미정':''} — 클릭하면 담당자·일정 변경">`+
-      `<span class="nm">${escapeHtml(as[0])}</span>${more}</span>`;
+    const dn=!!seg.done;
+    return `<span class="mx has ${dn?'dn':''} ${focusDept===d.key?'focus':''}" data-setsched="${t.id}|${dk}" style="background:${d.color}"`+
+      ` title="${dk} · ${escapeHtml(as.join(', '))}${dn?' · 작업 완료':''}${ns?' · 일정 미정':''} — 클릭하면 담당자·일정 변경">`+
+      `<span class="nm">${escapeHtml(as[0])}</span>${more}`+
+      `<span class="dnb" data-dntoggle="${t.id}|${dk}" title="${dn?'완료 해제':'이 부서 작업 완료로 표시'}">✓</span></span>`;
   }).join("");
   return `<span class="dept-inline">${cells}</span>`;
 }
@@ -2119,13 +2150,13 @@ function renderBody(){
             const ok=hasSched(seg);
             if(!ok) return `<div class="tl-dept-lane nosched"><span class="tl-nosched">${escapeHtml(d.key)} · 일정 미정</span></div>`;
             const kfm = d.key==="기획" ? `<span class="kf" style="left:${Math.max(0,seg.start*DAY_W-7)}px;top:50%;background:${kf.color}">${kf.icon}</span>` : "";
-            return `<div class="tl-dept-lane">${kfm}<div class="bar" data-bar="${t.id}:${d.key}" style="left:${seg.start*DAY_W}px;width:${(seg.end-seg.start+1)*DAY_W}px;background:${d.color}"><div class="handle l"></div><span class="lbl">${d.key} · ${seg.end-seg.start+1}일</span><span class="lbl-r">${(seg.assignees&&seg.assignees.length)?escapeHtml(seg.assignees.join(', ')):'미정'}</span><div class="handle r"></div></div></div>`; }).join("");
+            return `<div class="tl-dept-lane">${kfm}<div class="bar ${seg.done?'segdone':''}" data-bar="${t.id}:${d.key}" style="left:${seg.start*DAY_W}px;width:${(seg.end-seg.start+1)*DAY_W}px;background:${d.color}"><div class="handle l"></div><span class="lbl">${d.key} · ${seg.end-seg.start+1}일</span><span class="lbl-r">${(seg.assignees&&seg.assignees.length)?escapeHtml(seg.assignees.join(', ')):'미정'}</span><div class="handle r"></div></div></div>`; }).join("");
           rows+=`<div class="tl-task ${skip}"><div class="tl-task-head">${msDeadlineHtml(t)}</div>${lanes}<div class="tl-meta-lane"></div></div>`;
         } else {
           let merged="";
           active.slice().reverse().forEach(d=>{ const seg=t.depts[d.key]; if(!hasSched(seg)) return;
             const sa=(seg.assignees&&seg.assignees.length)?seg.assignees.join(', '):'미정';
-            merged+=`<div class="bar mbar ${isMiniDept(d.key)?'dim':''}" data-mbar="${t.id}" data-mdep="${escapeHtml(d.key)}" style="left:${seg.start*DAY_W}px;width:${(seg.end-seg.start+1)*DAY_W}px;top:10px;background:${d.color}" title="${d.key} · 담당: ${escapeHtml(sa)} (가운데 드래그: 이동 · 끝 드래그: 기간 조절 · 클릭: 펼치기)"><div class="handle l"></div><span class="mbar-r">${escapeHtml(sa)}</span><div class="handle r"></div></div>`; });
+            merged+=`<div class="bar mbar ${isMiniDept(d.key)?'dim':''} ${seg.done?'segdone':''}" data-mbar="${t.id}" data-mdep="${escapeHtml(d.key)}" style="left:${seg.start*DAY_W}px;width:${(seg.end-seg.start+1)*DAY_W}px;top:10px;background:${d.color}" title="${d.key} · 담당: ${escapeHtml(sa)} (가운데 드래그: 이동 · 끝 드래그: 기간 조절 · 클릭: 펼치기)"><div class="handle l"></div><span class="mbar-r">${escapeHtml(sa)}</span><div class="handle r"></div></div>`; });
           const planSeg = hasSched(t.depts["기획"]) ? t.depts["기획"] : null;
           const kfMark = planSeg ? `<span class="kf" data-mbar="${t.id}" style="left:${Math.max(0,planSeg.start*DAY_W-7)}px;top:23px;background:${kf.color}">${kf.icon}</span>` : "";
           rows+=`<div class="tl-task ${skip}"><div class="tl-task-head">${merged}${kfMark}${msDeadlineHtml(t)}</div></div>`;
@@ -2236,6 +2267,10 @@ leftBody.addEventListener("click", e=>{
     const _msg = (_t && _t.trelloCardId) ? "이 Task를 보드에서 삭제할까요?\n\n트렐로 카드는 그대로 남습니다. (연결만 끊깁니다)" : "이 Task를 삭제할까요?";
     if(confirm(_msg)){ ignoreTrelloCard(_t); state.tasks=state.tasks.filter(t=>t.id!==id); save(); render(); } return; }
   const pick=e.target.closest("[data-openpicker]"); if(pick){ e.stopPropagation(); openDeptModal(pick.dataset.openpicker); return; }
+  const dnt=e.target.closest("[data-dntoggle]");   // 배지가 [data-setsched] 안에 있으므로 반드시 먼저
+  if(dnt){ e.stopPropagation(); const [tid,dep]=dnt.dataset.dntoggle.split("|");
+    const t=findTask(tid), sg=t&&t.depts[dep];
+    if(sg && (sg.assignees||[]).length){ sg.done=!sg.done; save(); render(); } return; }
   const ss=e.target.closest("[data-setsched]"); if(ss){ e.stopPropagation(); const [tid,dep]=ss.dataset.setsched.split("|"); openSchedModal(tid,dep,false); return; }
   const dbp=e.target.closest("[data-deptpick]"); if(dbp){ e.stopPropagation(); const tk=e.target.closest("[data-task]");
     if(tk){ const t=findTask(tk.dataset.task); const k=dbp.dataset.deptpick; const turnedOn=toggleTaskDept(t,k); save(); render();
@@ -2721,10 +2756,24 @@ function openSchedModal(tid,dep,justOn){ editing={tid,dep,justOn:!!justOn}; cons
   sIn.min=eIn.min=ymd(WORKDAYS[0]); sIn.max=eIn.max=ymd(WORKDAYS[N-1]);
   sIn.value=ymd(dateOf(seg.start)); eIn.value=ymd(dateOf(seg.end));
   document.getElementById("schedAssignees").innerHTML=deptAssigneeChips(t,dep);
+  syncSchedDone();
   updateSchedDur(); schedModal.classList.add("show"); }
+/* 담당자가 없으면 완료 체크를 막는다 — 누가 끝냈는지 모르는 완료는 의미가 없다(2026-10-07 설계). */
+function syncSchedDone(){
+  const t=findTask(editing.tid), seg=t&&t.depts[editing.dep]; if(!seg) return;
+  const can=(seg.assignees||[]).length>0;
+  const row=document.getElementById("schedDoneRow"), box=document.getElementById("schedDone");
+  row.classList.toggle("off", !can); box.disabled=!can;
+  box.checked = can && !!seg.done;
+  document.getElementById("schedDoneHint").textContent = can ? "" : "담당자를 먼저 지정해 주세요";
+  if(!can && seg.done){ seg.done=false; }
+}
+document.getElementById("schedDone").addEventListener("change", e=>{
+  const t=findTask(editing.tid), seg=t&&t.depts[editing.dep]; if(!seg) return;
+  seg.done=e.target.checked; save(); render(); });
 document.getElementById("schedAssignees").addEventListener("click",e=>{ const c=e.target.closest("[data-aassign]"); if(!c) return;
   const t=findTask(editing.tid); toggleDeptAssignee(t, editing.dep, c.dataset.aname); save();
-  document.getElementById("schedAssignees").innerHTML=deptAssigneeChips(t, editing.dep); render(); });
+  document.getElementById("schedAssignees").innerHTML=deptAssigneeChips(t, editing.dep); syncSchedDone(); render(); });
 function updateSchedDur(){ const si=nearestWorkdayIndex(document.getElementById("schedStart").value); let ei=nearestWorkdayIndex(document.getElementById("schedEnd").value); if(ei<si) ei=si;
   const hn=holidaysIn(si,ei);
   document.getElementById("schedDur").innerHTML=`기간: ${ei-si+1} 영업일 (${fmt(dateOf(si))} ~ ${fmt(dateOf(ei))})`+
@@ -2734,7 +2783,7 @@ document.getElementById("schedEnd").addEventListener("change",updateSchedDur);
 document.getElementById("schedSaveOk").onclick=()=>{ const t=findTask(editing.tid); const seg=t.depts[editing.dep];
   let si=nearestWorkdayIndex(document.getElementById("schedStart").value); let ei=nearestWorkdayIndex(document.getElementById("schedEnd").value); if(ei<si){ const tmp=si; si=ei; ei=tmp; }
   seg.start=si; seg.end=ei; seg.sched=true; editing.justOn=false; closeModals(); save(); render(); };
-document.getElementById("schedRemove").onclick=()=>{ const t=findTask(editing.tid); const sg=t.depts[editing.dep]; sg.on=false; sg.sched=false; editing.justOn=false; closeModals(); save(); render(); };
+document.getElementById("schedRemove").onclick=()=>{ const t=findTask(editing.tid); const sg=t.depts[editing.dep]; sg.on=false; sg.sched=false; sg.done=false; editing.justOn=false; closeModals(); save(); render(); };
 /* 부서만 켜 두고 일정은 비워 두기 */
 document.getElementById("schedUnset").onclick=()=>{ const t=findTask(editing.tid); const sg=t.depts[editing.dep]; sg.on=true; sg.sched=false; editing.justOn=false; closeModals(); save(); render(); };
 
