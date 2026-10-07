@@ -702,6 +702,17 @@
 
   /* 구분선 */
   .divider:hover,.divider.drag{ background:var(--grad); }
+  /* 구분선 더블클릭 = 타임라인 접기/펼치기 (2026-10-07 사용자 요청).
+     --left-w 를 건드리지 않고 body 클래스만 토글한다 → 펼칠 때 이전 폭이 그대로 돌아온다. */
+  .divider{ position:relative; }
+  .divider::after{ content:"‹‹"; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    font-size:9px; font-weight:900; line-height:1; color:var(--bg); letter-spacing:-1px;
+    opacity:0; transition:opacity .12s; pointer-events:none; }
+  .divider:hover::after{ opacity:.85; }
+  body.gantt-off .left{ width:auto; min-width:0; flex:1 1 auto; }
+  body.gantt-off .right{ display:none; }
+  body.gantt-off .divider{ cursor:pointer; background:var(--accent); }
+  body.gantt-off .divider::after{ content:"››"; opacity:.9; }
 
   /* 모달 */
   .modal-bg{ background:rgba(8,10,16,.62); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
@@ -4006,9 +4017,24 @@ document.getElementById("msDelete").onclick=()=>{ if(!msCanEdit()) return; if(st
   state.tasks.forEach(t=>{ if(t.milestoneId===msSelId) t.milestoneId=first; });
   msSelId=first; buildTimeline(); save(); render(); renderMsList(); loadMsEditor(first); };
 
-/* ===== 좌우 구분선 드래그 ===== */
+/* ===== 좌우 구분선 드래그 · 더블클릭으로 타임라인 접기 ===== */
 const divider=document.getElementById("divider");
-divider.addEventListener("pointerdown", e=>{ e.preventDefault(); divider.classList.add("drag");
+let ganttOff=false;
+function applyGanttOff(){
+  document.body.classList.toggle("gantt-off", ganttOff);
+  divider.title = ganttOff ? "더블클릭: 타임라인 다시 보기" : "드래그: 폭 조절 · 더블클릭: 타임라인 접기";
+}
+function setGanttOff(v){
+  ganttOff=!!v; applyGanttOff();
+  try{ localStorage.setItem("ms_ganttoff", ganttOff?"1":"0"); }catch(_){}
+  /* 다시 펼칠 때 간트가 0 폭으로 그려져 있던 흔적을 지운다 — 헤드/본문 폭과 가로 스크롤 재계산 */
+  if(!ganttOff) requestAnimationFrame(()=>{ renderHead(); renderBody(); });
+}
+try{ ganttOff = localStorage.getItem("ms_ganttoff")==="1"; }catch(_){}
+applyGanttOff();
+divider.addEventListener("dblclick", e=>{ e.preventDefault(); setGanttOff(!ganttOff); });
+divider.addEventListener("pointerdown", e=>{ if(ganttOff) return;   // 접힌 동안은 드래그 금지(더블클릭으로만 복귀)
+  e.preventDefault(); divider.classList.add("drag");
   /* --left-w 가 clamp() 라서 getPropertyValue 는 "clamp(660px, 58vw, 1200px)" 문자열을 돌려준다.
      parseInt 하면 NaN → 370px 으로 튄다. 실제 패널 폭을 재서 쓴다. */
   const _lp=document.querySelector(".left");
