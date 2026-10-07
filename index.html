@@ -14,9 +14,11 @@
     --bg:#0e1014; --panel:#161922; --panel2:#1d2129; --line:#272c36; --grid:#1b1f27;
     --text:#e7eaf0; --muted:#8b93a3; --accent:#6366f1;
     --day-w:34px; --row-h:40px; --task-h:46px; --meta-h:40px; --group-h:34px; --head-h:104px;
-    /* 좌측 패널 기본값 = 창 폭의 58% (660~1200px). 2026-10-01 사용자 지시.
+    /* 좌측 패널 기본값 = 창 폭의 64% (900~1500px).
+       2026-10-07: 담당자 매트릭스(7칸 466px)가 들어오면서 넓혔다 — 사용자 지시 "우측 타임라인은 잘 안 보여도 된다".
        개인이 드래그한 값은 localStorage(ms_leftw)에 px 로 저장되어 이 기본값을 덮는다. */
-    --left-w:clamp(660px, 58vw, 1200px);
+    --left-w:clamp(900px, 64vw, 1500px);
+    --mxw:64px;   /* 담당자 매트릭스 한 칸 폭 — 한글 3자 기준 */
     --rowhead:#1a1e27; --rowhead-h:#1f2430; --mon:#2b313c; --scroll:#2f3441;
   }
   body.light{
@@ -245,7 +247,28 @@
   body.light .tl-dl{ background:rgba(255,255,255,.92); }
   .tl-dept-lane{height:var(--row-h);position:relative;border-top:1px solid var(--grid);}
   .tl-meta-lane{height:var(--meta-h);border-top:1px solid var(--grid);}
-  .dept-inline{display:flex;align-items:center;gap:4px;overflow:hidden;min-width:0;flex:0 0 auto;}
+  /* ===== 담당자 매트릭스 (2026-10-07) =====
+     부서 이름 칩 → 부서별 '담당자 이름' 7칸 고정 매트릭스.
+     같은 부서가 세로로 늘 같은 칸에 오도록 칸 폭(--mxw)을 고정한다 — 폭이 달라지면 열이 무너진다.
+     머리글(.mx-head)은 좌측 헤더의 dept-head-row 에 있고, 폭이 같아야 줄이 맞는다. */
+  .dept-inline{display:flex;align-items:center;gap:3px;overflow:hidden;min-width:0;flex:0 0 auto;}
+  .mx{ width:var(--mxw); flex:0 0 var(--mxw); height:22px; border-radius:6px; display:flex; align-items:center;
+       justify-content:center; gap:3px; font-size:11px; font-weight:700; white-space:nowrap; overflow:hidden;
+       cursor:pointer; user-select:none; padding:0 5px; box-sizing:border-box; border:1px solid transparent; }
+  .mx .nm{ overflow:hidden; text-overflow:ellipsis; }
+  .mx .pl{ font-size:9.5px; font-weight:800; opacity:.85; flex:0 0 auto; }
+  .mx.has{ color:#fff; }                                     /* 담당자 지정됨 — 부서 색으로 채운다 */
+  .mx.has:hover{ filter:brightness(1.14); }
+  .mx.und{ background:transparent; border-color:#fbbf24; color:#fbbf24; }   /* 미정 — 부서는 참여, 담당자 없음 */
+  .mx.und:hover{ background:rgba(245,158,11,.12); }
+  .mx.none{ background:transparent; border:1px dashed var(--line); color:var(--dim); font-weight:600; }  /* 없음 — 담당 부서 아님 */
+  .mx.none:hover{ border-color:var(--accent); border-style:solid; color:var(--text); }
+  .mx.focus{ box-shadow:0 0 0 2px rgba(255,255,255,.45); }
+  .mx-head{ display:flex; gap:3px; flex:0 0 auto; }
+  .mx-head .h{ width:var(--mxw); flex:0 0 var(--mxw); text-align:center; font-size:10.5px; font-weight:800;
+       color:var(--muted); border-bottom:2px solid var(--line); padding-bottom:2px; cursor:pointer; }
+  .mx-head .h:hover{ color:var(--text); }
+  .mx-head .h.on{ color:var(--text); }
   .dband-chip{flex:0 0 auto;font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;cursor:pointer;user-select:none;border:1px solid var(--line);background:transparent;color:var(--muted);white-space:nowrap;}
   .dband-chip:hover{border-color:var(--accent);color:var(--text);}
   .dband-chip.on{color:#fff;border-color:transparent;}
@@ -1736,7 +1759,9 @@ function renderFilter(){
        <button class="filter-btn ${sortMode!=='manual'?'active':''}" id="sortBtn" title="정렬 (클릭: 수동 → 이름↑ → 이름↓ → 우선순위)">${sortMode==='name-asc'?'이름 ↑':sortMode==='name-desc'?'이름 ↓':sortMode==='prio'?'우선순위':'↕ 정렬'}</button>
        <button class="filter-btn ${cnt?'active':''}" id="filterBtn">필터${cnt?' ('+cnt+')':''} ▾</button>
      </div>
-     <div class="lh-row dept-head-row"><button class="lh-label legend-edit" id="deptGridToggle" title="부서 체크 색상 표시/숨김">부서 색상 ${showDeptGrid?'▾':'▸'}</button>${showDeptGrid?`<span class="th-spacer"></span><span class="dept-grid">${depsFor(headTrack()).map(d=>`<span class="dept-slot on" title="${escapeHtml(d.key)}${(d.owners&&d.owners.length)?' · 담당: '+escapeHtml(d.owners.join(', ')):''}"><i style="background:${d.color}"></i></span>`).join("")}</span><span class="th-right-spacer"></span>`:''}</div>
+     <div class="lh-row dept-head-row">${ headTrack()==="개발"
+        ? `<span class="lh-label">담당자</span><span class="th-spacer"></span><span class="mx-head">${depsFor("개발").map(d=>`<span class="h ${focusDept===d.key?'on':''}" data-deptfocus="${escapeHtml(d.key)}" style="border-bottom-color:${d.color}" title="${escapeHtml(d.key)}${(d.owners&&d.owners.length)?' · 부서원: '+escapeHtml(d.owners.join(', ')):''} — 클릭하면 이 부서만 보기">${escapeHtml(d.key)}</span>`).join("")}</span><span class="th-right-spacer"></span>`
+        : `<button class="lh-label legend-edit" id="deptGridToggle" title="부서 체크 색상 표시/숨김">부서 색상 ${showDeptGrid?'▾':'▸'}</button>${showDeptGrid?`<span class="th-spacer"></span><span class="dept-grid">${depsFor(headTrack()).map(d=>`<span class="dept-slot on" title="${escapeHtml(d.key)}${(d.owners&&d.owners.length)?' · 담당: '+escapeHtml(d.owners.join(', ')):''}"><i style="background:${d.color}"></i></span>`).join("")}</span><span class="th-right-spacer"></span>`:''}` }</div>
      <div class="filter-pop ${filterOpen?'show':''}" id="filterPop">
        <div class="fsec"><span class="lh-label">검색</span><input type="text" id="filterSearch" class="filter-search" placeholder="제목·담당자 단어 검색…" value="${escapeHtml(searchQuery)}"></div>
        <div class="fsec"><span class="lh-label">부서</span><div class="fchips"><span class="fchip all ${allD?'on':''}" data-fd="__all">전체</span>${dchips}</div></div>
@@ -1804,12 +1829,25 @@ function deptGridHtml(t){
     const ow=(on&&seg.assignees&&seg.assignees.length)?' · 담당: '+escapeHtml(seg.assignees.join(', ')):'';
     return `<span class="dept-slot ${on?'on':'off'}" title="${escapeHtml(d.key)}${on?(hasSched(seg)?' · 지정됨':' · 일정 미정'):' · 미지정'}${ow}"><i ${on?`style="background:${d.color}"`:''}></i></span>`; }).join("");
 }
+/* 담당자 매트릭스 — 부서마다 한 칸, 칸 안에 '그 부서의 담당자 이름'.
+   없음 = 담당 부서 아님 / 미정 = 부서는 참여하는데 담당자 미할당 / 이름 = 담당자 지정됨.
+   클릭: 없음 → 부서 참여 추가(기존 data-deptpick), 미정·이름 → 일정·담당자 창(data-setsched).
+   ※ 이름 칸을 눌러 부서가 '해제'되면 담당자가 통째로 날아가므로, 해제는 일정 창의
+     「✕ 이 Task에서 부서 빼기」로만 한다(2026-10-07 설계). */
 function deptChipsInline(t){
   if((t.track||"개발")!=="개발") return "";   // 개발 분류 전용 — 타 분류엔 미노출
-  const chips=depsFor("개발").map(d=>{ const seg=t.depts[d.key]; const on=seg&&seg.on;
-    const ns=on&&!hasSched(seg);
-    return `<span class="dband-chip ${on?'on':''} ${(on&&focusDept===d.key)?'focus':''}" data-deptpick="${escapeHtml(d.key)}" style="${on?'background:'+d.color:''}" title="${escapeHtml(d.key)} · ${on?(ns?'일정 미정 · 클릭 시 참여 해제':'참여 해제'):'참여 추가'}">${escapeHtml(d.key)}</span>`; }).join("");
-  return `<span class="dept-inline">${chips}</span>`;
+  const cells=depsFor("개발").map(d=>{
+    const seg=t.depts[d.key], on=seg&&seg.on;
+    const dk=escapeHtml(d.key);
+    if(!on) return `<span class="mx none" data-deptpick="${dk}" title="${dk} · 담당 부서 아님 — 클릭하면 참여 추가">없음</span>`;
+    const as=(seg.assignees||[]), ns=!hasSched(seg);
+    if(!as.length) return `<span class="mx und" data-setsched="${t.id}|${dk}" title="${dk} · 담당자 미할당${ns?' · 일정 미정':''} — 클릭하면 담당자·일정 지정">미정</span>`;
+    const more=as.length>1?`<span class="pl">+${as.length-1}</span>`:'';
+    return `<span class="mx has ${focusDept===d.key?'focus':''}" data-setsched="${t.id}|${dk}" style="background:${d.color}"`+
+      ` title="${dk} · ${escapeHtml(as.join(', '))}${ns?' · 일정 미정':''} — 클릭하면 담당자·일정 변경">`+
+      `<span class="nm">${escapeHtml(as[0])}</span>${more}</span>`;
+  }).join("");
+  return `<span class="dept-inline">${cells}</span>`;
 }
 function taskHeadHtml(t){
   const ms=findMs(t.milestoneId);
@@ -2138,6 +2176,8 @@ leftHead.addEventListener("click", e=>{
     ms.forEach(m=>{ if(allOpen) memCollapsed.add(memKey(m)); else memCollapsed.delete(memKey(m)); });
     render(); return; }
   if(e.target.closest("#toggleAllBtn")){ const vis=state.tasks.filter(passFilter); const allOpen=vis.length>0 && vis.every(t=>isOpen(t.id)); vis.forEach(t=>{ if(allOpen) openTasks.delete(t.id); else openTasks.add(t.id); }); saveOpen(); render(); return; }
+  const mxh=e.target.closest("[data-deptfocus]");
+  if(mxh){ const k=mxh.dataset.deptfocus; setFocusDept(focusDept===k?"__all":k); render(); return; }
   if(e.target.closest("#deptGridToggle")){ showDeptGrid=!showDeptGrid; try{localStorage.setItem("milestone_deptgrid_v1",showDeptGrid?"1":"0");}catch(_){}  applyDeptGridClass(); renderFilter(); return; }
   const tab=e.target.closest("[data-mstab]"); if(tab){ const k=tab.dataset.mstab; msFilter.clear(); if(k!=="__all") msFilter.add(k); render(); return; }
   const trk=e.target.closest("[data-track]"); if(trk){ trackFilter=trk.dataset.track; deptFilter.clear(); assigneeFilter.clear(); statusFilter.clear(); kfFilter.clear(); groupCollapsed.clear(); render();
