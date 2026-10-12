@@ -16,9 +16,11 @@
     --day-w:34px; --row-h:40px; --task-h:46px; --meta-h:40px; --group-h:34px; --head-h:104px;
     /* 좌측 패널 기본값 = 창 폭의 64% (900~1500px).
        2026-10-07: 담당자 매트릭스(7칸 466px)가 들어오면서 넓혔다 — 사용자 지시 "우측 타임라인은 잘 안 보여도 된다".
+       2026-10-12: 칸마다 마감일이 붙어 매트릭스가 816px 이 되면서 한 번 더 넓혔다(64%/900~1500 → 74%/1100~1900).
+       그래도 1700px 미만 창에서는 Task 이름이 눌린다 → 구분선 더블클릭으로 타임라인을 접는 것이 탈출구.
        개인이 드래그한 값은 localStorage(ms_leftw)에 px 로 저장되어 이 기본값을 덮는다. */
-    --left-w:clamp(900px, 64vw, 1500px);
-    --mxw:74px;   /* 담당자 매트릭스 한 칸 폭 — 한글 3자 + 완료 ✓ 슬롯(11px) + '+N' 기준 */
+    --left-w:clamp(1100px, 74vw, 1900px);
+    --mxw:114px;  /* 담당자 매트릭스 한 칸 폭 — ✓ 11 + 이름 33 + '+N' 12 + 마감일 28 + 여백·간격 = 약 98px (2026-10-12 마감일 추가) */
     --rowhead:#1a1e27; --rowhead-h:#1f2430; --mon:#2b313c; --scroll:#2f3441;
   }
   body.light{
@@ -257,6 +259,11 @@
        cursor:pointer; user-select:none; padding:0 4px; box-sizing:border-box; border:1px solid transparent; }
   .mx .nm{ overflow:hidden; text-overflow:ellipsis; }
   .mx .pl{ font-size:8.5px; font-weight:800; opacity:.85; flex:0 0 auto; }
+  /* 부서 일정 종료일 — 이름 오른쪽에 한 줄로. 기한이 지났으면 어두운 알약을 깔아 빨강을 올린다.
+     연한 빨강 글씨만으로는 주황·빨강 칩 위에서 안 읽힌다(무채색 바탕이라야 7색 전부에서 동일하게 보인다). */
+  .mx .dt{ font-size:9.5px; font-weight:800; flex:0 0 auto; letter-spacing:-.2px; opacity:.9; }
+  .mx.has .dt{ color:rgba(255,255,255,.95); }
+  .mx .dt.over{ background:rgba(0,0,0,.5); color:#ffb4b4; border-radius:4px; padding:0 4px; opacity:1; }
   .mx.has{ color:#fff; }                                     /* 담당자 지정됨 — 부서 색으로 채운다 */
   .mx.has:hover{ filter:brightness(1.14); }
   .mx.und{ background:transparent; border-color:#fbbf24; color:#fbbf24; }   /* 미정 — 부서는 참여, 담당자 없음 */
@@ -1923,18 +1930,23 @@ function deptGridHtml(t){
      「✕ 이 Task에서 부서 빼기」로만 한다(2026-10-07 설계). */
 function deptChipsInline(t){
   if((t.track||"개발")!=="개발") return "";   // 개발 분류 전용 — 타 분류엔 미노출
+  const ti=indexOfToday();
   const cells=depsFor("개발").map(d=>{
     const seg=t.depts[d.key], on=seg&&seg.on;
     const dk=escapeHtml(d.key);
     if(!on) return `<span class="mx none" data-deptpick="${dk}" title="${dk} · 담당 부서 아님 — 클릭하면 참여 추가">없음</span>`;
     const as=(seg.assignees||[]), ns=!hasSched(seg);
-    if(!as.length) return `<span class="mx und" data-setsched="${t.id}|${dk}" title="${dk} · 담당자 미할당${ns?' · 일정 미정':''} — 클릭하면 담당자·일정 지정">미정</span>`;
+    /* 칸마다 다른 날짜 = **그 부서 일정의 종료일**. 마일스톤 마감은 행마다 같은 값이라 간트 라벨에만 둔다. */
+    const over = !seg.done && !ns && ti>=0 && seg.end < ti;
+    const dt = ns ? `<span class="dt">–</span>`
+                  : `<span class="dt ${over?'over':''}">${fmt(dateOf(seg.end))}</span>`;
+    if(!as.length) return `<span class="mx und" data-setsched="${t.id}|${dk}" title="${dk} · 담당자 미할당${ns?' · 일정 미정':''} — 클릭하면 담당자·일정 지정">미정${dt}</span>`;
     const more=as.length>1?`<span class="pl">+${as.length-1}</span>`:'';
     const dn=!!seg.done;
     return `<span class="mx has ${dn?'dn':''} ${focusDept===d.key?'focus':''}" data-setsched="${t.id}|${dk}" style="background:${d.color}"`+
-      ` title="${dk} · ${escapeHtml(as.join(', '))}${dn?' · 작업 완료':''}${ns?' · 일정 미정':''} — 클릭하면 담당자·일정 변경">`+
+      ` title="${dk} · ${escapeHtml(as.join(', '))}${dn?' · 작업 완료':''}${ns?' · 일정 미정':' · 마감 '+fmt(dateOf(seg.end))}${over?' (기한 지남)':''} — 클릭하면 담당자·일정 변경">`+
       `<span class="dnb" data-dntoggle="${t.id}|${dk}" title="${dn?'완료 해제':'이 부서 작업 완료로 표시'}">✓</span>`+
-      `<span class="nm">${escapeHtml(as[0])}</span>${more}</span>`;
+      `<span class="nm">${escapeHtml(as[0])}</span>${more}${dt}</span>`;
   }).join("");
   return `<span class="dept-inline">${cells}</span>`;
 }
