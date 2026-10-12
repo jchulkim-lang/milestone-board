@@ -1477,6 +1477,32 @@ function indexOfToday(){ const t=stripTime(new Date()).getTime(); for(let i=0;i<
 function nearestIndex(){ const t=stripTime(new Date()).getTime(); for(let i=0;i<N;i++) if(WORKDAYS[i].getTime()>=t) return i; return 0; }
 function nearestWorkdayIndex(ymdStr){ if(!ymdStr) return -1; const t=parseYmd(ymdStr).getTime();
   let best=0,bd=Infinity; for(let i=0;i<N;i++){ const diff=Math.abs(WORKDAYS[i].getTime()-t); if(diff<bd){bd=diff;best=i;} } return best; }
+/* 타임라인 끝 이후의 날짜도 받아 준다 (2026-10-12).
+   예전엔 일정 입력칸에 `max = 타임라인 마지막 날` 이 박혀 있었고, 그보다 뒤 날짜를 넣으면
+   브라우저가 값을 비워 버려 `nearestWorkdayIndex("")` 가 -1 을 돌려줬다 → seg.start/end 가 -1 이 되어
+   막대가 맨 앞으로 붙거나 사라졌다. 사용자에게는 "일정 지정이 안 된다"로 보인다.
+   앞쪽(ORIGIN 이전)은 인덱스 체계가 ORIGIN 기준이라 늘릴 수 없다 — 마일스톤 시작일을 앞당겨야 한다. */
+const TL_MAX_EXTRA_DAYS = 1100;                      // 오타 방어: 마지막 날에서 약 3년까지만 늘린다
+function extendWorkdaysTo(dt){
+  if(!N) return false;
+  const limit = new Date(WORKDAYS[N-1]); limit.setDate(limit.getDate()+TL_MAX_EXTRA_DAYS);
+  if(dt > limit) return false;
+  const d = new Date(WORKDAYS[N-1]);
+  while(WORKDAYS[WORKDAYS.length-1] < dt){
+    d.setDate(d.getDate()+1);
+    const w=d.getDay(); if(w===0||w===6) continue;
+    WORKDAYS.push(new Date(d));
+  }
+  N=WORKDAYS.length; return true;
+}
+/* 날짜 → 영업일 인덱스. 비었으면 -1, ORIGIN 이전이면 null(=거절), 뒤쪽이면 타임라인을 늘려서 받는다. */
+function indexForDate(ymdStr){
+  if(!ymdStr) return -1;
+  const dt=stripTime(parseYmd(ymdStr));
+  if(dt < stripTime(WORKDAYS[0])) return null;
+  if(dt > stripTime(WORKDAYS[N-1]) && !extendWorkdaysTo(dt)) return null;
+  return nearestWorkdayIndex(ymdStr);
+}
 
 const uid=()=>Math.random().toString(36).slice(2,9);
 let state = { milestones:[{ id:"m1", name:"마일스톤 1", color:MS_PALETTE[0], start:"2026-06-01", end:"", plan:"", resource:"", dev:"", qa:"" }], tasks:[] };
@@ -3053,7 +3079,10 @@ function openSchedModal(tid,dep,justOn){ editing={tid,dep,justOn:!!justOn}; cons
   document.getElementById("schedTitle").textContent=`${dep} 일정·담당자`;
   document.getElementById("schedSub").textContent = hasSched(seg) ? t.name : t.name+" — 아직 일정이 없습니다. 날짜를 정해 저장하거나, 나중에 정하려면 ‘일정 미정’을 누르세요.";
   const sIn=document.getElementById("schedStart"), eIn=document.getElementById("schedEnd");
-  sIn.min=eIn.min=ymd(WORKDAYS[0]); sIn.max=eIn.max=ymd(WORKDAYS[N-1]);
+  /* max 를 타임라인 마지막 날로 박아 두면 그 뒤 날짜를 못 넣는다(2026-10-12 제보).
+     타임라인은 저장할 때 알아서 늘어나므로, 여기서는 오타 방어용으로만 넉넉히 둔다. */
+  sIn.min=eIn.min=ymd(WORKDAYS[0]);
+  { const _mx=new Date(WORKDAYS[N-1]); _mx.setDate(_mx.getDate()+TL_MAX_EXTRA_DAYS); sIn.max=eIn.max=ymd(_mx); }
   sIn.value=ymd(dateOf(seg.start)); eIn.value=ymd(dateOf(seg.end));
   document.getElementById("schedAssignees").innerHTML=deptAssigneeChips(t,dep);
   syncSchedDone();
@@ -3081,8 +3110,21 @@ function updateSchedDur(){ const si=nearestWorkdayIndex(document.getElementById(
 document.getElementById("schedStart").addEventListener("change",updateSchedDur);
 document.getElementById("schedEnd").addEventListener("change",updateSchedDur);
 document.getElementById("schedSaveOk").onclick=()=>{ const t=findTask(editing.tid); const seg=t.depts[editing.dep];
-  let si=nearestWorkdayIndex(document.getElementById("schedStart").value); let ei=nearestWorkdayIndex(document.getElementById("schedEnd").value); if(ei<si){ const tmp=si; si=ei; ei=tmp; }
-  seg.start=si; seg.end=ei; seg.sched=true; editing.justOn=false; closeModals(); save(); render(); };
+  const sv=document.getElementById("schedStart").value, ev=document.getElementById("schedEnd").value;
+  if(!sv || !ev){ alert("시작일과 종료일을 모두 입력해 주세요.\n\n날짜를 비워 두려면 ‘일정 미정’을 누르세요."); return; }
+  let si=indexForDate(sv), ei=indexForDate(ev);
+  if(si===null || ei===null){
+    const _first=ymd(WORKDAYS[0]);
+    alert(`이 날짜는 타임라인 밖입니다.\n\n타임라인은 ${_first} 부터 시작합니다 (가장 이른 마일스톤 시작일).\n그보다 앞선 날짜를 쓰려면 마일스톤 설정에서 시작일을 앞당겨 주세요.`);
+    return;
+  }
+  if(ei<si){ const tmp=si; si=ei; ei=tmp; }
+  seg.start=si; seg.end=ei; seg.sched=true; editing.justOn=false;
+  closeModals(); buildTimeline(); save(); render();
+  /* 주말·범위 보정으로 입력한 날짜와 달라졌으면 조용히 넘기지 말고 알려 준다 */
+  const g0=ymd(dateOf(si)), g1=ymd(dateOf(ei));
+  if(g0!==sv || g1!==ev) flashNote(`영업일 기준으로 ${g0} ~ ${g1} 로 저장했습니다.`);
+};
 document.getElementById("schedRemove").onclick=()=>{ const t=findTask(editing.tid); const sg=t.depts[editing.dep]; sg.on=false; sg.sched=false; sg.done=false; editing.justOn=false; closeModals(); save(); render(); };
 /* 부서만 켜 두고 일정은 비워 두기 */
 document.getElementById("schedUnset").onclick=()=>{ const t=findTask(editing.tid); const sg=t.depts[editing.dep]; sg.on=true; sg.sched=false; editing.justOn=false; closeModals(); save(); render(); };
