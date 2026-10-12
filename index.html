@@ -141,6 +141,34 @@
   .prio-sel option{background:var(--panel);color:var(--text);}
   .ms-tag{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;color:var(--muted);white-space:nowrap;flex:0 0 auto;}
   .ms-tag .bd{width:7px;height:7px;border-radius:2px;}
+  /* Task 라벨 (2026-10-12, 사용자 선택 B안 = 이름이 보이는 칩).
+     반드시 .task-info 안에만 둔다 — 폭이 행마다 달라지므로 .th-right 나 그 앞에 두면
+     부서 칩 열이 행마다 밀려 무너진다(task_row_layout 메모). 칩 개수는 LB_SHOW 로 제한하고
+     넘치면 +N 으로 접는다 — 안 하면 Task 이름(1900px 에서 222px)이 0 이 된다. */
+  .lbs{display:inline-flex;align-items:center;gap:3px;flex:0 1 auto;min-width:0;overflow:hidden;}
+  .lbs .lb{display:inline-flex;align-items:center;height:17px;max-width:92px;padding:0 7px;border-radius:999px;
+     font-size:10px;font-weight:800;color:#fff;letter-spacing:-.2px;white-space:nowrap;overflow:hidden;
+     text-overflow:ellipsis;cursor:pointer;flex:0 0 auto;}
+  .lbs .lb-more{flex:0 0 auto;font-size:9.5px;font-weight:800;color:var(--muted);cursor:pointer;padding:0 1px;}
+  .lbs .lb-add{flex:0 0 auto;width:15px;height:15px;border:1px dashed var(--line);border-radius:4px;
+     color:var(--dim);font-size:10px;line-height:12px;text-align:center;cursor:pointer;opacity:.3;}
+  .task-head:hover .lbs .lb-add{opacity:.95;}
+  .lb-pop .lb-it{display:flex;align-items:center;gap:8px;width:100%;padding:5px 8px;border:0;border-radius:7px;
+     background:transparent;color:var(--text);font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left;}
+  .lb-pop .lb-it:hover{background:var(--panel2);}
+  .lb-pop .lb-it i{width:24px;height:11px;border-radius:3px;flex:0 0 auto;}
+  .lb-pop .lb-it .ck{margin-left:auto;font-size:11px;font-weight:900;color:var(--accent);}
+  .lb-pop .lb-mgr{border-top:1px solid var(--line);margin-top:4px;padding-top:7px;color:var(--muted);font-weight:600;}
+  .lm-row{display:flex;align-items:center;gap:7px;padding:6px 0;border-bottom:1px solid var(--grid);}
+  .lm-row:last-child{border-bottom:0;}
+  .lm-row input[type=color]{width:30px;height:22px;padding:0;border:1px solid var(--line);border-radius:5px;background:transparent;cursor:pointer;flex:0 0 auto;}
+  .lm-row .lm-name{flex:1 1 0;min-width:0;background:var(--bg);border:1px solid var(--line);border-radius:5px;color:var(--text);font:inherit;font-size:12.5px;padding:4px 8px;}
+  .lm-row .lm-prev{flex:0 0 auto;display:inline-flex;align-items:center;height:17px;padding:0 7px;border-radius:999px;font-size:10px;font-weight:800;color:#fff;max-width:92px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+  .lm-row .lm-n{flex:0 0 auto;font-size:10.5px;font-weight:700;color:var(--muted);min-width:34px;text-align:right;}
+  .lm-row .lm-mv{flex:0 0 auto;background:transparent;border:1px solid var(--line);border-radius:5px;color:var(--muted);font:inherit;font-size:10px;line-height:1;padding:3px 5px;cursor:pointer;}
+  #lbMgrModal .modal{width:470px;}
+  .dm-add #newLbName{ flex:1 1 200px; min-width:160px; width:auto; background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:8px; padding:9px 12px; font-size:13.5px; }
+  .dm-add #newLbName::placeholder{ color:var(--muted); }
   .tbadge .bd{width:8px;height:8px;border-radius:50%;}
   .th-spacer{flex:1 1 auto;min-width:8px;}
   .dept-grid{display:flex;flex:0 0 auto;}
@@ -1133,6 +1161,7 @@
   <div class="modal-bg" id="linkModal">
     <div class="modal"><h3>Task 편집</h3><div class="msub" id="linkModalSub"></div>
       <label>Task 이름</label><input id="editName" placeholder="Task 이름" />
+      <label>라벨 <span style="font-weight:600;color:var(--muted);font-size:11px">(누르면 바로 저장됩니다)</span></label><div class="pickgrid" id="editLabels"></div>
       <label>기획서 링크</label><input id="linkPlan" placeholder="https://..." />
       <label>Trello 링크</label><input id="linkTrello" placeholder="https://trello.com/c/..." />
       <div class="tr-link" id="trLinkBox"></div>
@@ -1188,6 +1217,17 @@
         <input type="color" id="newCatColor" value="#8b5cf6" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none">
         <input type="text" id="newCatName" placeholder="새 종류명 (예: 탈것)">
         <button class="meta-btn" id="catAddNew">＋ 추가</button>
+      </div>
+      <div class="modal-actions"><span></span><div class="right"><button class="btn" data-close>닫기</button></div></div></div>
+  </div>
+  <div class="modal-bg" id="lbMgrModal">
+    <div class="modal"><h3>Task 라벨 관리</h3><div class="msub">트렐로 카드 라벨처럼 Task 에 붙이는 표식입니다. 색을 눌러 바꾸고 이름은 바로 고칠 수 있습니다. 모두가 같은 세트를 씁니다.</div>
+      <div id="lbMgrList"></div>
+      <div class="dm-add">
+        <button type="button" class="color-pick" id="newLbColorBtn"><span class="color-dot" id="newLbColorDot" style="background:#6366f1"></span>색상</button>
+        <input type="color" id="newLbColor" value="#6366f1" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none">
+        <input type="text" id="newLbName" placeholder="새 라벨 이름 (예: 긴급)">
+        <button class="meta-btn" id="lbAddNew">＋ 추가</button>
       </div>
       <div class="modal-actions"><span></span><div class="right"><button class="btn" data-close>닫기</button></div></div></div>
   </div>
@@ -1435,7 +1475,7 @@ function nearestWorkdayIndex(ymdStr){ if(!ymdStr) return -1; const t=parseYmd(ym
 
 const uid=()=>Math.random().toString(36).slice(2,9);
 let state = { milestones:[{ id:"m1", name:"마일스톤 1", color:MS_PALETTE[0], start:"2026-06-01", end:"", plan:"", resource:"", dev:"", qa:"" }], tasks:[] };
-let deptFilter=new Set(), statusFilter=new Set(), msFilter=new Set(), assigneeFilter=new Set(), kfFilter=new Set();
+let deptFilter=new Set(), statusFilter=new Set(), msFilter=new Set(), assigneeFilter=new Set(), kfFilter=new Set(), labelFilter=new Set();
 let lateOnly=false;        // 지연된 일감만 보기 (뷰 상태, 저장 안 함)
 let auditOnly=false;       // 체크리스트 문제 있는 일감만 (뷰 상태)
 let trackFilter="개발";   // 분류 탭(개발/아트) — '전체' 없음
@@ -1480,6 +1520,13 @@ const LS_KEY = "milestone_state_v6";
  * 단일 소스는 _worker.js 의 APP_BUILD 하나뿐 — 여기 숫자를 손댈 필요 없음(자동). */
 const APP_VERSION = (function(){ const v = parseInt("__APP_BUILD__", 10); return isNaN(v) ? 0 : v; })();
 window.APP_VERSION = APP_VERSION;
+/* Task 라벨 기본 세트 (2026-10-12). 최초 1회만 시드하고 labelsSeeded 로 되살아나는 것을 막는다. */
+const DEFAULT_LABELS=[
+  { id:"lb_urgent", name:"긴급",    color:"#ef4444" },
+  { id:"lb_plan",   name:"기획확정", color:"#22c55e" },
+  { id:"lb_out",    name:"외주",    color:"#0ea5e9" },
+  { id:"lb_risk",   name:"리스크",  color:"#a855f7" },
+  { id:"lb_hold",   name:"보류",    color:"#f59e0b" }];
 function migrate(){
   if(!state.title) state.title = "본부 마일스톤 관리";
   if(!Array.isArray(state.notifyEmails)) state.notifyEmails = [];
@@ -1498,6 +1545,11 @@ function migrate(){
   // '조립' 개발 부서 1회 시드(개발 트랙에만). 삭제 후 재추가 방지 위해 플래그 사용.
   if(!state.holidays || typeof state.holidays!=="object") state.holidays={...HOLIDAY_SEED};   // 공휴일 1회 시드(이후 관리자가 편집)
   if(!state.assembleDeptSeeded){ if(!state.departments.some(d=>d.key==="조립")) state.departments.push({ key:"조립", color:"#14b8a6", tracks:["개발"], owners:[] }); state.assembleDeptSeeded=true; }
+  /* Task 라벨 1회 시드. t.labels 는 여기서 만들지 않는다 — 76개 Task 에 빈 배열을 심으면
+     migrate 가 돌 때마다 state 가 달라져 불필요한 저장/병합이 생긴다. 읽는 쪽에서 (t.labels||[]) 로 받는다. */
+  if(!Array.isArray(state.labels)) state.labels=[];
+  if(!state.labelsSeeded){ if(!state.labels.length) state.labels=DEFAULT_LABELS.map(l=>({...l})); state.labelsSeeded=true; }
+  state.labels.forEach(l=>{ if(!l.id) l.id=uid(); if(!l.color) l.color="#64748b"; if(!l.name) l.name="라벨"; });
   DEPARTMENTS = state.departments;
   // 아트 종류(분류) 시드
   if(!Array.isArray(state.artCategories) || !state.artCategories.length) state.artCategories = DEFAULT_ART_CATEGORIES.map(c=>({...c}));
@@ -1669,6 +1721,13 @@ function passFilter(t){
   if(trackFilter!=="__all" && t.track!==trackFilter) return false;
   if(statusFilter.size && !statusFilter.has(t.status)) return false;
   if(kfFilter.size && !kfFilter.has(t.kickoff)) return false;
+  if(labelFilter.size){                                  // 여러 개 켜면 OR(하나라도 해당) — 트렐로와 같은 방식
+    const ids=taskLabelIds(t);
+    let m=false;
+    if(labelFilter.has("__none") && !ids.length) m=true;
+    if(!m && ids.some(id=>labelFilter.has(id))) m=true;
+    if(!m) return false;
+  }
   if(lateOnly && !isLate(t)) return false;
   if(auditOnly && !auCount(t.id)) return false;
   if(assigneeFilter.size){
@@ -1796,6 +1855,7 @@ function renderLegend(){
   document.getElementById("footbar").innerHTML=
     `<button class="lbl legend-edit" id="deptLegendBtn" title="부서 편집·추가">부서 편집 ✎</button>`+
     `<div class="grp">${stLabel}</div>`+
+    `<button class="lbl legend-edit" id="lbLegendBtn" title="Task 라벨 추가·편집">라벨 ✎</button>`+
     `<button class="lbl legend-edit" id="holLegendBtn" title="공휴일 목록 보기·편집">휴일 ✎</button>`;
 }
 
@@ -1814,7 +1874,11 @@ function renderFilter(){
   const trackTabs=TRACKS.map(tr=>`<span class="trtab ${trackFilter===tr?'on':''}" data-track="${tr}"><i class="trdot" style="background:${TRACK_COLORS[tr]||'#888'}"></i>${escapeHtml(tr)}</span>`).join("");
   const kfchips=KICKOFFS.map(k=>{ const on=kfFilter.has(k.k);
     return `<span class="fchip ${on?'on':''}" style="${on?'background:'+k.color:''}" data-fkf="${k.k}"><span style="font-size:11px">${k.icon}</span>${k.k}</span>`; }).join("");
-  const cnt=deptFilter.size+statusFilter.size+assigneeFilter.size+kfFilter.size+(lateOnly?1:0)+(auditOnly?1:0)+(searchQuery.trim()?1:0);
+  const lbchips=(state.labels||[]).map(l=>{ const on=labelFilter.has(l.id);
+      const n=state.tasks.filter(t=>taskLabelIds(t).includes(l.id)).length;
+      return `<span class="fchip ${on?'on':''}" style="${on?'background:'+l.color:''}" data-flb="${escapeHtml(l.id)}"><span class="dot" style="background:${on?'#fff':l.color}"></span>${escapeHtml(l.name)} <b>${n}</b></span>`; }).join("")
+    + `<span class="fchip ${labelFilter.has("__none")?'on':''}" data-flb="__none"><span class="dot" style="background:var(--line)"></span>라벨 없음 <b>${state.tasks.filter(t=>!taskLabelIds(t).length).length}</b></span>`;
+  const cnt=deptFilter.size+statusFilter.size+assigneeFilter.size+kfFilter.size+labelFilter.size+(lateOnly?1:0)+(auditOnly?1:0)+(searchQuery.trim()?1:0);
   const allA=assigneeFilter.size===0;
   const aSec=`<div class="fsec"><span class="lh-label">담당자</span>
        <div class="fchips"><span class="fchip all ${allA?'on':''}" data-fa="__all">${allA?'✓ ':''}전체</span><span class="fchip ${assigneeFilter.has('__unassigned')?'on':''}" data-fa="__unassigned">${assigneeFilter.has('__unassigned')?'✓ ':''}미정</span></div>
@@ -1849,6 +1913,7 @@ function renderFilter(){
          `<span class="fchip late ${lateOnly?'on':''}" data-flate="1" title="부서 일정이 끝났는데 완료가 아닌 일감만">${lateOnly?'✓ ':''}⚠ 지연만 (${state.tasks.filter(isLate).length})</span>`+
          `<span class="fchip au ${auditOnly?'on':''}" data-fau="1" title="트렐로 체크리스트에 문제가 있는 일감만">${auditOnly?'✓ ':''}🔍 체크리스트 문제 (${state.tasks.filter(t=>auCount(t.id)>0).length})</span>`+
        `</div></div>
+       <div class="fsec"><span class="lh-label">라벨</span><div class="fchips"><span class="fchip all ${labelFilter.size===0?'on':''}" data-flb="__all">${labelFilter.size===0?'✓ ':''}전체</span>${lbchips}</div></div>
        ${isMemberView()?"":`<div class="fsec"><span class="lh-label">진행 상태</span><div class="fchips"><span class="fchip all ${allS?'on':''}" data-fs="__all">전체</span>${schips}</div></div>
        <div class="fsec"><span class="lh-label">킥오프</span><div class="fchips"><span class="fchip all ${kfFilter.size===0?'on':''}" data-fkf="__all">전체</span>${kfchips}</div></div>`}
        ${aSec}
@@ -1950,6 +2015,21 @@ function deptChipsInline(t){
   }).join("");
   return `<span class="dept-inline">${cells}</span>`;
 }
+/* ===== Task 라벨 (2026-10-12) =====
+ * state.labels = [{id,name,color}] (공유), t.labels = [id,…]
+ * 지워진 라벨 id 가 Task 에 남아 있어도 조용히 무시한다(세트가 기준). */
+const LB_SHOW = 3;                                       // 행에 이름 칩으로 보여 줄 최대 개수
+function taskLabelIds(t){ const set=state.labels||[]; return ((t&&t.labels)||[]).filter(id=>set.some(l=>l.id===id)); }
+const labelsOf = t => { const ids=taskLabelIds(t); return (state.labels||[]).filter(l=>ids.includes(l.id)); };
+function labelChipsHtml(t){
+  const ls=labelsOf(t);
+  const head=ls.slice(0,LB_SHOW).map(l=>
+    `<span class="lb" style="background:${l.color}" data-lbpop="${t.id}" title="${escapeHtml(l.name)} — 클릭하면 라벨 선택">${escapeHtml(l.name)}</span>`).join("");
+  const rest=ls.slice(LB_SHOW);
+  const more=rest.length?`<span class="lb-more" data-lbpop="${t.id}" title="${escapeHtml(rest.map(l=>l.name).join(", "))}">+${rest.length}</span>`:"";
+  return `<span class="lbs">${head}${more}<span class="lb-add" data-lbpop="${t.id}" title="라벨 붙이기">＋</span></span>`;
+}
+function toggleTaskLabel(t,id){ if(!Array.isArray(t.labels)) t.labels=[]; const i=t.labels.indexOf(id); if(i>=0) t.labels.splice(i,1); else t.labels.push(id); }
 function taskHeadHtml(t){
   const ms=findMs(t.milestoneId);
   const kf=kfOf(t.kickoff);
@@ -1967,7 +2047,7 @@ function taskHeadHtml(t){
   return `<div class="task-head" data-toggleopen="${t.id}">
       <span class="drag-handle" data-drag="${t.id}" title="드래그하여 이동">⠿</span>
       <span class="caret">▶</span>
-      <span class="task-info"><select class="prio-sel p${t.priority||0}" data-prio="${t.id}" title="우선순위 선택 (없음 · S · 1~4)">${['','S','1','2','3','4'].map(v=>`<option value="${v}" ${String(t.priority||'')===v?'selected':''}>${v||'–'}</option>`).join('')}</select><span class="ms-tag"><i class="bd" style="background:${ms.color}"></i>${escapeHtml(ms.name)}</span><span class="task-name">${escapeHtml(t.name)}</span>${t.mirrorOf?'<span class="mirror-badge" title="아트에서 미러된 Task (아트 수정 시 갱신)">🔗 아트</span>':''}${lateChip}${auBadgeHtml(t)}${t.trelloCardId?`<a class="trello-badge" href="${escapeHtml(trelloUrlOf(t))}" target="_blank" rel="noopener" title="트렐로 카드 열기${t.trelloList?' · 리스트 '+escapeHtml(t.trelloList):''}\n이름은 트렐로가 기준입니다. 보드에서 지워도 트렐로 카드는 남습니다.">${TRELLO_ICON} 동기화</a>`:''}${links}${(t.track||"개발")==="개발"?"":asg}</span>
+      <span class="task-info"><select class="prio-sel p${t.priority||0}" data-prio="${t.id}" title="우선순위 선택 (없음 · S · 1~4)">${['','S','1','2','3','4'].map(v=>`<option value="${v}" ${String(t.priority||'')===v?'selected':''}>${v||'–'}</option>`).join('')}</select><span class="ms-tag"><i class="bd" style="background:${ms.color}"></i>${escapeHtml(ms.name)}</span>${labelChipsHtml(t)}<span class="task-name">${escapeHtml(t.name)}</span>${t.mirrorOf?'<span class="mirror-badge" title="아트에서 미러된 Task (아트 수정 시 갱신)">🔗 아트</span>':''}${lateChip}${auBadgeHtml(t)}${t.trelloCardId?`<a class="trello-badge" href="${escapeHtml(trelloUrlOf(t))}" target="_blank" rel="noopener" title="트렐로 카드 열기${t.trelloList?' · 리스트 '+escapeHtml(t.trelloList):''}\n이름은 트렐로가 기준입니다. 보드에서 지워도 트렐로 카드는 남습니다.">${TRELLO_ICON} 동기화</a>`:''}${links}${(t.track||"개발")==="개발"?"":asg}</span>
       ${(t.track||"개발")==="개발"?deptChipsInline(t):`<span class="dept-grid">${deptGridHtml(t)}</span>`}
       <span class="th-right"><span class="kf-chip" data-kf="${t.id}" style="border-color:${kf.color};box-shadow:0 0 0 2px ${kf.color}30" title="킥오프: ${t.kickoff} — 클릭하여 선택">${kf.icon}</span>
       ${doneChip}<select class="st-sel" data-status="${t.id}" title="${isArt?'종류':'진행 상태'}">${stOpts}</select>
@@ -2265,6 +2345,42 @@ document.addEventListener("click", e=>{ if(kfPopFor!==null && !e.target.closest(
 document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeKfPop(); });
 window.addEventListener("resize", closeKfPop);
 
+/* 라벨 선택 팝업 — 킥오프 팝업(#kfPop)과 같은 구조. 컨테이너 CSS 를 그대로 재사용한다. */
+let lbPopFor=null;
+function lbPopEl(){ let p=document.getElementById("lbPop");
+  if(!p){ p=document.createElement("div"); p.id="lbPop"; p.className="kf-pop lb-pop"; document.body.appendChild(p);
+    p.addEventListener("click", ev=>{
+      if(ev.target.closest("[data-lbmgr]")){ ev.stopPropagation(); closeLbPop(); openLbMgr(); return; }
+      const b=ev.target.closest("[data-lbset]"); if(!b) return; ev.stopPropagation();
+      const t=findTask(lbPopFor); if(!t) return;
+      toggleTaskLabel(t, b.dataset.lbset); save();
+      renderLbPop(); render();                     /* 팝업은 body 에 있어서 render() 로 지워지지 않는다 */
+    }); }
+  return p; }
+function renderLbPop(){
+  const t=findTask(lbPopFor); if(!t) return; const p=lbPopEl();
+  const sel=new Set(taskLabelIds(t));
+  const list=(state.labels||[]).map(l=>
+      `<button type="button" class="lb-it" data-lbset="${escapeHtml(l.id)}"><i style="background:${l.color}"></i>${escapeHtml(l.name)}${sel.has(l.id)?'<span class="ck">✓</span>':''}</button>`).join("")
+    || `<div class="kf-hd" style="padding:4px 9px 8px">라벨이 없습니다 — 아래에서 만들어 주세요.</div>`;
+  const nm=(t.name||"").length>20 ? (t.name||"").slice(0,20)+"…" : (t.name||"");
+  p.innerHTML=`<div class="kf-hd">라벨 · ${escapeHtml(nm)}</div>${list}`+
+    `<button type="button" class="lb-it lb-mgr" data-lbmgr="1">🏷 라벨 관리…</button>`;
+}
+function openLbPop(anchor, tid){
+  if(!findTask(tid)) return;
+  if(lbPopFor===tid && lbPopEl().classList.contains("show")){ closeLbPop(); return; }   // 같은 자리 재클릭 = 닫기
+  lbPopFor=tid; const p=lbPopEl(); renderLbPop(); p.classList.add("show");
+  const r=anchor.getBoundingClientRect(), pw=p.offsetWidth, ph=p.offsetHeight;
+  let left=Math.min(r.left, window.innerWidth-pw-8); if(left<8) left=8;
+  let top=r.bottom+6; if(top+ph>window.innerHeight-8) top=Math.max(8, r.top-ph-6);
+  p.style.left=left+"px"; p.style.top=top+"px";
+}
+function closeLbPop(){ const p=document.getElementById("lbPop"); if(p) p.classList.remove("show"); lbPopFor=null; }
+document.addEventListener("click", e=>{ if(lbPopFor!==null && !e.target.closest("#lbPop") && !e.target.closest("[data-lbpop]")) closeLbPop(); });
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeLbPop(); });
+window.addEventListener("resize", closeLbPop);
+
 /* ===== 좌측 상호작용 ===== */
 const leftBody=document.getElementById("leftBody"), leftHead=document.getElementById("leftHead");
 leftHead.addEventListener("click", e=>{
@@ -2293,6 +2409,8 @@ leftHead.addEventListener("click", e=>{
   if(fa){ const k=fa.dataset.fa; if(k==="__all")assigneeFilter.clear(); else assigneeFilter.has(k)?assigneeFilter.delete(k):assigneeFilter.add(k); render(); return; }
   if(e.target.closest("[data-flate]")){ lateOnly=!lateOnly; render(); return; }
   if(e.target.closest("[data-fau]")){ auditOnly=!auditOnly; render(); return; }
+  const flb=e.target.closest("[data-flb]");
+  if(flb){ const k=flb.dataset.flb; if(k==="__all")labelFilter.clear(); else labelFilter.has(k)?labelFilter.delete(k):labelFilter.add(k); render(); return; }
 });
 leftHead.addEventListener("input", e=>{ const si=e.target.closest("#filterSearch"); if(si){ searchQuery=si.value; renderContext(); renderPipeline(); renderLegend(); renderLeft(); renderBody(); } });
 document.addEventListener("click", e=>{ if(filterOpen && !e.target.closest("#filterPop") && !e.target.closest("#filterBtn")){ filterOpen=false; renderFilter(); } });
@@ -2333,6 +2451,7 @@ leftBody.addEventListener("click", e=>{
   const mt=e.target.closest("[data-memtoggle]"); if(mt){ const k=mt.dataset.memtoggle; memCollapsed.has(k)?memCollapsed.delete(k):memCollapsed.add(k); render(); return; }
   const mk=e.target.closest("[data-memtask]"); if(mk){ const [tid,dep]=mk.dataset.memtask.split("|");
     if(dep && findTask(tid) && findTask(tid).depts[dep]) openSchedModal(tid,dep,false); else openDeptModal(tid); return; }
+  const lbp=e.target.closest("[data-lbpop]"); if(lbp){ e.stopPropagation(); openLbPop(lbp, lbp.dataset.lbpop); return; }
   const kf=e.target.closest("[data-kf]"); if(kf){ e.stopPropagation(); openKfPop(kf, kf.dataset.kf); return; }
   const dn=e.target.closest("[data-done]"); if(dn){ e.stopPropagation(); const t=findTask(dn.dataset.done); t.done=!t.done; save(); render(); return; }
   const del=e.target.closest("[data-del]"); if(del){ e.stopPropagation(); const id=del.dataset.del; const _t=findTask(id);
@@ -2440,7 +2559,7 @@ const roadmapModal=document.getElementById("roadmapModal"), trelloModal=document
 const planModal=document.getElementById("planModal");
 const holModal=document.getElementById("holModal");
 const auditModal=document.getElementById("auditModal");
-const deptModal=document.getElementById("deptModal"), linkModal=document.getElementById("linkModal"), schedModal=document.getElementById("schedModal"), msModal=document.getElementById("msModal"), deptMgrModal=document.getElementById("deptMgrModal"), catMgrModal=document.getElementById("catMgrModal"), titleModal=document.getElementById("titleModal"), dashModal=document.getElementById("dashModal"), historyModal=document.getElementById("historyModal"), notifyModal=document.getElementById("notifyModal"), noticePopup=document.getElementById("noticePopup"), noticeEditModal=document.getElementById("noticeEditModal");
+const deptModal=document.getElementById("deptModal"), linkModal=document.getElementById("linkModal"), schedModal=document.getElementById("schedModal"), msModal=document.getElementById("msModal"), deptMgrModal=document.getElementById("deptMgrModal"), catMgrModal=document.getElementById("catMgrModal"), lbMgrModal=document.getElementById("lbMgrModal"), titleModal=document.getElementById("titleModal"), dashModal=document.getElementById("dashModal"), historyModal=document.getElementById("historyModal"), notifyModal=document.getElementById("notifyModal"), noticePopup=document.getElementById("noticePopup"), noticeEditModal=document.getElementById("noticeEditModal");
 /* 부서 칩 클릭으로 막 켠 부서인데 일정을 정하지 않고 닫으면 → 부서를 다시 끈다 */
 function cancelPendingDept(){
   if(!editing || !editing.justOn) return;
@@ -2448,9 +2567,9 @@ function cancelPendingDept(){
   editing.justOn=false;
   if(sg && sg.on && sg.sched===false){ sg.on=false; save(); render(); }
 }
-function closeModals(){ cancelPendingDept(); closeRmPop(); closeSpPop(); [taskModal,auditModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.classList.remove("show")); }
+function closeModals(){ cancelPendingDept(); closeRmPop(); closeSpPop(); [taskModal,auditModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,lbMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.classList.remove("show")); }
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=closeModals);
-[taskModal,auditModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
+[taskModal,auditModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,lbMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
 
 /* ===== 종류 관리 (아트·전투 등 종류 방식 분류) ===== */
 let catMgrTrack="아트", catEditKey=null;
@@ -2677,7 +2796,7 @@ function doAddMember(key, sub, inp){
   if(!d.memberGroup) d.memberGroup={}; if(sub) d.memberGroup[name]=sub; else delete d.memberGroup[name];
   inp.value=""; save(); render(); renderDeptMgr();
 }
-document.getElementById("footbar").addEventListener("click", e=>{ if(e.target.closest("#catLegendBtn")){ openCatMgr(); return; } if(e.target.closest("#deptLegendBtn")||e.target.closest("#deptLegendBtn2")) openDeptMgr(); });
+document.getElementById("footbar").addEventListener("click", e=>{ if(e.target.closest("#catLegendBtn")){ openCatMgr(); return; } if(e.target.closest("#lbLegendBtn")){ openLbMgr(); return; } if(e.target.closest("#deptLegendBtn")||e.target.closest("#deptLegendBtn2")) openDeptMgr(); });
 document.getElementById("deptMgrList").addEventListener("input", e=>{ const c=e.target.closest("[data-deptcolor]"); if(c){ const d=state.departments.find(x=>x.key===c.dataset.deptcolor); if(d){ d.color=c.value; save(); render(); } } });
 function addSubFromBlock(key){ const inp=document.querySelector(`[data-newsub="${CSS.escape(key)}"]`); if(!inp) return; const g=(inp.value||"").trim(); if(!g) return; const d=state.departments.find(x=>x.key===key); if(!d) return; if(!Array.isArray(d.subgroups))d.subgroups=[]; if(!d.subgroups.includes(g)) d.subgroups.push(g); inp.value=""; save(); renderDeptMgr(); render(); }
 document.getElementById("deptMgrList").addEventListener("change", e=>{ const r=e.target.closest("[data-deptrename]"); if(r){ renameDept(r.dataset.deptrename, r.value); } });
@@ -2815,11 +2934,84 @@ function openEditModal(tid){ editing={tid}; const t=findTask(tid);
   document.getElementById("linkModalSub").textContent="이름과 링크를 편집합니다. (담당자는 부서 막대를 클릭하거나 ‘부서 지정’에서)";
   document.getElementById("editName").value=t.name||"";
   document.getElementById("linkPlan").value=t.links.plan||""; document.getElementById("linkTrello").value=t.links.trello||"";
+  renderEditLabels();
   renderTrLink(); trLinkMsg("");
   linkModal.classList.add("show"); }
 document.getElementById("linkSaveOk").onclick=()=>{ const t=findTask(editing.tid);
   const nm=document.getElementById("editName").value.trim(); if(nm) t.name=nm;
   t.links.plan=document.getElementById("linkPlan").value.trim(); t.links.trello=document.getElementById("linkTrello").value.trim(); closeModals(); save(); render(); };
+
+/* ── Task 편집 모달의 라벨 선택. 누르는 즉시 저장한다 — '취소' 로 되돌아갈 거라 기대하기 쉬운데
+   담당자 칩처럼 t 를 직접 고치는 방식이라 어차피 되돌려지지 않는다. 즉시 저장이 덜 헷갈린다. */
+function renderEditLabels(){
+  const box=document.getElementById("editLabels"); if(!box) return;
+  const t=findTask(editing&&editing.tid); if(!t){ box.innerHTML=""; return; }
+  const sel=new Set(taskLabelIds(t));
+  box.innerHTML=(state.labels||[]).length
+    ? (state.labels||[]).map(l=>{ const on=sel.has(l.id);
+        return `<span class="dept-chip ${on?'on':''}" data-lbpick="${escapeHtml(l.id)}" style="${on?'background:'+l.color+';border-color:transparent;color:#fff':''}">`+
+          `<i class="dot" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${on?'#fff':l.color};margin-right:6px"></i>${escapeHtml(l.name)}</span>`; }).join("")
+    : `<span class="dm-empty">라벨이 없습니다 — 하단 바의 ‘라벨 ✎’ 에서 만들어 주세요.</span>`;
+}
+document.getElementById("editLabels").addEventListener("click", e=>{
+  const c=e.target.closest("[data-lbpick]"); if(!c) return;
+  const t=findTask(editing&&editing.tid); if(!t) return;
+  toggleTaskLabel(t, c.dataset.lbpick); save(); renderEditLabels(); render(); });
+
+/* ── 라벨 세트 관리 (부서 관리와 같은 모양) ── */
+function openLbMgr(){ renderLbMgr(); lbMgrModal.classList.add("show"); }
+function lbUseCount(id){ return state.tasks.filter(t=>((t.labels)||[]).includes(id)).length; }
+function renderLbMgr(){
+  const L=state.labels||[];
+  document.getElementById("lbMgrList").innerHTML = L.length ? L.map((l,i)=>
+    `<div class="lm-row">`+
+      `<input type="color" value="${l.color}" data-lbcolor="${escapeHtml(l.id)}" title="색 변경">`+
+      `<span class="lm-prev" style="background:${l.color}">${escapeHtml(l.name)}</span>`+
+      `<input class="lm-name" data-lbname="${escapeHtml(l.id)}" value="${escapeHtml(l.name)}" placeholder="라벨 이름">`+
+      `<span class="lm-n" title="이 라벨이 붙은 Task 수">${lbUseCount(l.id)}건</span>`+
+      `<button class="lm-mv" data-lbmv="${escapeHtml(l.id)}|-1" ${i===0?'disabled':''} title="위로">▲</button>`+
+      `<button class="lm-mv" data-lbmv="${escapeHtml(l.id)}|1" ${i===L.length-1?'disabled':''} title="아래로">▼</button>`+
+      `<button class="linkrow" data-lbdel="${escapeHtml(l.id)}">삭제</button>`+
+    `</div>`).join("") : `<span class="dm-empty">라벨이 없습니다. 아래에서 추가하세요.</span>`;
+}
+document.getElementById("newLbColorBtn").onclick=()=>document.getElementById("newLbColor").click();
+document.getElementById("newLbColor").addEventListener("input",e=>{ document.getElementById("newLbColorDot").style.background=e.target.value; });
+function lbAdd(){
+  const inp=document.getElementById("newLbName"), name=(inp.value||"").trim(); if(!name) return;
+  if(!Array.isArray(state.labels)) state.labels=[];
+  if(state.labels.some(l=>l.name===name)){ alert("같은 이름의 라벨이 이미 있습니다."); return; }
+  state.labels.push({ id:uid(), name, color:document.getElementById("newLbColor").value });
+  inp.value=""; save(); renderLbMgr(); render();
+}
+document.getElementById("lbAddNew").onclick=lbAdd;
+document.getElementById("newLbName").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); lbAdd(); } });
+document.getElementById("lbMgrList").addEventListener("input", e=>{
+  const c=e.target.closest("[data-lbcolor]");
+  if(c){ const l=(state.labels||[]).find(x=>x.id===c.dataset.lbcolor); if(l){ l.color=c.value; save(); renderLbMgr(); render(); } return; }
+});
+document.getElementById("lbMgrList").addEventListener("change", e=>{
+  const n=e.target.closest("[data-lbname]");
+  if(n){ const l=(state.labels||[]).find(x=>x.id===n.dataset.lbname); const v=(n.value||"").trim();
+    if(l && v && v!==l.name){ l.name=v; save(); renderLbMgr(); render(); } else renderLbMgr(); }
+});
+document.getElementById("lbMgrList").addEventListener("keydown", e=>{
+  const n=e.target.closest("[data-lbname]"); if(n && e.key==="Enter"){ e.preventDefault(); n.blur(); }
+});
+document.getElementById("lbMgrList").addEventListener("click", e=>{
+  const mv=e.target.closest("[data-lbmv]");
+  if(mv){ const [id,d]=mv.dataset.lbmv.split("|"); const L=state.labels||[]; const i=L.findIndex(x=>x.id===id);
+    const j=i+Number(d); if(i<0||j<0||j>=L.length) return; const tmp=L[i]; L[i]=L[j]; L[j]=tmp; save(); renderLbMgr(); render(); return; }
+  const del=e.target.closest("[data-lbdel]");
+  if(del){ const id=del.dataset.lbdel; const l=(state.labels||[]).find(x=>x.id===id); if(!l) return;
+    const n=lbUseCount(id);
+    const msg = n ? `라벨 ‘${l.name}’ 을 삭제할까요?\n\n이 라벨이 붙은 Task ${n}건에서도 함께 떨어집니다. (Task 자체는 지워지지 않습니다)`
+                  : `라벨 ‘${l.name}’ 을 삭제할까요?`;
+    if(!confirm(msg)) return;
+    state.labels=(state.labels||[]).filter(x=>x.id!==id);
+    state.tasks.forEach(t=>{ if(Array.isArray(t.labels) && t.labels.includes(id)) t.labels=t.labels.filter(x=>x!==id); });
+    labelFilter.delete(id);
+    save(); renderLbMgr(); render(); return; }
+});
 
 function openSchedModal(tid,dep,justOn){ editing={tid,dep,justOn:!!justOn}; const t=findTask(tid); const seg=t.depts[dep];
   document.getElementById("schedTitle").textContent=`${dep} 일정·담당자`;
