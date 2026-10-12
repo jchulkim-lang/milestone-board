@@ -159,6 +159,11 @@
   .lb-pop .lb-it i{width:24px;height:11px;border-radius:3px;flex:0 0 auto;}
   .lb-pop .lb-it .ck{margin-left:auto;font-size:11px;font-weight:900;color:var(--accent);}
   .lb-pop .lb-mgr{border-top:1px solid var(--line);margin-top:4px;padding-top:7px;color:var(--muted);font-weight:600;}
+  .flash-note{position:fixed;left:50%;bottom:52px;transform:translateX(-50%) translateY(8px);z-index:200;
+     background:var(--panel);border:1px solid var(--accent);border-radius:10px;padding:9px 16px;max-width:70vw;
+     font-size:12.5px;font-weight:700;color:var(--text);box-shadow:0 12px 32px rgba(0,0,0,.55);
+     opacity:0;pointer-events:none;transition:opacity .18s ease, transform .18s ease;}
+  .flash-note.show{opacity:1;transform:translateX(-50%) translateY(0);}
   .lm-row{display:flex;align-items:center;gap:7px;padding:6px 0;border-bottom:1px solid var(--grid);}
   .lm-row:last-child{border-bottom:0;}
   .lm-row input[type=color]{width:30px;height:22px;padding:0;border:1px solid var(--line);border-radius:5px;background:transparent;cursor:pointer;flex:0 0 auto;}
@@ -2851,6 +2856,34 @@ function openTaskModal(){ taskInput.value=""; { const _p=document.getElementById
 document.getElementById("taskTrack").addEventListener("change", e=>{ fillTaskMs(e.target.value); });
 document.getElementById("taskAddOk").onclick=addTask;
 taskInput.addEventListener("keydown",e=>{ if(e.key==="Enter") addTask(); });
+/* 짧은 안내 띠 (2026-10-12). alert 와 달리 작업을 안 끊는다. */
+function flashNote(msg){
+  let n=document.getElementById("flashNote");
+  if(!n){ n=document.createElement("div"); n.id="flashNote"; n.className="flash-note"; document.body.appendChild(n); }
+  n.textContent=msg; n.classList.add("show");
+  clearTimeout(flashNote._t); flashNote._t=setTimeout(()=>n.classList.remove("show"), 4200);
+}
+/* 새로 만든 Task 가 지금 걸려 있는 필터에 가려지면 화면에 안 나온다 → 사용자에게는
+   "Task 생성이 안 된다"로 보인다(2026-10-12 제보). state 에는 멀쩡히 들어가 있어서 원인을 알 길이 없다.
+   만든 Task 가 안 보이면 **가리고 있는 필터만 골라서 풀고**, 무엇을 풀었는지 알려 준다.
+   필터를 통째로 비우지 않는 이유: 사용자가 일부러 걸어 둔 조건을 필요 이상으로 날리지 않기 위해서다. */
+function unhideNewTask(t){
+  const trk=t.track||"개발";
+  if(!isMemberView() && headTrack()===trk && passFilter(t)) return "";
+  const off=[];
+  if(isMemberView() || trackFilter!==trk){ trackFilter=trk; off.push("분류"); }
+  if(focusDept!=="__all"){ setFocusDept("__all"); off.push("부서 포커스"); }
+  if(searchQuery.trim()){ searchQuery=""; off.push("검색어"); }
+  if(deptFilter.size){ deptFilter.clear(); off.push("부서"); }
+  if(msFilter.size && !msFilter.has(t.milestoneId)){ msFilter.clear(); off.push("마일스톤"); }
+  if(statusFilter.size && !statusFilter.has(t.status)){ statusFilter.clear(); off.push("진행 상태"); }
+  if(kfFilter.size && !kfFilter.has(t.kickoff)){ kfFilter.clear(); off.push("킥오프"); }
+  if(labelFilter.size){ labelFilter.clear(); off.push("라벨"); }
+  if(assigneeFilter.size){ assigneeFilter.clear(); off.push("담당자"); }
+  if(lateOnly){ lateOnly=false; off.push("지연만"); }
+  if(auditOnly){ auditOnly=false; off.push("체크리스트 문제"); }
+  return off.join(" · ");
+}
 function addTask(){ const name=taskInput.value.trim(); if(!name) return;
   const trackSel=document.getElementById("taskTrack");
   const trk=(trackSel&&TRACKS.includes(trackSel.value))?trackSel.value:"개발";
@@ -2864,7 +2897,10 @@ function addTask(){ const name=taskInput.value.trim(); if(!name) return;
   const si = selT ? state.tasks.findIndex(x=>x.id===selectedId) : -1;   // 선택한 Task 바로 아래에 삽입
   if(si>=0) state.tasks.splice(si+1,0,tk); else state.tasks.push(tk);
   selectedId=tk.id; setOpen(tk.id,true);   // 만든 사람 화면에서만 펼침
-  closeModals(); save(); render(); openDeptModal(tk.id); }
+  const _off=unhideNewTask(tk);            // 필터에 가려져 "안 만들어진 것처럼" 보이는 것 방지
+  closeModals(); save(); render();
+  if(_off) flashNote(`새 Task 가 필터에 가려져 있어서 ${_off} 필터를 풀었습니다.`);
+  openDeptModal(tk.id); }
 
 function openDeptModal(tid){ editing={tid}; const t=findTask(tid);
   document.getElementById("deptModalSub").textContent=t.name;

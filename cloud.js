@@ -9,6 +9,10 @@
   let ACCESS_USERS = [], accessQuery = "", viewersOpen = false;
   const esc = s => (s||"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
   const canEdit = () => ROLE==="editor" || ROLE==="admin";
+  /* 저장 실패를 조용히 삼키지 않는다 (2026-10-12). 예전엔 403/5xx 가 와도 dirty=false 로 끝나서,
+     화면에는 Task 가 보이는데 서버에는 없고 새로고침하면 사라졌다 → "생성이 안 된다"로 제보됨.
+     index.html 의 flashNote 를 쓰되, 로딩 순서에 기대지 않도록 존재 확인 후 호출한다. */
+  const note = m => { try{ if(typeof flashNote==="function") flashNote(m); else console.warn(m); }catch(_){ } };
 
   async function getMe(){
     try{ const r = await fetch("/api/me", { credentials:"same-origin" }); if(r.ok){ const j = await r.json(); return j.user; } }catch(_){}
@@ -121,7 +125,8 @@
     const doPush = async () => {
       clearTimeout(remote._t); remote._t=null;
       if(maxTimer){ clearTimeout(maxTimer); maxTimer=null; }
-      if(!canEdit() || _blocked){ dirty=false; return; }
+      if(_blocked){ dirty=false; return; }
+      if(!canEdit()){ if(dirty) note("읽기 전용 권한이라 변경 내용이 서버에 저장되지 않습니다. 하단의 ‘편집 권한 요청’을 눌러 주세요."); dirty=false; return; }
       try{
         for(let attempt=0; attempt<5; attempt++){
           const r0 = await fetch("/api/state", { credentials:"same-origin", headers:{ "X-App-Version": APPVER() } });   // 저장 직전 서버 최신
@@ -133,15 +138,16 @@
             headers:{ "content-type":"application/json", "X-App-Version": APPVER() }, body: JSON.stringify({ data: merged, baseVersion: remote.version }) });
           if(r.status===426){ blockOldVersion(); return; }
           if(r.status===401){ blockSessionExpired(); return; }   // 저장분이 조용히 사라지지 않도록 알린다
+          if(r.status===403){ note("저장 권한이 없어 서버에 반영되지 않았습니다. 편집 권한을 요청해 주세요."); dirty=false; return; }
           if(r.status===409){   // 충돌: 서버 최신으로 재병합 후 재시도(내 변경·남의 변경 모두 보존)
             let cj=null; try{ cj = await r.json(); }catch(_){}
             if(cj && cj.data){ state = (typeof mergeState3==="function") ? mergeState3(remote.base, state, cj.data) : state; remote.base = clone(cj.data); remote.version = cj.version; }
             continue;
           }
           if(r.ok){ const j = await r.json(); remote.version = j.version; state = merged; remote.base = clone(merged); dirty=false; showLastEdit(j.updatedBy, j.updatedAt); buildTimeline(); if(!focusedControl()) render(); return; }
-          dirty=false; return;   // 기타 오류
+          dirty=false; note("저장에 실패했습니다 (오류 "+r.status+"). 잠시 후 다시 시도해 주세요."); return;   // 기타 오류
         }
-        dirty=false;   // 재시도 소진 — 다음 편집/폴링에서 다시 반영
+        dirty=false; note("저장이 여러 번 충돌해 이번 변경은 반영되지 않았습니다. 다시 한 번 수정해 주세요.");   // 재시도 소진
       }catch(_){ dirty=false; }
     };
     remote.push = function(){
