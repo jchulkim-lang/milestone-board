@@ -4015,13 +4015,19 @@ document.getElementById("msAddNew").onclick=()=>{ if(!msCanEdit()) return; const
   msSelId=id; buildTimeline(); save(); render(); renderMsList(); loadMsEditor(id); };
 document.getElementById("msSaveOk").onclick=()=>{ if(!msCanEdit()) return; const m=findMs(msSelId);
   const pv=document.getElementById("msPlan").value||"", rv=document.getElementById("msResource").value||"", dv=document.getElementById("msDev").value||"", qv=document.getElementById("msQa").value||"";
-  /* 마감일 순서 검사는 **마감일을 실제로 건드렸을 때만** 한다. (2026-10-12)
-     예전엔 무조건 검사해서, 기존 데이터의 마감일 순서가 어긋나 있으면
-     이름만 바꾸려 해도 경고창이 뜨고 `return` 으로 빠져 **이름이 저장되지 않았다**. */
+  /* 마감일 순서 — 저장을 **막지 않는다**. (2026-10-12)
+     ① 같은 날짜는 정상이다. 사용자 지시: "마일스톤은 겹칠 수 있습니다".
+        예전엔 `<=` 라서 개발 마감과 QA 마감이 같은 날이면 저장이 거부됐다.
+     ② 앞뒤가 뒤집힌 경우에만 confirm 으로 묻고, 확인하면 그대로 저장한다.
+     ③ 검사 자체도 **마감일 칸을 실제로 건드렸을 때만** 한다 — 안 그러면 기존 데이터의 순서 때문에
+        이름만 바꾸는 것도 막힌다(실제로 그 버그가 있었다).
+     alert + return 으로 되돌리지 말 것. */
   const dlChanged = pv!==(m.plan||"") || rv!==(m.resource||"") || dv!==(m.dev||"") || qv!==(m.qa||"");
   if(dlChanged){
     const dls=[["기획서 마감",pv],["리소스 마감",rv],["개발 마감",dv],["QA 마감",qv]].filter(x=>x[1]);
-    for(let i=1;i<dls.length;i++){ if(parseYmd(dls[i][1])<=parseYmd(dls[i-1][1])){ alert(`마감일은 겹칠 수 없습니다.\n기획서 마감 < 리소스 마감 < 개발 마감 < QA 마감 순서로 설정하세요.\n(${dls[i-1][0]} ${dls[i-1][1]} → ${dls[i][0]} ${dls[i][1]})`); return; } }
+    const bad=[];
+    for(let i=1;i<dls.length;i++){ if(parseYmd(dls[i][1]) < parseYmd(dls[i-1][1])) bad.push(`· ${dls[i-1][0]} ${dls[i-1][1]}  →  ${dls[i][0]} ${dls[i][1]}`); }
+    if(bad.length && !confirm(`아래 마감일이 앞뒤가 뒤집혀 있습니다.\n\n${bad.join("\n")}\n\n같은 날짜는 괜찮습니다. 일부러 이렇게 두신 거면 그대로 저장합니다.\n저장할까요?`)) return;
   }
   m.name=document.getElementById("msName").value.trim()||m.name;
   m.start=document.getElementById("msStart").value||"2026-06-01"; m.end=document.getElementById("msEnd").value||"";
