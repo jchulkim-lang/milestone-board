@@ -21,6 +21,7 @@
        개인이 드래그한 값은 localStorage(ms_leftw)에 px 로 저장되어 이 기본값을 덮는다. */
     --left-w:clamp(1100px, 74vw, 1900px);
     --mxw:114px;  /* 담당자 매트릭스 한 칸 폭 — ✓ 11 + 이름 33 + '+N' 12 + 마감일 28 + 여백·간격 = 약 98px (2026-10-12 마감일 추가) */
+    --kfw:62px;   /* 킥오프 열 한 칸 폭 (2026-10-13) — 담당자 매트릭스와 같은 '고정폭' 규칙을 따른다 */
     --rowhead:#1a1e27; --rowhead-h:#1f2430; --mon:#2b313c; --scroll:#2f3441;
   }
   body.light{
@@ -181,6 +182,27 @@
   .dept-slot i{width:9px;height:9px;border-radius:50%;display:block;}
   .dept-slot.off i{background:transparent;border:1.5px solid var(--line);}
   .dept-head-row .dept-slot i{box-shadow:0 0 0 1px rgba(255,255,255,.06);}
+  /* === 킥오프 열 (2026-10-13, 사용자 선택 B안) ===
+     예전엔 우측 칸의 23px 이모지 하나였다. 이모지는 **색을 우리가 못 정해서** 테두리 링이 유일한
+     단서였고, 예정(회색)과 Skip(회색)이 똑같이 보였다 — "작게 아이콘으로만 표시되어 잘 안 보인다".
+     이제 담당자 매트릭스 **왼쪽의 독립된 열**. 세로로 줄이 맞아 "킥오프 안 한 게 뭐 남았나"를 훑을 수 있다.
+     ⚠ 반드시 **고정폭**(--kfw). 가변으로 두면 뒤따르는 매트릭스 열이 행마다 밀려 무너진다. [[task-row-layout]]
+     색: **미완료만 주황으로 외치고 나머지는 전부 무채색.** 킥오프의 원래 색(주황 #f59e0b / 초록 #10b981)은
+     매트릭스의 「담당자 미정」=앰버 · 「부서 완료」=민트 와 겹쳐서, 한 행에 같은 색이 두 뜻으로 나왔다.
+     끝난 킥오프는 조치가 필요 없으니 외칠 이유도 없다. */
+  .kf-col{ width:var(--kfw); flex:0 0 var(--kfw); height:22px; display:inline-flex; align-items:center;
+     justify-content:center; font-size:10.5px; font-weight:800; letter-spacing:-.3px; border-radius:6px;
+     border:1.5px solid transparent; background:transparent; color:var(--muted); cursor:pointer;
+     user-select:none; margin-right:9px; white-space:nowrap; overflow:hidden; box-sizing:border-box; }
+  .kf-col.k-wait{ border-style:dashed; border-color:rgba(255,255,255,.22); color:rgba(255,255,255,.5); }
+  .kf-col.k-warn{ background:#f97316; border-color:#f97316; color:#fff; }
+  .kf-col.k-ok{ background:rgba(255,255,255,.06); color:rgba(255,255,255,.55); }
+  .kf-col.k-skip{ color:rgba(255,255,255,.16); }
+  .kf-col:hover{ box-shadow:inset 0 0 0 1px rgba(255,255,255,.38); }
+  .kf-head{ width:var(--kfw); flex:0 0 var(--kfw); margin-right:9px; text-align:center; font-size:10.5px;
+     font-weight:800; color:var(--muted); border-bottom:2px solid #a855f7; padding-bottom:2px;
+     cursor:pointer; box-sizing:border-box; }
+  .kf-head.on{ color:#fff; background:rgba(249,115,22,.22); border-radius:5px 5px 0 0; border-bottom-color:#f97316; }
   .th-right-spacer{width:118px;flex:0 0 auto;}
   .th-right{display:flex;align-items:center;gap:5px;flex:0 0 auto;justify-content:flex-end;width:118px;padding-left:6px;}
   .late-chip{flex:0 0 auto;font-size:9.5px;font-weight:800;color:#ff9b9b;background:rgba(239,68,68,.13);border:1px solid rgba(239,68,68,.5);border-radius:999px;padding:1px 6px;white-space:nowrap;}
@@ -1392,11 +1414,12 @@ const depTracks = d => (d.tracks && d.tracks.length) ? d.tracks : ["개발"];
 const depsFor = track => DEPARTMENTS.filter(d=> depTracks(d).includes(track));
 function headTrack(){ return TRACKS.includes(trackFilter) ? trackFilter : "개발"; }
 /* 킥오프(킥오프 됐는지) */
+/* cls = 킥오프 **열**(.kf-col)의 색 등급. color/icon 은 선택 팝업·필터 칩이 그대로 쓴다. */
 const KICKOFFS = [
-  { k:"예정",   icon:"🕘", color:"#7b8494", desc:"아직 킥오프 전" },
-  { k:"미완료", icon:"⚠️", color:"#f59e0b", desc:"해야 하는데 아직 못 함" },
-  { k:"완료",   icon:"✅", color:"#10b981", desc:"킥오프 끝남" },
-  { k:"Skip",   icon:"⏭️", color:"#9aa3b2", desc:"이 Task는 건너뜀" },
+  { k:"예정",   icon:"🕘", color:"#7b8494", cls:"k-wait", desc:"아직 킥오프 전" },
+  { k:"미완료", icon:"⚠️", color:"#f59e0b", cls:"k-warn", desc:"해야 하는데 아직 못 함" },
+  { k:"완료",   icon:"✅", color:"#10b981", cls:"k-ok",   desc:"킥오프 끝남" },
+  { k:"Skip",   icon:"⏭️", color:"#9aa3b2", cls:"k-skip", desc:"이 Task는 건너뜀" },
 ];
 const kfOf = k => KICKOFFS.find(x=>x.k===k) || KICKOFFS[0];
 /* 상태 방식(개발·네러티브): 트랙별로 편집 가능한 상태 목록(state.trackStatuses). 완료는 상태의 done 플래그 */
@@ -1967,7 +1990,7 @@ function renderFilter(){
        <button class="filter-btn ${cnt?'active':''}" id="filterBtn">필터${cnt?' ('+cnt+')':''} ▾</button>
      </div>
      <div class="lh-row dept-head-row">${ headTrack()==="개발"
-        ? `<span class="lh-label">담당자</span><span class="th-spacer"></span><span class="mx-head">${depsFor("개발").map(d=>`<span class="h ${focusDept===d.key?'on':''}" data-deptfocus="${escapeHtml(d.key)}" style="border-bottom-color:${d.color}" title="${escapeHtml(d.key)}${(d.owners&&d.owners.length)?' · 부서원: '+escapeHtml(d.owners.join(', ')):''} — 클릭하면 이 부서만 보기">${escapeHtml(d.key)}</span>`).join("")}</span><span class="th-right-spacer"></span>`
+        ? `<span class="lh-label">담당자</span><span class="th-spacer"></span><span class="kf-head ${(kfFilter.size===1&&kfFilter.has("미완료"))?'on':''}" data-kfhead="1" title="킥오프 — 클릭하면 ‘미완료’만 걸러 봅니다">킥오프</span><span class="mx-head">${depsFor("개발").map(d=>`<span class="h ${focusDept===d.key?'on':''}" data-deptfocus="${escapeHtml(d.key)}" style="border-bottom-color:${d.color}" title="${escapeHtml(d.key)}${(d.owners&&d.owners.length)?' · 부서원: '+escapeHtml(d.owners.join(', ')):''} — 클릭하면 이 부서만 보기">${escapeHtml(d.key)}</span>`).join("")}</span><span class="th-right-spacer"></span>`
         : `<button class="lh-label legend-edit" id="deptGridToggle" title="부서 체크 색상 표시/숨김">부서 색상 ${showDeptGrid?'▾':'▸'}</button>${showDeptGrid?`<span class="th-spacer"></span><span class="dept-grid">${depsFor(headTrack()).map(d=>`<span class="dept-slot on" title="${escapeHtml(d.key)}${(d.owners&&d.owners.length)?' · 담당: '+escapeHtml(d.owners.join(', ')):''}"><i style="background:${d.color}"></i></span>`).join("")}</span><span class="th-right-spacer"></span>`:''}` }</div>
      <div class="filter-pop ${filterOpen?'show':''}" id="filterPop">
        <div class="fsec"><span class="lh-label">검색</span><input type="text" id="filterSearch" class="filter-search" placeholder="제목·담당자 단어 검색…" value="${escapeHtml(searchQuery)}"></div>
@@ -2109,13 +2132,17 @@ function taskHeadHtml(t){
      왼쪽(부서 칩) 위로 쏟아진다 — 2026-09-16 사용자 제보. 자세한 계산은 task_row_layout 메모. */
   const _L=taskLateDays(t);
   const lateChip=_L?`<span class="late-chip" title="부서 일정 종료일이 ${_L}영업일 지났는데 아직 완료가 아닙니다">지연 ${_L}일</span>`:"";
+  /* 킥오프는 개발 분류에서만 '열'로 뺀다. 아트·전투·네러티브는 담당자 매트릭스 자체가 없어
+     (부서 14개) 맞춰 줄 머리글이 없다 → 그쪽은 기존 23px 아이콘을 우측 칸에 그대로 둔다. */
+  const _dev=(t.track||"개발")==="개발";
   const asg=aps.length?`<span class="asg-badge" title="담당: ${escapeHtml(aps.join(', '))}">👤 ${escapeHtml(aps[0])}${aps.length>1?' +'+(aps.length-1):''}</span>`:'';
   return `<div class="task-head" data-toggleopen="${t.id}">
       <span class="drag-handle" data-drag="${t.id}" title="드래그하여 이동">⠿</span>
       <span class="caret">▶</span>
       <span class="task-info"><select class="prio-sel p${t.priority||0}" data-prio="${t.id}" title="우선순위 선택 (없음 · S · 1~4)">${['','S','1','2','3','4'].map(v=>`<option value="${v}" ${String(t.priority||'')===v?'selected':''}>${v||'–'}</option>`).join('')}</select><span class="ms-tag"><i class="bd" style="background:${ms.color}"></i>${escapeHtml(ms.name)}</span>${labelChipsHtml(t)}<span class="task-name">${escapeHtml(t.name)}</span>${t.mirrorOf?'<span class="mirror-badge" title="아트에서 미러된 Task (아트 수정 시 갱신)">🔗 아트</span>':''}${lateChip}${auBadgeHtml(t)}${t.trelloCardId?`<a class="trello-badge" href="${escapeHtml(trelloUrlOf(t))}" target="_blank" rel="noopener" title="트렐로 카드 열기${t.trelloList?' · 리스트 '+escapeHtml(t.trelloList):''}\n이름은 트렐로가 기준입니다. 보드에서 지워도 트렐로 카드는 남습니다.">${TRELLO_ICON} 동기화</a>`:''}${links}${(t.track||"개발")==="개발"?"":asg}</span>
-      ${(t.track||"개발")==="개발"?deptChipsInline(t):`<span class="dept-grid">${deptGridHtml(t)}</span>`}
-      <span class="th-right"><span class="kf-chip" data-kf="${t.id}" style="border-color:${kf.color};box-shadow:0 0 0 2px ${kf.color}30" title="킥오프: ${t.kickoff} — 클릭하여 선택">${kf.icon}</span>
+      ${_dev?`<span class="kf-col ${kf.cls}" data-kf="${t.id}" title="킥오프: ${escapeHtml(t.kickoff)} — ${escapeHtml(kf.desc||"")} (클릭하여 변경)">${escapeHtml(t.kickoff)}</span>`:""}
+      ${_dev?deptChipsInline(t):`<span class="dept-grid">${deptGridHtml(t)}</span>`}
+      <span class="th-right">${_dev?"":`<span class="kf-chip" data-kf="${t.id}" style="border-color:${kf.color};box-shadow:0 0 0 2px ${kf.color}30" title="킥오프: ${t.kickoff} — 클릭하여 선택">${kf.icon}</span>`}
       ${doneChip}<select class="st-sel" data-status="${t.id}" title="${isArt?'종류':'진행 상태'}">${stOpts}</select>
       <span class="task-del" data-del="${t.id}" title="삭제">✕</span></span></div>`;
 }
@@ -2474,6 +2501,10 @@ leftHead.addEventListener("click", e=>{
   if(fkf){ const k=fkf.dataset.fkf; if(k==="__all")kfFilter.clear(); else kfFilter.has(k)?kfFilter.delete(k):kfFilter.add(k); render(); return; }
   if(fa){ const k=fa.dataset.fa; if(k==="__all")assigneeFilter.clear(); else assigneeFilter.has(k)?assigneeFilter.delete(k):assigneeFilter.add(k); render(); return; }
   if(e.target.closest("[data-flate]")){ lateOnly=!lateOnly; render(); return; }
+  if(e.target.closest("[data-kfhead]")){          /* 킥오프 머리글 = '미완료만 보기' 토글 */
+    const only = kfFilter.size===1 && kfFilter.has("미완료");
+    kfFilter.clear(); if(!only) kfFilter.add("미완료");
+    render(); return; }
   if(e.target.closest("[data-fau]")){ auditOnly=!auditOnly; render(); return; }
   const flb=e.target.closest("[data-flb]");
   if(flb){ const k=flb.dataset.flb; if(k==="__all")labelFilter.clear(); else labelFilter.has(k)?labelFilter.delete(k):labelFilter.add(k); render(); return; }
