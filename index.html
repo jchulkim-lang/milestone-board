@@ -93,6 +93,8 @@
   .fa-deptname i{width:8px;height:8px;border-radius:50%;flex:0 0 auto;}
   .fa-dept .fchips{flex:1;margin-top:0;}
   .fchips{display:flex;flex-wrap:wrap;gap:7px;margin-top:6px;}
+  .fsec-clear{border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:2px;}
+  .fsec-clear .meta-btn{width:100%;}
   .fchip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted);cursor:pointer;user-select:none;}
   .fchip .dot{width:8px;height:8px;border-radius:50%;}
   .fchip.on{color:#fff;border-color:transparent;}
@@ -191,13 +193,16 @@
      매트릭스의 「담당자 미정」=앰버 · 「부서 완료」=민트 와 겹쳐서, 한 행에 같은 색이 두 뜻으로 나왔다.
      끝난 킥오프는 조치가 필요 없으니 외칠 이유도 없다. */
   .kf-col{ width:var(--kfw); flex:0 0 var(--kfw); height:22px; display:inline-flex; align-items:center;
-     justify-content:center; font-size:10.5px; font-weight:800; letter-spacing:-.3px; border-radius:6px;
+     justify-content:center; font-size:11px; font-weight:800; letter-spacing:-.3px; border-radius:6px;
      border:1.5px solid transparent; background:transparent; color:var(--muted); cursor:pointer;
      user-select:none; margin-right:9px; white-space:nowrap; overflow:hidden; box-sizing:border-box; }
-  .kf-col.k-wait{ border-style:dashed; border-color:rgba(255,255,255,.22); color:rgba(255,255,255,.5); }
+  /* 2026-10-13 2차: 첫 배포는 미완료 외의 세 상태를 너무 눌러 놔서 "색상이 너무 어둡다 / 잘 안 보인다"는 제보.
+     세기 차이는 유지하되 **네 상태 모두 읽히는 선까지** 끌어올린다.
+     순서(강함→약함): 미완료 주황 채움 > 완료 밝은 회색 채움 > 예정 점선 > Skip 글자만. */
+  .kf-col.k-wait{ border-style:dashed; border-color:#8e9bb3; color:#cbd5e1; }
   .kf-col.k-warn{ background:#f97316; border-color:#f97316; color:#fff; }
-  .kf-col.k-ok{ background:rgba(255,255,255,.06); color:rgba(255,255,255,.55); }
-  .kf-col.k-skip{ color:rgba(255,255,255,.16); }
+  .kf-col.k-ok{ background:rgba(160,174,192,.26); border-color:rgba(203,213,225,.34); color:#f1f5f9; }
+  .kf-col.k-skip{ border-style:dotted; border-color:rgba(148,163,184,.42); color:#9fabc4; }
   .kf-col:hover{ box-shadow:inset 0 0 0 1px rgba(255,255,255,.38); }
   .kf-head{ width:var(--kfw); flex:0 0 var(--kfw); margin-right:9px; text-align:center; font-size:10.5px;
      font-weight:800; color:var(--muted); border-bottom:2px solid #a855f7; padding-bottom:2px;
@@ -1842,7 +1847,44 @@ function renderDeptFocus(){
       `<i style="background:${d.color}"></i>${escapeHtml(d.key)}</button>`; }).join("");
 }
 function renderTitle(){ const t=state.title||"본부 마일스톤 관리"; const el=document.getElementById("appTitle"); if(el) el.textContent=t; document.title=t; }
-function render(){ normalizeFocusDept(); renderTitle(); renderDeptFocus(); renderContext(); renderPipeline(); renderLegend(); renderFilter(); renderHead(); renderLeft(); renderBody(); refreshRoadmapIfOpen(); }
+/* ===== 보고 있던 화면(마일스톤 선택·필터) 기억하기 — 2026-10-13 사용자 요청 =====
+   state(공유 데이터)가 아니라 **개인 로컬 설정**이다. 서버로 보내지 않는다.
+   render() 끝에서 저장하되 **직전 값과 같으면 쓰지 않는다** — render 는 데이터가 바뀔 때마다 돌기 때문. */
+const VIEW_KEY="ms_view_v1";
+let _viewSaved="";
+function viewSnapshot(){
+  return JSON.stringify({ ms:[...msFilter], tr:trackFilter, dp:[...deptFilter], st:[...statusFilter],
+    ag:[...assigneeFilter], kf:[...kfFilter], lb:[...labelFilter], q:searchQuery, lt:lateOnly, au:auditOnly });
+}
+function saveView(){ try{ const v=viewSnapshot(); if(v===_viewSaved) return; _viewSaved=v; localStorage.setItem(VIEW_KEY,v); }catch(_){} }
+function loadView(){
+  try{
+    const raw=localStorage.getItem(VIEW_KEY); if(!raw) return;
+    const v=JSON.parse(raw)||{};
+    const fill=(set,arr)=>{ set.clear(); if(Array.isArray(arr)) arr.forEach(x=>{ if(typeof x==="string") set.add(x); }); };
+    fill(msFilter,v.ms); fill(deptFilter,v.dp); fill(statusFilter,v.st);
+    fill(assigneeFilter,v.ag); fill(kfFilter,v.kf); fill(labelFilter,v.lb);
+    if(typeof v.tr==="string" && (TRACKS.includes(v.tr) || v.tr===VIEW_MEMBER)) trackFilter=v.tr;
+    if(typeof v.q==="string") searchQuery=v.q;
+    lateOnly=!!v.lt; auditOnly=!!v.au;
+    _viewSaved=viewSnapshot();
+  }catch(_){}
+}
+/* 필터가 걸린 채로 복원되면 "일감이 왜 이것밖에 없지"가 된다 → 복원 직후 한 번 알려 준다. */
+function noticeRestoredView(){
+  /* 개수는 '필터 (N)' 버튼과 **같은 기준**으로 센다(마일스톤 선택은 상단 탭이라 거기 안 들어간다). */
+  const n=deptFilter.size+statusFilter.size+assigneeFilter.size+kfFilter.size+labelFilter.size
+        + (searchQuery.trim()?1:0) + (lateOnly?1:0) + (auditOnly?1:0);
+  if(!n && !msFilter.size) return;
+  const ms = msFilter.size===1 ? (findMs([...msFilter][0])||{}).name : (msFilter.size?`마일스톤 ${msFilter.size}개`:null);
+  flashNote(`지난번에 보시던 화면을 복원했습니다${ms?` · ${ms}`:""}${n?` · 필터 ${n}개`:""}${n?" — 「필터 ▾ → 모두 해제」로 전체를 볼 수 있습니다.":""}`);
+}
+function clearAllFilters(){
+  deptFilter.clear(); statusFilter.clear(); msFilter.clear(); assigneeFilter.clear();
+  kfFilter.clear(); labelFilter.clear(); searchQuery=""; lateOnly=false; auditOnly=false;
+  setFocusDept("__all"); render();
+}
+function render(){ normalizeFocusDept(); renderTitle(); renderDeptFocus(); renderContext(); renderPipeline(); renderLegend(); renderFilter(); renderHead(); renderLeft(); renderBody(); refreshRoadmapIfOpen(); saveView(); }
 /* 발주 로드맵이 열려 있는 동안 마일스톤이 바뀌면(설정 편집·동기화 수신) 마감 밴드를 다시 그린다.
    편집 팝오버가 떠 있거나 드래그 중이면 건드리지 않는다 — innerHTML 을 갈아끼우면 입력이 날아간다. */
 function refreshRoadmapIfOpen(){
@@ -1993,6 +2035,7 @@ function renderFilter(){
         ? `<span class="lh-label">담당자</span><span class="th-spacer"></span><span class="kf-head ${(kfFilter.size===1&&kfFilter.has("미완료"))?'on':''}" data-kfhead="1" title="킥오프 — 클릭하면 ‘미완료’만 걸러 봅니다">킥오프</span><span class="mx-head">${depsFor("개발").map(d=>`<span class="h ${focusDept===d.key?'on':''}" data-deptfocus="${escapeHtml(d.key)}" style="border-bottom-color:${d.color}" title="${escapeHtml(d.key)}${(d.owners&&d.owners.length)?' · 부서원: '+escapeHtml(d.owners.join(', ')):''} — 클릭하면 이 부서만 보기">${escapeHtml(d.key)}</span>`).join("")}</span><span class="th-right-spacer"></span>`
         : `<button class="lh-label legend-edit" id="deptGridToggle" title="부서 체크 색상 표시/숨김">부서 색상 ${showDeptGrid?'▾':'▸'}</button>${showDeptGrid?`<span class="th-spacer"></span><span class="dept-grid">${depsFor(headTrack()).map(d=>`<span class="dept-slot on" title="${escapeHtml(d.key)}${(d.owners&&d.owners.length)?' · 담당: '+escapeHtml(d.owners.join(', ')):''}"><i style="background:${d.color}"></i></span>`).join("")}</span><span class="th-right-spacer"></span>`:''}` }</div>
      <div class="filter-pop ${filterOpen?'show':''}" id="filterPop">
+       ${cnt?`<div class="fsec fsec-clear"><button class="meta-btn" id="filterClear" title="걸려 있는 필터를 전부 풉니다">✕ 필터 모두 해제 (${cnt})</button></div>`:""}
        <div class="fsec"><span class="lh-label">검색</span><input type="text" id="filterSearch" class="filter-search" placeholder="제목·담당자 단어 검색…" value="${escapeHtml(searchQuery)}"></div>
        <div class="fsec"><span class="lh-label">부서</span><div class="fchips"><span class="fchip all ${allD?'on':''}" data-fd="__all">전체</span>${dchips}</div></div>
        <div class="fsec"><span class="lh-label">상태 점검</span><div class="fchips">`+
@@ -2501,6 +2544,7 @@ leftHead.addEventListener("click", e=>{
   if(fkf){ const k=fkf.dataset.fkf; if(k==="__all")kfFilter.clear(); else kfFilter.has(k)?kfFilter.delete(k):kfFilter.add(k); render(); return; }
   if(fa){ const k=fa.dataset.fa; if(k==="__all")assigneeFilter.clear(); else assigneeFilter.has(k)?assigneeFilter.delete(k):assigneeFilter.add(k); render(); return; }
   if(e.target.closest("[data-flate]")){ lateOnly=!lateOnly; render(); return; }
+  if(e.target.closest("#filterClear")){ clearAllFilters(); return; }
   if(e.target.closest("[data-kfhead]")){          /* 킥오프 머리글 = '미완료만 보기' 토글 */
     const only = kfFilter.size===1 && kfFilter.has("미완료");
     kfFilter.clear(); if(!only) kfFilter.add("미완료");
@@ -4463,10 +4507,11 @@ function checkForceReload(){
 setInterval(checkForceReload,3000);
 const _frb=document.getElementById("forceReloadBtn"); if(_frb) _frb.onclick=triggerForceReload;
 
-loadOpen(); loadDeptGrid(); load();
+loadOpen(); loadDeptGrid(); load(); loadView();
 /* 최초 로드는 이미 최신 코드를 받은 상태이므로 기준선만 설정(불필요한 재로드 방지). 이후 신호 상승분만 감지. */
 if(state && state.forceReloadAt && state.forceReloadAt>reloadSeen){ reloadSeen=state.forceReloadAt; try{ localStorage.setItem(RELOAD_KEY, String(reloadSeen)); }catch(_){} }
 render();
+noticeRestoredView();
 const ni=nearestIndex(); if(ni>3) rightBody.scrollLeft=(ni-3)*DAY_W;
 remote.init();
 
