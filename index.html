@@ -74,7 +74,7 @@
   .status-dot.live b{background:#10b981;}
 
   .wrap{display:flex;height:calc(100% - 50px - 38px);overflow:hidden;}
-  .left{width:var(--left-w);min-width:var(--left-w);background:var(--panel);display:flex;flex-direction:column;overflow:hidden;position:relative;}
+  .wrap > .left{width:var(--left-w);min-width:var(--left-w);background:var(--panel);display:flex;flex-direction:column;overflow:hidden;position:relative;}
   .divider{width:6px;flex:0 0 auto;background:var(--line);cursor:col-resize;}
   .divider:hover,.divider.drag{background:var(--accent);}
   .left-head{height:var(--head-h);display:flex;flex-direction:column;justify-content:center;gap:6px;padding:0 10px;border-bottom:1px solid var(--line);}
@@ -103,7 +103,7 @@
   .mstab.on{color:#fff;border-color:transparent;}
   .mstab.all.on,.mstab[data-mstab="__all"].on{background:var(--accent);color:#fff;}
 
-  .right{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+  .wrap > .right{flex:1;display:flex;flex-direction:column;overflow:hidden;}
   .right-head{height:var(--head-h);overflow:hidden;border-bottom:1px solid var(--line);position:relative;background:var(--panel);}
   .left-body{flex:1;overflow:hidden;}
   .right-body{flex:1;position:relative;overflow:auto;}
@@ -338,8 +338,15 @@
      background:repeating-linear-gradient(115deg, rgba(255,255,255,.26) 0 4px, transparent 4px 9px); }
   /* 일정 창의 '이 부서 작업 완료' 체크 */
   .sd-done{ display:flex; align-items:center; gap:8px; margin-top:12px; font-size:12.5px; font-weight:700; cursor:pointer; }
-  .sd-done input{ width:15px; height:15px; accent-color:#10b981; cursor:pointer; }
-  .sd-done i{ font-style:normal; font-size:11px; font-weight:600; color:var(--muted); }
+  /* ⚠ `.modal label` / `.modal input` 이 같은 특이도(0,1,1)로 뒤에 와서 이겨 버린다.
+     - `.modal input{width:100%}` 때문에 체크박스가 395px 로 늘어나 글자가 오른쪽으로 밀렸고,
+     - `.modal label i{width:9px;height:9px;border-radius:50%}` 때문에 안내 문구가 9px 동그라미로 뭉개졌다.
+     그래서 `.modal label.sd-done …`(0,2,1) 로 특이도를 올려 되돌린다. (2026-10-12 수정) */
+  .sd-done input, .modal label.sd-done input{ width:15px; min-width:15px; height:15px; flex:0 0 auto;
+     padding:0; border-radius:3px; accent-color:#10b981; cursor:pointer; }
+  .sd-done i, .modal label.sd-done i{ width:auto; height:auto; border-radius:0; font-style:normal;
+     font-size:11px; font-weight:600; color:var(--muted); }
+  .modal label.sd-done span{ flex:0 0 auto; white-space:nowrap; }
   .sd-done.off{ opacity:.5; cursor:not-allowed; }
   .sd-done.off input{ cursor:not-allowed; }
   /* 상태(종류) 칩 — 전체 폭 파이프라인 바를 대신해 좌측 헤더 1행에 들어간다(2026-10-07).
@@ -749,8 +756,10 @@
     font-size:9px; font-weight:900; line-height:1; color:var(--bg); letter-spacing:-1px;
     opacity:0; transition:opacity .12s; pointer-events:none; }
   .divider:hover::after{ opacity:.85; }
-  body.gantt-off .left{ width:auto; min-width:0; flex:1 1 auto; }
-  body.gantt-off .right{ display:none; }
+  /* ⚠ 반드시 `.wrap >` 로 한정할 것. .right 는 모달 버튼 묶음(.modal-actions .right)에도 쓰는 이름이라
+     한정을 빼면 타임라인을 접었을 때 **모든 모달의 취소·저장 버튼이 사라진다**(2026-10-12 실제 사고). */
+  body.gantt-off .wrap > .left{ width:auto; min-width:0; flex:1 1 auto; }
+  body.gantt-off .wrap > .right{ display:none; }
   body.gantt-off .divider{ cursor:pointer; background:var(--accent); }
   body.gantt-off .divider::after{ content:"››"; opacity:.9; }
 
@@ -799,7 +808,7 @@
   body{ display:flex; flex-direction:column; }
   .wrap{ flex:1; min-height:0; height:auto; }
   /* 스크롤 영역 높이 제약 복구 + 좌측 Task 목록 직접 스크롤 */
-  .left, .right{ min-height:0; }
+  .wrap > .left, .wrap > .right{ min-height:0; }
   .left-body{ min-height:0; overflow-y:auto; overflow-x:hidden; scrollbar-width:none; }
   .left-body::-webkit-scrollbar{ width:0; height:0; }
   .right-body{ min-height:0; }
@@ -1000,7 +1009,7 @@
   #noticePopup .notice-body{ font-size:14.5px; line-height:1.75; max-height:60vh; }
 
   /* 필터 팝업 — 좌측 패널 밖으로 넓게 펼침 */
-  .left{ overflow:visible; }
+  .wrap > .left{ overflow:visible; }
   .filter-pop{ width:560px; right:auto; max-width:calc(100vw - 40px); max-height:72vh; border-radius:14px; box-shadow:0 18px 48px rgba(0,0,0,.5); }
   /* 부서명이 잘리지 않도록 */
   .dm-name{ flex:0 0 auto; min-width:78px; overflow:visible; text-overflow:clip; }
