@@ -507,6 +507,11 @@
   .dur{font-size:12px;color:#7fe3c0;font-weight:700;margin-top:10px;}
   .pickgrid{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;}
   .pickgrid .dept-chip{font-size:12.5px;padding:6px 12px;}
+  /* 담당자 검색 (2026-10-14) — 부서원이 20명을 넘으면 칩을 눈으로 훑기 어렵다는 제보 */
+  .modal input.asg-search{ margin-top:2px; padding:7px 11px; font-size:12.5px; }
+  .asg-count{ font-weight:700; color:var(--dim); font-size:10.5px; margin-left:2px; }
+  .pickgrid .dept-chip.hit b{ color:#fff; font-weight:900; }
+  .asg-none{ font-size:12px; color:var(--muted); padding:4px 2px; }
   .linkrow{color:#ff7a7a;background:none;border:0;font-size:12px;cursor:pointer;}
   .linkrow.neutral{color:var(--muted);}
   .linkrow.neutral:hover{color:var(--text);}
@@ -1236,7 +1241,9 @@
       <label>시작일 (영업일로 자동 보정)</label><input type="date" id="schedStart" />
       <label>종료일</label><input type="date" id="schedEnd" />
       <div class="dur" id="schedDur"></div>
-      <label>담당자 (이 부서)</label><div class="pickgrid" id="schedAssignees"></div>
+      <label>담당자 (이 부서) <span class="asg-count" id="schedAsgCount"></span></label>
+      <input type="text" id="schedAsgSearch" class="asg-search" placeholder="이름 검색 — 초성도 됩니다 (예: ㄱㅎㄱ)" autocomplete="off" spellcheck="false">
+      <div class="pickgrid" id="schedAssignees"></div>
       <label class="sd-done" id="schedDoneRow"><input type="checkbox" id="schedDone" /><span>이 부서 작업 완료</span><i id="schedDoneHint"></i></label>
       <div class="modal-actions">
         <button class="linkrow" id="schedRemove" title="이 Task에서 이 부서를 아예 빼냅니다 (일정·담당자도 함께 사라집니다)">✕ 이 Task에서 부서 빼기</button>
@@ -2971,15 +2978,45 @@ document.getElementById("deptAddNew").onclick=()=>{ const name=document.getEleme
 
 /* 부서별 담당자 헬퍼 */
 function taskAssignees(t){ const s=new Set(); activeDepts(t).forEach(d=>{ const seg=t.depts[d.key]; ((seg&&seg.assignees)||[]).forEach(n=>s.add(n)); }); return [...s]; }
+/* ===== 담당자 고르기 — 이름순 정렬 + 검색 (2026-10-14) =====
+   사용자 제보: "담당자 찾기가 수월하지 않습니다. 검색 기능 + 이름순으로 고려해주세요".
+   조립 부서처럼 20명이 넘으면 등록 순서대로 깔린 칩을 눈으로 훑는 게 사실상 불가능하다. */
+const _CHO=["ㄱ","ㄲ","ㄴ","ㄷ","ㄸ","ㄹ","ㅁ","ㅂ","ㅃ","ㅅ","ㅆ","ㅇ","ㅈ","ㅉ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
+/* 한글 음절 → 초성. "김현근" → "ㄱㅎㄱ". 한글이 아니면 그대로 둔다(CHIBA ERISA 같은 이름 대비). */
+function choseong(v){ return [...String(v||"")].map(ch=>{ const c=ch.charCodeAt(0)-0xAC00;
+  return (c>=0 && c<11172) ? _CHO[Math.floor(c/588)] : ch; }).join(""); }
+function nameHit(name, q){
+  if(!q) return true;
+  const n=String(name||""), lq=q.toLowerCase();
+  return n.toLowerCase().includes(lq) || choseong(n).toLowerCase().includes(lq);
+}
+let asgQuery="";                      /* 담당자 검색어 — 모달을 열 때마다 비운다(뷰 상태, 저장 안 함) */
+function sortNames(arr){ return [...arr].sort((a,b)=>String(a).localeCompare(String(b),"ko")); }
 function deptAssigneeChips(t, key){ const dept=state.departments.find(d=>d.key===key); const roster=(dept&&dept.owners)||[]; const seg=t.depts[key]; const sel=new Set((seg&&seg.assignees)||[]);
   if(!roster.length) return `<span class="dm-empty">이 부서에 등록된 인원이 없습니다 (부서 관리에서 추가).</span>`;
+  /* 이미 고른 사람은 검색어와 상관없이 **항상 남긴다** — 안 그러면 검색 중에 해제할 수가 없다. */
+  const keep=n=>sel.has(n)||nameHit(n,asgQuery);
   const chip=n=>`<span class="dept-chip ${sel.has(n)?'on':''}" data-aassign="${escapeHtml(key)}" data-aname="${escapeHtml(n)}">${sel.has(n)?'✓ ':''}${escapeHtml(n)}</span>`;
   const subs=(dept.subgroups||[]), mg=(dept.memberGroup||{});
-  if(subs.length){   // 기획: 소속별로 구분해 표시
+  let html;
+  if(subs.length){   // 기획: 소속별로 구분해 표시 (소속 안에서 이름순)
     const sec=(label,mem)=> mem.length ? `<div class="da-subsec"><div class="da-sub-h">${escapeHtml(label)}</div><div class="da-subchips">${mem.map(chip).join("")}</div></div>` : '';
-    return subs.map(g=>sec(g, roster.filter(n=>mg[n]===g))).join("") + sec("소속 없음", roster.filter(n=>!subs.includes(mg[n])));
+    html = subs.map(g=>sec(g, sortNames(roster.filter(n=>mg[n]===g && keep(n))))).join("")
+         + sec("소속 없음", sortNames(roster.filter(n=>!subs.includes(mg[n]) && keep(n))));
+  } else {
+    html = sortNames(roster.filter(keep)).map(chip).join("");
   }
-  return roster.map(chip).join(""); }
+  /* 검색어에 맞는 사람이 없을 때. 고른 사람 칩은 남아 있으므로 "0건인데 칩이 보인다"가 헷갈리지 않게 덧붙인다. */
+  if(asgQuery && !roster.some(n=>nameHit(n,asgQuery)))
+    html = `<span class="asg-none">‘${escapeHtml(asgQuery)}’ 와 맞는 이름이 없습니다.${sel.size?" (고른 사람만 표시 중)":""}</span>` + html;
+  return html; }
+/* 검색칸 옆 '3 / 21명' 표시 */
+function syncAsgCount(key){
+  const el=document.getElementById("schedAsgCount"); if(!el) return;
+  const dept=state.departments.find(d=>d.key===key), roster=(dept&&dept.owners)||[];
+  const shown=roster.filter(n=>nameHit(n,asgQuery)).length;
+  el.textContent = roster.length ? (asgQuery ? `· ${shown} / ${roster.length}명` : `· ${roster.length}명`) : "";
+}
 function toggleDeptAssignee(t, key, name){ const seg=t.depts[key]; if(!seg) return; if(!Array.isArray(seg.assignees)) seg.assignees=[]; const i=seg.assignees.indexOf(name); if(i>=0) seg.assignees.splice(i,1); else seg.assignees.push(name); }
 
 function fillTaskMs(track, keep){ const cur=keep||taskMs.value; taskMs.innerHTML=msFor(track).map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join(""); if(cur && msFor(track).some(m=>m.id===cur)) taskMs.value=cur; }
@@ -3038,7 +3075,7 @@ function addTask(){ const name=taskInput.value.trim(); if(!name) return;
   if(_off) flashNote(`새 Task 가 필터에 가려져 있어서 ${_off} 필터를 풀었습니다.`);
   openDeptModal(tk.id); }
 
-function openDeptModal(tid){ editing={tid}; const t=findTask(tid);
+function openDeptModal(tid){ editing={tid}; asgQuery=""; const t=findTask(tid);
   document.getElementById("deptModalSub").textContent=t.name;
   document.getElementById("deptPickGrid").innerHTML=taskDeps(t).map(d=>{ const on=t.depts[d.key]&&t.depts[d.key].on;
     return `<span class="dept-chip ${on?'on':''}" style="${on?'background:'+d.color:''}" data-pick="${d.key}"><span class="swatch" style="background:${on?'#fff':d.color}"></span>${d.key}</span>`; }).join("");
@@ -3194,7 +3231,9 @@ function openSchedModal(tid,dep,justOn){ editing={tid,dep,justOn:!!justOn}; cons
   sIn.min=eIn.min=ymd(WORKDAYS[0]);
   { const _mx=new Date(WORKDAYS[N-1]); _mx.setDate(_mx.getDate()+TL_MAX_EXTRA_DAYS); sIn.max=eIn.max=ymd(_mx); }
   sIn.value=ymd(dateOf(seg.start)); eIn.value=ymd(dateOf(seg.end));
+  asgQuery=""; { const q=document.getElementById("schedAsgSearch"); if(q) q.value=""; }
   document.getElementById("schedAssignees").innerHTML=deptAssigneeChips(t,dep);
+  syncAsgCount(dep);
   syncSchedDone();
   updateSchedDur(); schedModal.classList.add("show"); }
 /* 담당자가 없으면 완료 체크를 막는다 — 누가 끝냈는지 모르는 완료는 의미가 없다(2026-10-07 설계). */
@@ -3210,9 +3249,20 @@ function syncSchedDone(){
 document.getElementById("schedDone").addEventListener("change", e=>{
   const t=findTask(editing.tid), seg=t&&t.depts[editing.dep]; if(!seg) return;
   seg.done=e.target.checked; save(); render(); });
+document.getElementById("schedAsgSearch").addEventListener("input", e=>{
+  asgQuery=(e.target.value||"").trim();
+  const t=findTask(editing&&editing.tid); if(!t||!editing.dep) return;
+  document.getElementById("schedAssignees").innerHTML=deptAssigneeChips(t, editing.dep);
+  syncAsgCount(editing.dep);
+});
+/* 검색칸에서 Esc = 검색어 지우기. (이 앱은 Esc 로 모달을 닫지 않는다 — 닫기는 취소 버튼·바깥 클릭) */
+document.getElementById("schedAsgSearch").addEventListener("keydown", e=>{
+  if(e.key==="Escape" && asgQuery){ e.stopPropagation(); e.preventDefault();
+    e.target.value=""; e.target.dispatchEvent(new Event("input",{bubbles:true})); }
+});
 document.getElementById("schedAssignees").addEventListener("click",e=>{ const c=e.target.closest("[data-aassign]"); if(!c) return;
   const t=findTask(editing.tid); toggleDeptAssignee(t, editing.dep, c.dataset.aname); save();
-  document.getElementById("schedAssignees").innerHTML=deptAssigneeChips(t, editing.dep); syncSchedDone(); render(); });
+  document.getElementById("schedAssignees").innerHTML=deptAssigneeChips(t, editing.dep); syncAsgCount(editing.dep); syncSchedDone(); render(); });
 function updateSchedDur(){ const si=nearestWorkdayIndex(document.getElementById("schedStart").value); let ei=nearestWorkdayIndex(document.getElementById("schedEnd").value); if(ei<si) ei=si;
   const hn=holidaysIn(si,ei);
   document.getElementById("schedDur").innerHTML=`기간: ${ei-si+1} 영업일 (${fmt(dateOf(si))} ~ ${fmt(dateOf(ei))})`+
