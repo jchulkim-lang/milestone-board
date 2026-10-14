@@ -109,6 +109,74 @@
   .wrap > .right{flex:1;display:flex;flex-direction:column;overflow:hidden;}
   .right-head{height:var(--head-h);overflow:hidden;border-bottom:1px solid var(--line);position:relative;background:var(--panel);}
   .left-body{flex:1;overflow:hidden;}
+  /* === 좌측 교체 슬롯 (2026-10-14) ===
+     가운데(킥오프+담당자 매트릭스) 자리를 모드에 따라 갈아 끼운다.
+     · dept  = 지금 그대로 (행마다 7칸)
+     · trello= 가운데가 통째로 '선택한 Task 1건'의 카드 패널이 된다 → body.slot-trello
+     Task 이름(좌)과 상태·삭제(우)는 **어느 모드에서도 유지**한다. 우측 간트는 건드리지 않는다. */
+  .left-main{flex:1 1 0;min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
+  /* .left 는 평소 세로(머리글/목록) 스택이다. 슬롯이 켜질 때만 **가로**로 바꿔 옆에 세운다. */
+  body.slot-trello .wrap > .left{flex-direction:row;}
+  .slot-detail{display:none;}
+  body.slot-trello .slot-detail{display:flex;flex:0 0 var(--slotw,430px);width:var(--slotw,430px);
+     min-width:260px;border-left:1px solid var(--line);background:#1a2030;position:relative;overflow:hidden;}
+  .slot-grip{position:absolute;left:0;top:0;bottom:0;width:6px;cursor:col-resize;z-index:3;}
+  .slot-grip:hover{background:var(--accent);opacity:.5;}
+  .slot-in{flex:1;overflow:auto;padding:12px 14px 20px 16px;}
+  .slot-pick{display:inline-flex;align-items:center;gap:5px;background:var(--panel2);border:1px solid var(--line);
+     color:var(--muted);border-radius:7px;padding:3px 10px;font-size:10.5px;font-weight:800;cursor:pointer;
+     white-space:nowrap;font-family:inherit;flex:0 0 auto;}
+  .slot-pick:hover{border-color:var(--accent);color:var(--text);}
+  .slot-pick.on{border-color:#1868DB;color:#9dc2ff;}
+  .slot-head{flex:1 1 0;min-width:0;display:flex;align-items:center;gap:8px;font-size:10px;font-weight:800;
+     color:#9dc2ff;margin-left:10px;overflow:hidden;white-space:nowrap;}
+  /* 카드 패널 내부 */
+  .sc-t{font-size:13.5px;font-weight:800;margin:0 0 3px;line-height:1.4;}
+  .sc-sub{font-size:10px;color:var(--muted);display:flex;align-items:center;flex-wrap:wrap;gap:6px;}
+  .sc-ro{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:700;color:var(--dim);
+     border:1px dashed var(--line);border-radius:5px;padding:1px 7px;}
+  .sc-meta{display:flex;flex-wrap:wrap;gap:5px;margin:9px 0 2px;}
+  .sc-lab{font-size:9.5px;font-weight:800;border-radius:4px;padding:1px 7px;color:#fff;}
+  .sc-who{font-size:10px;font-weight:700;background:var(--panel2);border:1px solid var(--line);
+     border-radius:999px;padding:1px 8px;color:#cbd5e1;}
+  .sc-due{font-size:10px;font-weight:800;border-radius:4px;padding:1px 7px;background:rgba(0,0,0,.42);color:#e2e8f0;}
+  .sc-due.over{background:#ef4444;color:#fff;} .sc-due.soon{background:#fbbf24;color:#1a1200;}
+  .sc-due.ok{background:rgba(52,211,153,.18);color:#86efac;}
+  .sc-sec{margin:14px 0 0;}
+  .sc-h{font-size:10px;font-weight:800;color:var(--muted);margin-bottom:5px;display:flex;align-items:center;gap:7px;}
+  .sc-desc{font-size:11.5px;color:#cbd5e1;background:#151a28;border:1px solid var(--line);border-radius:7px;
+     padding:9px 11px;white-space:pre-wrap;word-break:break-word;line-height:1.65;}
+  .sc-bar{height:5px;background:#2a3246;border-radius:3px;overflow:hidden;flex:1;}
+  .sc-bar i{display:block;height:100%;background:#34d399;}
+  .sc-cl{font-size:10px;font-weight:800;color:var(--muted);margin:9px 0 3px;}
+  .sc-ck{display:flex;align-items:center;gap:7px;font-size:11.5px;padding:3px 0;color:#dbe2f0;}
+  .sc-ck .b{width:12px;height:12px;border-radius:3px;border:1.5px solid #6b7694;flex:0 0 auto;font-size:9px;
+     text-align:center;line-height:10px;}
+  .sc-ck.d .b{background:#34d399;border-color:#34d399;color:#06281c;}
+  .sc-ck.d .x{color:var(--dim);text-decoration:line-through;}
+  .sc-ck .x{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .sc-mini{font-size:9.5px;font-weight:800;color:var(--muted);background:var(--panel2);border-radius:4px;
+     padding:0 5px;margin-left:auto;flex:0 0 auto;}
+  .sc-mini.no{color:#fca5a5;background:rgba(239,68,68,.18);}
+  .sc-cm{font-size:11.5px;background:#151a28;border:1px solid var(--line);border-radius:7px;padding:7px 10px;
+     margin:5px 0;color:#cbd5e1;white-space:pre-wrap;word-break:break-word;}
+  .sc-cm b{color:#fff;font-size:11px;} .sc-cm i{font-style:normal;color:var(--dim);font-size:10px;margin-left:5px;}
+  .sc-open{display:inline-flex;align-items:center;gap:5px;background:#1868DB;color:#fff;border-radius:6px;
+     padding:5px 12px;font-size:10.5px;font-weight:800;margin-top:13px;text-decoration:none;}
+  .sc-rf{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:6px;
+     padding:2px 8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;margin-left:auto;}
+  .sc-rf:hover{border-color:var(--accent);color:var(--text);}
+  .sc-empty{color:var(--dim);font-size:11.5px;text-align:center;padding:48px 10px;line-height:1.95;}
+  .sc-empty b{color:#9dc2ff;font-weight:700;}
+  .sc-err{color:#fca5a5;font-size:11.5px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.35);
+     border-radius:7px;padding:9px 11px;}
+  /* 슬롯이 켜지면 목록 폭이 줄어 헤더 버튼이 2줄로 깨진다 → 한 줄 유지 + 가로 스크롤(스크롤바 숨김).
+     상단 바에서 쓰던 것과 같은 처리다. [[layout-density]] */
+  body.slot-trello .lh-row{ overflow-x:auto; overflow-y:hidden; scrollbar-width:none; }
+  body.slot-trello .lh-row::-webkit-scrollbar{ display:none; }
+  body.slot-trello .lh-row > *{ flex-shrink:0; white-space:nowrap; }
+  body.slot-trello .kf-col, body.slot-trello .dept-inline, body.slot-trello .dept-grid,
+  body.slot-trello .mx-head, body.slot-trello .kf-head, body.slot-trello .th-spacer{display:none !important;}
   .right-body{flex:1;position:relative;overflow:auto;}
 
   /* 상태 그룹 헤더 */
@@ -1180,8 +1248,13 @@
 
   <div class="wrap">
     <div class="left scrollbar">
-      <div class="left-head" id="leftHead"></div>
-      <div class="left-body scrollbar" id="leftBody"></div>
+      <!-- 좌측은 [목록][교체 슬롯] 두 칸이다. 슬롯은 '상세' 모드에서만 보인다 (2026-10-14).
+           left-head / left-body 가 .left 의 직계였으나, 슬롯을 옆에 세우려고 left-main 으로 한 번 감쌌다. -->
+      <div class="left-main">
+        <div class="left-head" id="leftHead"></div>
+        <div class="left-body scrollbar" id="leftBody"></div>
+      </div>
+      <div class="slot-detail" id="slotDetail"><div class="slot-grip" id="slotGrip" title="드래그하여 폭 조절"></div><div class="slot-in" id="slotIn"></div></div>
     </div>
     <div class="divider" id="divider" title="드래그하여 폭 조절"></div>
     <div class="right">
@@ -1892,7 +1965,7 @@ function clearAllFilters(){
   kfFilter.clear(); labelFilter.clear(); searchQuery=""; lateOnly=false; auditOnly=false;
   setFocusDept("__all"); render();
 }
-function render(){ normalizeFocusDept(); renderTitle(); renderDeptFocus(); renderContext(); renderPipeline(); renderLegend(); renderFilter(); renderHead(); renderLeft(); renderBody(); refreshRoadmapIfOpen(); saveView(); }
+function render(){ normalizeFocusDept(); renderTitle(); renderDeptFocus(); renderContext(); renderPipeline(); renderLegend(); renderFilter(); renderHead(); renderLeft(); renderBody(); refreshRoadmapIfOpen(); saveView(); if(slotActive()) renderSlot(); }
 /* 발주 로드맵이 열려 있는 동안 마일스톤이 바뀌면(설정 편집·동기화 수신) 마감 밴드를 다시 그린다.
    편집 팝오버가 떠 있거나 드래그 중이면 건드리지 않는다 — innerHTML 을 갈아끼우면 입력이 날아간다. */
 function refreshRoadmapIfOpen(){
@@ -2040,8 +2113,8 @@ function renderFilter(){
        <button class="filter-btn ${cnt?'active':''}" id="filterBtn">필터${cnt?' ('+cnt+')':''} ▾</button>
      </div>
      <div class="lh-row dept-head-row">${ headTrack()==="개발"
-        ? `<span class="lh-label">담당자</span><span class="th-spacer"></span><span class="kf-head ${(kfFilter.size===1&&kfFilter.has("미완료"))?'on':''}" data-kfhead="1" title="킥오프 — 클릭하면 ‘미완료’만 걸러 봅니다">킥오프</span><span class="mx-head">${depsFor("개발").map(d=>`<span class="h ${focusDept===d.key?'on':''}" data-deptfocus="${escapeHtml(d.key)}" style="border-bottom-color:${d.color}" title="${escapeHtml(d.key)}${(d.owners&&d.owners.length)?' · 부서원: '+escapeHtml(d.owners.join(', ')):''} — 클릭하면 이 부서만 보기">${escapeHtml(d.key)}</span>`).join("")}</span><span class="th-right-spacer"></span>`
-        : `<button class="lh-label legend-edit" id="deptGridToggle" title="부서 체크 색상 표시/숨김">부서 색상 ${showDeptGrid?'▾':'▸'}</button>${showDeptGrid?`<span class="th-spacer"></span><span class="dept-grid">${depsFor(headTrack()).map(d=>`<span class="dept-slot on" title="${escapeHtml(d.key)}${(d.owners&&d.owners.length)?' · 담당: '+escapeHtml(d.owners.join(', ')):''}"><i style="background:${d.color}"></i></span>`).join("")}</span><span class="th-right-spacer"></span>`:''}` }</div>
+        ? `<button class="slot-pick ${slotActive()?'on':''}" id="slotPick" title="이 영역에 무엇을 볼지 고릅니다">▦ ${escapeHtml(slotOf().label)} ▾</button>${slotActive()?`<span class="slot-head">선택한 Task 1건 · 읽기 전용</span>`:""}<span class="th-spacer"></span><span class="kf-head ${(kfFilter.size===1&&kfFilter.has("미완료"))?'on':''}" data-kfhead="1" title="킥오프 — 클릭하면 ‘미완료’만 걸러 봅니다">킥오프</span><span class="mx-head">${depsFor("개발").map(d=>`<span class="h ${focusDept===d.key?'on':''}" data-deptfocus="${escapeHtml(d.key)}" style="border-bottom-color:${d.color}" title="${escapeHtml(d.key)}${(d.owners&&d.owners.length)?' · 부서원: '+escapeHtml(d.owners.join(', ')):''} — 클릭하면 이 부서만 보기">${escapeHtml(d.key)}</span>`).join("")}</span><span class="th-right-spacer"></span>`
+        : `<button class="slot-pick ${slotActive()?'on':''}" id="slotPick" title="이 영역에 무엇을 볼지 고릅니다">▦ ${escapeHtml(slotOf().label)} ▾</button><button class="lh-label legend-edit" id="deptGridToggle" title="부서 체크 색상 표시/숨김" ${slotActive()?'style="display:none"':''}>부서 색상 ${showDeptGrid?'▾':'▸'}</button>${showDeptGrid?`<span class="th-spacer"></span><span class="dept-grid">${depsFor(headTrack()).map(d=>`<span class="dept-slot on" title="${escapeHtml(d.key)}${(d.owners&&d.owners.length)?' · 담당: '+escapeHtml(d.owners.join(', ')):''}"><i style="background:${d.color}"></i></span>`).join("")}</span><span class="th-right-spacer"></span>`:''}` }</div>
      <div class="filter-pop ${filterOpen?'show':''}" id="filterPop">
        ${cnt?`<div class="fsec fsec-clear"><button class="meta-btn" id="filterClear" title="걸려 있는 필터를 전부 풉니다">✕ 필터 모두 해제 (${cnt})</button></div>`:""}
        <div class="fsec"><span class="lh-label">검색</span><input type="text" id="filterSearch" class="filter-search" placeholder="제목·담당자 단어 검색…" value="${escapeHtml(searchQuery)}"></div>
@@ -2130,6 +2203,27 @@ function deptGridHtml(t){
    클릭: 없음 → 부서 참여 추가(기존 data-deptpick), 미정·이름 → 일정·담당자 창(data-setsched).
    ※ 이름 칸을 눌러 부서가 '해제'되면 담당자가 통째로 날아가므로, 해제는 일정 창의
      「✕ 이 Task에서 부서 빼기」로만 한다(2026-10-07 설계). */
+/* ===== 좌측 교체 슬롯 (2026-10-14) =====
+   가운데(킥오프 + 담당자 매트릭스) 자리를 모드에 따라 갈아 끼운다. 우측 간트는 건드리지 않는다.
+   · "dept"   = 부서별 담당자·일정 (기본값, 지금 화면 그대로)
+   · "trello" = 선택한 Task 1건의 트렐로 카드 (읽기 전용)
+   모드는 **개인 로컬 설정**이다(공유 안 함). 멤버 뷰는 행 구조가 달라 항상 dept 로 본다. */
+const SLOT_KEY="ms_slotmode";
+const SLOT_MODES=[
+  { k:"dept",   label:"부서별 담당자 · 일정", desc:"누가 맡고 언제까지인가 — 지금 화면" },
+  { k:"trello", label:"🔗 트렐로 카드",        desc:"선택한 Task에 연결된 카드 (읽기 전용)" },
+];
+let slotMode="dept";
+try{ const _s=localStorage.getItem(SLOT_KEY); if(_s && SLOT_MODES.some(m=>m.k===_s)) slotMode=_s; }catch(_){}
+const slotOf = () => SLOT_MODES.find(m=>m.k===slotMode) || SLOT_MODES[0];
+/* 멤버 뷰에서는 슬롯을 쓰지 않는다 — 행이 (사람 × 부서) 구조라 매트릭스 자리가 없다. */
+const slotActive = () => !isMemberView() && slotMode!=="dept";
+function applySlotClass(){ document.body.classList.toggle("slot-trello", slotActive()); }
+function setSlotMode(k){
+  slotMode = SLOT_MODES.some(m=>m.k===k) ? k : "dept";
+  try{ localStorage.setItem(SLOT_KEY, slotMode); }catch(_){}
+  applySlotClass(); render(); renderSlot();
+}
 const DT_SOON = 3;                 /* 마감 N영업일 이내면 노랑 (2026-10-13) */
 function deptChipsInline(t){
   if((t.track||"개발")!=="개발") return "";   // 개발 분류 전용 — 타 분류엔 미노출
@@ -2186,13 +2280,14 @@ function taskHeadHtml(t){
   /* 킥오프는 개발 분류에서만 '열'로 뺀다. 아트·전투·네러티브는 담당자 매트릭스 자체가 없어
      (부서 14개) 맞춰 줄 머리글이 없다 → 그쪽은 기존 23px 아이콘을 우측 칸에 그대로 둔다. */
   const _dev=(t.track||"개발")==="개발";
+  const _slot=slotActive();     /* 슬롯이 켜지면 킥오프·매트릭스를 아예 안 그린다 */
   const asg=aps.length?`<span class="asg-badge" title="담당: ${escapeHtml(aps.join(', '))}">👤 ${escapeHtml(aps[0])}${aps.length>1?' +'+(aps.length-1):''}</span>`:'';
   return `<div class="task-head" data-toggleopen="${t.id}">
       <span class="drag-handle" data-drag="${t.id}" title="드래그하여 이동">⠿</span>
       <span class="caret">▶</span>
       <span class="task-info"><select class="prio-sel p${t.priority||0}" data-prio="${t.id}" title="우선순위 선택 (없음 · S · 1~4)">${['','S','1','2','3','4'].map(v=>`<option value="${v}" ${String(t.priority||'')===v?'selected':''}>${v||'–'}</option>`).join('')}</select><span class="ms-tag"><i class="bd" style="background:${ms.color}"></i>${escapeHtml(ms.name)}</span>${labelChipsHtml(t)}<span class="task-name">${escapeHtml(t.name)}</span>${t.mirrorOf?'<span class="mirror-badge" title="아트에서 미러된 Task (아트 수정 시 갱신)">🔗 아트</span>':''}${lateChip}${auBadgeHtml(t)}${t.trelloCardId?`<a class="trello-badge" href="${escapeHtml(trelloUrlOf(t))}" target="_blank" rel="noopener" title="트렐로 카드 열기${t.trelloList?' · 리스트 '+escapeHtml(t.trelloList):''}\n이름은 트렐로가 기준입니다. 보드에서 지워도 트렐로 카드는 남습니다.">${TRELLO_ICON} 동기화</a>`:''}${links}${(t.track||"개발")==="개발"?"":asg}</span>
-      ${_dev?`<span class="kf-col ${kf.cls}" data-kf="${t.id}" title="킥오프: ${escapeHtml(t.kickoff)} — ${escapeHtml(kf.desc||"")} (클릭하여 변경)">${escapeHtml(t.kickoff)}</span>`:""}
-      ${_dev?deptChipsInline(t):`<span class="dept-grid">${deptGridHtml(t)}</span>`}
+      ${(_slot||!_dev)?"":`<span class="kf-col ${kf.cls}" data-kf="${t.id}" title="킥오프: ${escapeHtml(t.kickoff)} — ${escapeHtml(kf.desc||"")} (클릭하여 변경)">${escapeHtml(t.kickoff)}</span>`}
+      ${_slot?"":(_dev?deptChipsInline(t):`<span class="dept-grid">${deptGridHtml(t)}</span>`)}
       <span class="th-right">${_dev?"":`<span class="kf-chip" data-kf="${t.id}" style="border-color:${kf.color};box-shadow:0 0 0 2px ${kf.color}30" title="킥오프: ${t.kickoff} — 클릭하여 선택">${kf.icon}</span>`}
       ${doneChip}<select class="st-sel" data-status="${t.id}" title="${isArt?'종류':'진행 상태'}">${stOpts}</select>
       <span class="task-del" data-del="${t.id}" title="삭제">✕</span></span></div>`;
@@ -2552,6 +2647,7 @@ leftHead.addEventListener("click", e=>{
   if(fkf){ const k=fkf.dataset.fkf; if(k==="__all")kfFilter.clear(); else kfFilter.has(k)?kfFilter.delete(k):kfFilter.add(k); render(); return; }
   if(fa){ const k=fa.dataset.fa; if(k==="__all")assigneeFilter.clear(); else assigneeFilter.has(k)?assigneeFilter.delete(k):assigneeFilter.add(k); render(); return; }
   if(e.target.closest("[data-flate]")){ lateOnly=!lateOnly; render(); return; }
+  { const sp=e.target.closest("#slotPick"); if(sp){ e.stopPropagation(); openSlotPop(sp); return; } }
   if(e.target.closest("#filterClear")){ clearAllFilters(); return; }
   if(e.target.closest("[data-kfhead]")){          /* 킥오프 머리글 = '미완료만 보기' 토글 */
     const only = kfFilter.size===1 && kfFilter.has("미완료");
@@ -3033,6 +3129,136 @@ function openTaskModal(){ taskInput.value=""; { const _p=document.getElementById
 document.getElementById("taskTrack").addEventListener("change", e=>{ fillTaskMs(e.target.value); });
 document.getElementById("taskAddOk").onclick=addTask;
 taskInput.addEventListener("keydown",e=>{ if(e.key==="Enter") addTask(); });
+/* ===== 슬롯: 트렐로 카드 패널 (2026-10-14) =====
+   읽기 전용. 서버가 카드 1장을 **트렐로 호출 1회**로 읽어 준다(/api/trello/card).
+   클릭할 때만 부른다 — 자동 폴링 없음. 같은 Task 를 다시 보면 60초 동안 클라 캐시를 쓴다. */
+const SC_TTL=60000;
+const scCache=new Map();                 // taskId -> { at, res }
+let scFor=null, scBusy=false;
+function scFmt(iso){ if(!iso) return ""; const d=new Date(iso); if(isNaN(d)) return "";
+  return (d.getMonth()+1)+"/"+d.getDate(); }
+function scAgo(iso){ if(!iso) return ""; const ms=Date.now()-new Date(iso).getTime(); if(isNaN(ms)) return "";
+  const m=Math.floor(ms/60000); if(m<1) return "방금"; if(m<60) return m+"분 전";
+  const h=Math.floor(m/60); if(h<24) return h+"시간 전"; return Math.floor(h/24)+"일 전"; }
+const TR_LABEL_COLOR={green:"#22c55e",yellow:"#eab308",orange:"#f97316",red:"#ef4444",purple:"#a855f7",
+  blue:"#3b82f6",sky:"#0ea5e9",lime:"#84cc16",pink:"#ec4899",black:"#475569",null:"#64748b"};
+function scDueCls(iso, done){
+  if(!iso) return ""; if(done) return "ok";
+  const d=stripTime(new Date(iso)).getTime(), t=stripTime(new Date()).getTime();
+  if(d < t) return "over"; if((d-t)/86400000 <= 3) return "soon"; return "";
+}
+function cardHtml(c, t){
+  const lab=(c.labels||[]).filter(l=>l.name||l.color).map(l=>
+    `<span class="sc-lab" style="background:${TR_LABEL_COLOR[l.color]||"#64748b"}">${escapeHtml(l.name||l.color)}</span>`).join("");
+  const who=(c.members||[]).map(n=>`<span class="sc-who">${escapeHtml(n)}</span>`).join("");
+  const due=c.due?`<span class="sc-due ${scDueCls(c.due,c.dueComplete)}">기한 ${scFmt(c.due)}${c.dueComplete?" ✓":""}</span>`:"";
+  const pct=c.checkTotal?Math.round(c.checkDone/c.checkTotal*100):0;
+  const cls=(c.checklists||[]).map(cl=>
+    `<div class="sc-cl">${escapeHtml(cl.name||"체크리스트")}</div>`+
+    (cl.items||[]).map(it=>{
+      const mi = it.member ? `<span class="sc-mini">${escapeHtml(it.member)}${it.due?" · "+scFmt(it.due):""}</span>`
+                           : (it.due?`<span class="sc-mini no">담당 없음 · ${scFmt(it.due)}</span>`:"");
+      return `<div class="sc-ck ${it.done?'d':''}"><span class="b">${it.done?"✓":""}</span><span class="x">${escapeHtml(it.name)}</span>${mi}</div>`;
+    }).join("")).join("");
+  const cm=(c.comments||[]).map(x=>
+    `<div class="sc-cm"><b>${escapeHtml(x.by||"?")}</b><i>${escapeHtml(scAgo(x.at))}</i><br>${escapeHtml(x.text||"")}</div>`).join("");
+  const at=(c.attachments||[]).map(a=>
+    `<a class="lk" href="${escapeHtml(a.url)}" target="_blank" rel="noopener" style="color:#9dc2ff;font-size:11.5px">📎 ${escapeHtml(a.name)}</a>`).join("<br>");
+  return `<div class="sc-t">${escapeHtml(c.name||t.name)}</div>
+    <div class="sc-sub">${c.list?`리스트 <b style="color:#cbd5e1">${escapeHtml(c.list)}</b>`:""}
+      ${c.at?`· 마지막 수정 ${escapeHtml(scAgo(c.at))}`:""}
+      <span class="sc-ro">👁 읽기 전용</span>
+      <button class="sc-rf" id="scRefresh" title="트렐로에서 다시 읽어옵니다">⟳ 새로고침</button></div>
+    ${(lab||who||due)?`<div class="sc-meta">${lab}${due}${who}</div>`:""}
+    ${c.desc?`<div class="sc-sec"><div class="sc-h">설명</div><div class="sc-desc">${escapeHtml(c.desc)}</div></div>`:""}
+    ${c.checkTotal?`<div class="sc-sec"><div class="sc-h">체크리스트 <span class="sc-bar"><i style="width:${pct}%"></i></span>
+       <span style="color:#34d399;font-weight:800">${c.checkDone}/${c.checkTotal}</span></div>${cls}</div>`:""}
+    ${cm?`<div class="sc-sec"><div class="sc-h">댓글 ${c.comments.length}</div>${cm}</div>`:""}
+    ${at?`<div class="sc-sec"><div class="sc-h">첨부 ${c.attachments.length}</div>${at}</div>`:""}
+    <a class="sc-open" href="${escapeHtml(c.url||trelloUrlOf(t)||"#")}" target="_blank" rel="noopener">🔗 트렐로에서 열기 (수정은 여기서)</a>`;
+}
+function slotPaint(html){ const el=document.getElementById("slotIn"); if(el) el.innerHTML=html; }
+function renderSlot(force){
+  if(!slotActive()) return;
+  const t = selectedId && findTask(selectedId);
+  if(!t){ scFor=null; slotPaint(`<div class="sc-empty">좌측에서 Task 를 선택하세요.<br>선택한 Task 에 연결된 트렐로 카드를 여기에 보여 드립니다.</div>`); return; }
+  if(!t.trelloCardId && !trelloUrlOf(t)){
+    scFor=t.id; slotPaint(`<div class="sc-t">${escapeHtml(t.name)}</div>
+      <div class="sc-empty">이 Task 에는 연결된 트렐로 카드가 없습니다.<br><b>Task 편집 → 🔗 연결</b> 에서 카드 주소를 붙여넣으면 여기에 표시됩니다.</div>`); return; }
+  const hit=scCache.get(t.id);
+  if(!force && hit && Date.now()-hit.at < SC_TTL){ scFor=t.id; slotPaint(slotBody(hit.res,t)); return; }
+  scFor=t.id;
+  slotPaint(`<div class="sc-t">${escapeHtml(t.name)}</div><div class="sc-empty">트렐로에서 카드를 읽는 중…</div>`);
+  if(scBusy) return; scBusy=true;
+  (async()=>{
+    const tid=t.id;
+    try{
+      const r=await fetch("/api/trello/card?taskId="+encodeURIComponent(tid), { credentials:"same-origin" });
+      const j=await r.json().catch(()=>({}));
+      const res = r.ok ? j : { error:true, status:r.status, reason:j.reason, msg:j.error };
+      scCache.set(tid,{ at:Date.now(), res });
+      if(scFor===tid && slotActive()) slotPaint(slotBody(res, findTask(tid)||t));
+    }catch(e){
+      if(scFor===tid && slotActive()) slotPaint(`<div class="sc-err">카드를 읽지 못했습니다. 잠시 후 ⟳ 새로고침을 눌러 주세요.</div>`);
+    }finally{ scBusy=false; }
+  })();
+}
+function slotBody(res, t){
+  if(!res) return `<div class="sc-err">카드를 읽지 못했습니다.</div>`;
+  if(res.error){
+    if(res.reason==="not-configured") return `<div class="sc-empty">트렐로가 연결되어 있지 않습니다.<br>관리자가 트렐로 설정을 마치면 여기에 카드가 표시됩니다.</div>`;
+    if(res.status===403) return `<div class="sc-empty">이 화면을 볼 권한이 없습니다.</div>`;
+    return `<div class="sc-err">카드를 읽지 못했습니다${res.status?` (오류 ${res.status})`:""}.<br>⟳ 새로고침을 눌러 다시 시도해 주세요.</div>`;
+  }
+  if(res.linked===false) return `<div class="sc-t">${escapeHtml(t.name)}</div>
+    <div class="sc-empty">이 Task 에는 연결된 트렐로 카드가 없습니다.<br><b>Task 편집 → 🔗 연결</b> 에서 카드 주소를 붙여넣으면 여기에 표시됩니다.</div>`;
+  return cardHtml(res.card||{}, t);
+}
+document.addEventListener("click", e=>{
+  if(e.target.closest("#scRefresh")){ e.stopPropagation(); if(selectedId) scCache.delete(selectedId); renderSlot(true); }
+});
+/* 모드 선택 팝업 — 킥오프 팝업과 같은 구조(컨테이너 CSS 재사용) */
+let slotPopOpen=false;
+function slotPopEl(){ let p=document.getElementById("slotPop");
+  if(!p){ p=document.createElement("div"); p.id="slotPop"; p.className="kf-pop"; document.body.appendChild(p);
+    p.addEventListener("click", ev=>{ const b=ev.target.closest("[data-slotset]"); if(!b) return;
+      ev.stopPropagation(); closeSlotPop(); setSlotMode(b.dataset.slotset); }); }
+  return p; }
+function openSlotPop(anchor){
+  if(slotPopOpen){ closeSlotPop(); return; }
+  const p=slotPopEl();
+  p.innerHTML=`<div class="kf-hd">이 영역에 무엇을 볼까요</div>`+SLOT_MODES.map(m=>{
+    const on=m.k===slotMode;
+    return `<button type="button" class="kf-opt ${on?'on':''}" data-slotset="${m.k}">`+
+      `<span class="kf-tx"><span>${escapeHtml(m.label)}</span><small>${escapeHtml(m.desc)}</small></span>`+
+      `${on?'<span class="kf-chk">●</span>':''}</button>`; }).join("");
+  p.classList.add("show"); slotPopOpen=true;
+  const r=anchor.getBoundingClientRect(), pw=p.offsetWidth, ph=p.offsetHeight;
+  let left=Math.min(r.left, window.innerWidth-pw-8); if(left<8) left=8;
+  let top=r.bottom+6; if(top+ph>window.innerHeight-8) top=Math.max(8, r.top-ph-6);
+  p.style.left=left+"px"; p.style.top=top+"px";
+}
+function closeSlotPop(){ const p=document.getElementById("slotPop"); if(p) p.classList.remove("show"); slotPopOpen=false; }
+document.addEventListener("click", e=>{ if(slotPopOpen && !e.target.closest("#slotPop") && !e.target.closest("#slotPick")) closeSlotPop(); });
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeSlotPop(); });
+window.addEventListener("resize", closeSlotPop);
+/* 패널 폭 드래그 (개인 설정) */
+try{ const _w=localStorage.getItem("ms_slotw"); if(_w) document.documentElement.style.setProperty("--slotw",_w); }catch(_){}
+(function(){
+  const grip=document.getElementById("slotGrip"); if(!grip) return;
+  grip.addEventListener("pointerdown", e=>{
+    e.preventDefault(); grip.setPointerCapture(e.pointerId);
+    const panel=document.getElementById("slotDetail");
+    const startX=e.clientX, startW=panel.getBoundingClientRect().width;
+    const move=ev=>{ let w=startW-(ev.clientX-startX);
+      w=Math.max(280, Math.min(w, Math.round(window.innerWidth*0.6)));
+      document.documentElement.style.setProperty("--slotw", w+"px"); };
+    const up=()=>{ grip.removeEventListener("pointermove",move); grip.removeEventListener("pointerup",up);
+      try{ localStorage.setItem("ms_slotw", getComputedStyle(document.documentElement).getPropertyValue("--slotw").trim()); }catch(_){} };
+    grip.addEventListener("pointermove",move); grip.addEventListener("pointerup",up);
+  });
+})();
+
 /* 짧은 안내 띠 (2026-10-12). alert 와 달리 작업을 안 끊는다. */
 function flashNote(msg){
   let n=document.getElementById("flashNote");
@@ -4589,6 +4815,7 @@ const _frb=document.getElementById("forceReloadBtn"); if(_frb) _frb.onclick=trig
 loadOpen(); loadDeptGrid(); load(); loadView();
 /* 최초 로드는 이미 최신 코드를 받은 상태이므로 기준선만 설정(불필요한 재로드 방지). 이후 신호 상승분만 감지. */
 if(state && state.forceReloadAt && state.forceReloadAt>reloadSeen){ reloadSeen=state.forceReloadAt; try{ localStorage.setItem(RELOAD_KEY, String(reloadSeen)); }catch(_){} }
+applySlotClass();
 render();
 noticeRestoredView();
 const ni=nearestIndex(); if(ni>3) rightBody.scrollLeft=(ni-3)*DAY_W;

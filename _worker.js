@@ -15,7 +15,7 @@ const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 �
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026101402;
+const APP_BUILD = 2026101403;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -193,6 +193,41 @@ async function trelloFetch(env, path, init){
   const txt = await r.text();
   if(!r.ok) throw new Error(`trello ${r.status} ${path.split("?")[0]} :: ${txt.slice(0,180)}`);
   try{ return JSON.parse(txt); }catch(_){ return txt; }
+}
+/* === 카드 상세 읽기 (2026-10-14) — 좌측 슬롯의 「트렐로 카드」 뷰가 쓴다 ===
+   · **읽기 전용.** 트렐로를 고치지 않는다. 수정은 카드 주소로 열어서 한다.
+   · **노출 범위: 전원**(viewer 포함) — 사용자 결정. 좁히려면 아래 TRELLO_CARD_EDITOR_ONLY 만 true 로.
+   · 중첩 파라미터(list/members/checklists/actions/attachments)를 한 번에 붙여 **트렐로 호출 1회**로 끝낸다.
+   · 60초 메모리 캐시. Workers 아이솔레이트가 살아 있는 동안만 유효한 best-effort 다. [[free-tier-budget]] */
+const TRELLO_CARD_EDITOR_ONLY = false;
+const CARD_TTL_MS = 60000;
+const CARD_CACHE = new Map();                       // cardId -> { at, data }
+function cardCacheGet(id){ const e=CARD_CACHE.get(id); if(!e) return null;
+  if(Date.now()-e.at > CARD_TTL_MS){ CARD_CACHE.delete(id); return null; } return e.data; }
+function cardCachePut(id, data){ if(CARD_CACHE.size > 200) CARD_CACHE.clear(); CARD_CACHE.set(id, { at:Date.now(), data }); }
+function shapeCard(c){
+  const mem = {};
+  (c.members||[]).forEach(m=>{ mem[m.id] = m.fullName || m.username || ""; });
+  const checklists = (c.checklists||[]).map(cl=>({
+    name: cl.name||"",
+    items: (cl.checkItems||[]).sort((a,b)=>(a.pos||0)-(b.pos||0)).map(it=>({
+      name: it.name||"", done: it.state==="complete", due: it.due||"",
+      member: mem[it.idMember] || (it.idMember?"(외부)":"") })),
+  }));
+  const total = checklists.reduce((n,cl)=>n+cl.items.length,0);
+  const done  = checklists.reduce((n,cl)=>n+cl.items.filter(i=>i.done).length,0);
+  return {
+    id: c.id, name: c.name||"", desc: c.desc||"", url: c.shortUrl||"",
+    list: (c.list && c.list.name) || "", closed: !!c.closed,
+    due: c.due||"", dueComplete: !!c.dueComplete, at: c.dateLastActivity||"",
+    labels: (c.labels||[]).map(l=>({ name:l.name||"", color:l.color||"" })),
+    members: Object.values(mem).filter(Boolean),
+    checklists, checkDone: done, checkTotal: total,
+    comments: (c.actions||[]).filter(a=>a.type==="commentCard").slice(0,10).map(a=>({
+      by: (a.memberCreator && (a.memberCreator.fullName||a.memberCreator.username)) || "",
+      text: (a.data && a.data.text) || "", at: a.date||"" })),
+    attachments: (c.attachments||[]).map(a=>({ name:a.name||a.url||"", url:a.url||"" })).slice(0,10),
+  };
 }
 /* 웹훅의 idModel 은 짧은 링크(NfAsSWHN)를 받지 않고 24자리 보드 ID만 받는다.
  * 목록·카드 조회는 짧은 링크로도 되므로, 웹훅 등록 때만 실제 ID로 바꿔서 쓴다. */
@@ -630,6 +665,35 @@ async function trelloAudit(env){
            total:Object.values(counts).reduce((a,b)=>a+b,0), truncated: items.length>=AUDIT_MAX_ITEMS,
            counts, items };
 }
+
+  if(p === "/api/trello/card" && request.method === "GET"){
+    if(!trelloReady(env)) return json({ error:"trello not configured", reason:"not-configured" }, 400);
+    if(TRELLO_CARD_EDITOR_ONLY && !canEdit(await effectiveRole(env, user.email)))
+      return json({ error:"forbidden", reason:"edit-not-allowed" }, 403);
+    const taskId = url.searchParams.get("taskId") || "";
+    if(!taskId) return json({ error:"taskId 가 없습니다" }, 400);
+    const row = await env.DB.prepare("SELECT data FROM app_state WHERE id='main'").first();
+    let st={}; try{ st = JSON.parse(row.data); }catch(_){}
+    const t = ((st.tasks)||[]).find(x=>x && x.id===taskId);
+    if(!t) return json({ error:"없는 Task", reason:"no-task" }, 404);
+    const cid = t.trelloCardId || trelloCardKey((t.links&&t.links.trello)||"");
+    if(!cid) return json({ ok:true, linked:false });
+    const hit = cardCacheGet(cid);
+    if(hit) return json({ ok:true, linked:true, cached:true, card:hit });
+    let raw;
+    try{
+      raw = await trelloFetch(env, `/cards/${encodeURIComponent(cid)}?`+
+        `fields=name,desc,due,dueComplete,shortUrl,labels,dateLastActivity,closed`+
+        `&list=true&list_fields=name`+
+        `&members=true&member_fields=fullName,username`+
+        `&checklists=all&checklist_fields=name&checkItem_fields=name,state,due,idMember`+
+        `&actions=commentCard&actions_limit=10`+
+        `&attachments=true&attachment_fields=name,url`);
+    }catch(e){ return json({ error:String(e&&e.message||e), reason:"trello-error" }, 502); }
+    const card = shapeCard(raw);
+    cardCachePut(cid, card);
+    return json({ ok:true, linked:true, card });
+  }
 
 /* Task 1건 ↔ 카드 1장 — 붙여넣은 주소로 연결하거나(url), 이미 연결된 카드를 다시 읽어온다.
      편집 권한이면 누구나. 카드 1장만 읽으므로 요청 부담이 없다. (2026-09-12) */
