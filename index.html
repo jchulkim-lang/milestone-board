@@ -1224,6 +1224,7 @@
   <div class="modal-bg" id="deptModal">
     <div class="modal"><h3>부서 지정 · 담당자 배정</h3><div class="msub" id="deptModalSub"></div>
       <label>참여 부서</label><div class="pickgrid" id="deptPickGrid"></div>
+      <input type="text" id="deptAsgSearch" class="asg-search" placeholder="담당자 이름 검색 — 초성도 됩니다 (예: ㄱㅎㄱ)" autocomplete="off" spellcheck="false">
       <div id="deptAssignArea"></div>
       <div class="modal-actions"><span style="font-size:11px;color:var(--muted)">부서를 켜면 그 부서의 담당자를 고를 수 있어요</span><div class="right"><button class="btn" data-close>완료</button></div></div></div>
   </div>
@@ -2992,10 +2993,13 @@ function nameHit(name, q){
 }
 let asgQuery="";                      /* 담당자 검색어 — 모달을 열 때마다 비운다(뷰 상태, 저장 안 함) */
 function sortNames(arr){ return [...arr].sort((a,b)=>String(a).localeCompare(String(b),"ko")); }
-function deptAssigneeChips(t, key){ const dept=state.departments.find(d=>d.key===key); const roster=(dept&&dept.owners)||[]; const seg=t.depts[key]; const sel=new Set((seg&&seg.assignees)||[]);
+/* keepSel: 고른 사람 칩을 검색어와 무관하게 남길지.
+   · 일정 모달(부서 1개) = true — 안 남기면 검색 중에 해제할 방법이 없다.
+   · 부서 지정 모달(부서 여러 개) = false — 안 그러면 검색과 상관없는 부서 줄이 계속 떠서 더 못 찾는다
+     (거기선 검색어를 지우면 바로 다시 보이므로 해제 경로가 막히지 않는다). */
+function deptAssigneeChips(t, key, keepSel){ const dept=state.departments.find(d=>d.key===key); const roster=(dept&&dept.owners)||[]; const seg=t.depts[key]; const sel=new Set((seg&&seg.assignees)||[]);
   if(!roster.length) return `<span class="dm-empty">이 부서에 등록된 인원이 없습니다 (부서 관리에서 추가).</span>`;
-  /* 이미 고른 사람은 검색어와 상관없이 **항상 남긴다** — 안 그러면 검색 중에 해제할 수가 없다. */
-  const keep=n=>sel.has(n)||nameHit(n,asgQuery);
+  const keep=n=>(keepSel!==false && sel.has(n))||nameHit(n,asgQuery);
   const chip=n=>`<span class="dept-chip ${sel.has(n)?'on':''}" data-aassign="${escapeHtml(key)}" data-aname="${escapeHtml(n)}">${sel.has(n)?'✓ ':''}${escapeHtml(n)}</span>`;
   const subs=(dept.subgroups||[]), mg=(dept.memberGroup||{});
   let html;
@@ -3007,7 +3011,7 @@ function deptAssigneeChips(t, key){ const dept=state.departments.find(d=>d.key==
     html = sortNames(roster.filter(keep)).map(chip).join("");
   }
   /* 검색어에 맞는 사람이 없을 때. 고른 사람 칩은 남아 있으므로 "0건인데 칩이 보인다"가 헷갈리지 않게 덧붙인다. */
-  if(asgQuery && !roster.some(n=>nameHit(n,asgQuery)))
+  if(keepSel!==false && asgQuery && !roster.some(n=>nameHit(n,asgQuery)))
     html = `<span class="asg-none">‘${escapeHtml(asgQuery)}’ 와 맞는 이름이 없습니다.${sel.size?" (고른 사람만 표시 중)":""}</span>` + html;
   return html; }
 /* 검색칸 옆 '3 / 21명' 표시 */
@@ -3075,20 +3079,45 @@ function addTask(){ const name=taskInput.value.trim(); if(!name) return;
   if(_off) flashNote(`새 Task 가 필터에 가려져 있어서 ${_off} 필터를 풀었습니다.`);
   openDeptModal(tk.id); }
 
-function openDeptModal(tid){ editing={tid}; asgQuery=""; const t=findTask(tid);
+/* 이 모달은 **여러 부서를 한 화면에** 띄우므로 검색칸 하나가 전 부서를 가로질러 거른다.
+   검색 중에 '맞는 사람이 하나도 없는 부서 줄'은 통째로 접는다 — 빈 줄만 남으면 더 못 찾는다. (2026-10-14) */
+function deptAssignAreaHtml(t){
+  const act=activeDepts(t);
+  if(!act.length) return "";
+  const rows=act.map(d=>{
+    const chips=deptAssigneeChips(t,d.key,false);
+    if(asgQuery && chips.indexOf("data-aname")<0) return "";
+    return `<div class="da-row"><div class="da-dept"><i style="background:${d.color}"></i>${escapeHtml(d.key)}</div><div class="da-chips">${chips}</div></div>`;
+  }).join("");
+  return `<label style="margin-top:14px">부서별 담당자</label>`+
+    (rows || `<span class="asg-none">‘${escapeHtml(asgQuery)}’ 와 맞는 담당자가 없습니다.</span>`);
+}
+/* keep=true 면 검색어를 유지한다. 부서 칩을 토글할 때마다 이 함수로 다시 그리는데,
+   거기서 검색어를 지우면 "부서 하나 켤 때마다 검색이 풀리는" 꼴이 된다. */
+function openDeptModal(tid, keep){ editing={tid}; if(!keep) asgQuery=""; const t=findTask(tid);
   document.getElementById("deptModalSub").textContent=t.name;
   document.getElementById("deptPickGrid").innerHTML=taskDeps(t).map(d=>{ const on=t.depts[d.key]&&t.depts[d.key].on;
     return `<span class="dept-chip ${on?'on':''}" style="${on?'background:'+d.color:''}" data-pick="${d.key}"><span class="swatch" style="background:${on?'#fff':d.color}"></span>${d.key}</span>`; }).join("");
-  document.getElementById("deptAssignArea").innerHTML = activeDepts(t).length
-    ? `<label style="margin-top:14px">부서별 담당자</label>`+activeDepts(t).map(d=>`<div class="da-row"><div class="da-dept"><i style="background:${d.color}"></i>${d.key}</div><div class="da-chips">${deptAssigneeChips(t,d.key)}</div></div>`).join("")
-    : "";
+  document.getElementById("deptAssignArea").innerHTML = deptAssignAreaHtml(t);
+  { const q=document.getElementById("deptAsgSearch");
+    if(q){ q.value=asgQuery; q.style.display = activeDepts(t).length ? "" : "none"; } }
   deptModal.classList.add("show"); }
+document.getElementById("deptAsgSearch").addEventListener("input", e=>{
+  asgQuery=(e.target.value||"").trim();
+  const t=findTask(editing&&editing.tid); if(!t) return;
+  document.getElementById("deptAssignArea").innerHTML = deptAssignAreaHtml(t);
+});
+/* 검색칸에서 Esc = 검색어 지우기 (이 앱은 Esc 로 모달을 닫지 않는다) */
+document.getElementById("deptAsgSearch").addEventListener("keydown", e=>{
+  if(e.key==="Escape" && asgQuery){ e.stopPropagation(); e.preventDefault();
+    e.target.value=""; e.target.dispatchEvent(new Event("input",{bubbles:true})); }
+});
 document.getElementById("deptPickGrid").addEventListener("click",e=>{ const c=e.target.closest("[data-pick]"); if(!c) return;
   const t=findTask(editing.tid); const k=c.dataset.pick;
   toggleTaskDept(t,k);   // 여기서도 기본 5일 자동 생성 없음 → '일정 미정'으로 추가
-  save(); openDeptModal(editing.tid); render(); });
+  save(); openDeptModal(editing.tid, true); render(); });
 document.getElementById("deptAssignArea").addEventListener("click",e=>{ const c=e.target.closest("[data-aassign]"); if(!c) return;
-  const t=findTask(editing.tid); toggleDeptAssignee(t, c.dataset.aassign, c.dataset.aname); save(); openDeptModal(editing.tid); render(); });
+  const t=findTask(editing.tid); toggleDeptAssignee(t, c.dataset.aassign, c.dataset.aname); save(); openDeptModal(editing.tid, true); render(); });
 
 /* ===== Task 단위 트렐로 연결/동기화 (2026-09-12) =====
  * 예전엔 연결이 '가져오기·웹훅'으로만 생겼다. 이제 카드 주소를 붙여넣고 직접 연결할 수 있다.
