@@ -1985,7 +1985,7 @@ function loadView(){
    · 공유 범위: 마일스톤·분류·부서·상태·담당자·킥오프·라벨·검색어·지연 + **부서 포커스·정렬**.
      테마·분할폭·간트 접힘·슬롯 모드·펼친 Task 는 **넣지 않는다** — 남의 취향을 밀어넣는 쪽이다.
    · `?task=` 가 함께 오면 **task 가 이긴다**(focusTaskFromUrl 이 필터를 전부 비우므로 섞으면 뒤죽박죽). */
-const SHARE_KEYS=["ms","dp","st","ag","kf","lb","tr","q","lt","fd","so"];
+const SHARE_KEYS=["ms","dp","st","ag","kf","lb","tr","q","lt","fd","so","sl","gc"];
 const SORT_MODES=["manual","name-asc","name-desc","prio"];
 function shareQuery(){
   const p=new URLSearchParams();
@@ -1997,6 +1997,8 @@ function shareQuery(){
   if(lateOnly) p.set("lt","1");
   if(focusDept && focusDept!=="__all") p.set("fd", focusDept);
   if(sortMode && sortMode!=="manual") p.set("so", sortMode);
+  if(slotMode && slotMode!=="dept") p.set("sl", slotMode);     // 슬롯 탭 (2026-10-15 추가)
+  [...groupCollapsed].forEach(k=>p.append("gc",k));            // 접어 둔 상태 그룹
   return p.toString();
 }
 function shareUrl(){ const q=shareQuery(); return location.origin+location.pathname+(q?"?"+q:""); }
@@ -2032,6 +2034,12 @@ function applySharedView(q){
   if(fd && !dpOk(fd)) dropped.push("부서 포커스 「"+fd+"」");
   const so=q.get("so")||"";
   sortMode = SORT_MODES.includes(so) ? so : "manual";
+  const sl=q.get("sl")||"";
+  slotMode = SLOT_MODES.some(m=>m.k===sl) ? sl : "dept";
+  /* 그룹 키 = 상태/종류 이름. 사용자가 이름을 바꾸면 없는 키가 되는데, 접힘은 **없어도 화면이
+     멀쩡하므로**(다 펼쳐 보일 뿐) 조용히 버린다 — 안내 바에 적지 않는다. */
+  groupCollapsed.clear();
+  q.getAll("gc").forEach(v=>{ if(v && stOk(v)) groupCollapsed.add(v); });
   return dropped;
 }
 /* ⚠ 순서가 중요하다. 플래그와 백업은 **첫 render() 전**에 세워야 한다.
@@ -2041,7 +2049,7 @@ function applySharedView(q){
 function beginSharedView(){
   _viewShared=true;
   _viewBackup={ v:(function(){ try{ return localStorage.getItem(VIEW_KEY); }catch(_){ return null; } })(),
-                fd:focusDept, so:sortMode };
+                fd:focusDept, so:sortMode, sl:slotMode };
 }
 /* 클라우드 상태가 늦게 오면 유령값 판정이 틀리므로 도착을 기다린다(`?task=` 처리와 같은 재시도 패턴). */
 function enterSharedView(){
@@ -2051,7 +2059,7 @@ function enterSharedView(){
   (function attempt(){
     if(!(state.milestones||[]).length && tries++<20){ setTimeout(attempt,300); return; }
     const dropped=applySharedView(q);
-    normalizeFocusDept(); render();
+    normalizeFocusDept(); applySlotClass(); render();
     showShareBar(dropped);
   })();
   return true;
@@ -2062,9 +2070,10 @@ function showShareBar(dropped){
   const ms = msFilter.size===1 ? ((findMs([...msFilter][0])||{}).name||"") : (msFilter.size?("마일스톤 "+msFilter.size+"개"):"");
   const n = deptFilter.size+statusFilter.size+assigneeFilter.size+kfFilter.size+labelFilter.size
           + (searchQuery.trim()?1:0) + (lateOnly?1:0) + (focusDept!=="__all"?1:0);
+  const extra = (slotMode!=="dept" ? " · "+slotOf().label : "") + (groupCollapsed.size ? " · 접은 그룹 "+groupCollapsed.size : "");
   const drop = (dropped&&dropped.length)
     ? `<span class="sb-sub">지금은 없는 항목 ${dropped.length}개를 제외했습니다 — ${escapeHtml(dropped.slice(0,3).join(", "))}${dropped.length>3?" 외":""}</span>` : "";
-  b.innerHTML = `<span class="sb-txt"><b>공유된 보기</b>로 열었습니다 · ${escapeHtml(trackFilter)}${ms?" · "+escapeHtml(ms):""}${n?" · 조건 "+n+"개":""}`
+  b.innerHTML = `<span class="sb-txt"><b>공유된 보기</b>로 열었습니다 · ${escapeHtml(trackFilter)}${ms?" · "+escapeHtml(ms):""}${n?" · 조건 "+n+"개":""}${escapeHtml(extra)}`
     + `<span class="sb-sub">내 저장된 화면은 그대로 둡니다. 이 창에서는 저장되지 않습니다.</span>${drop}</span>`
     + `<button type="button" class="pri" id="sbKeep" title="이 조건을 내 기본 화면으로 저장합니다">내 보기로 저장</button>`
     + `<button type="button" id="sbUndo" title="링크를 열기 전 내 화면으로 되돌립니다">원래대로</button>`
@@ -2074,7 +2083,8 @@ function showShareBar(dropped){
 function hideShareBar(){ const b=document.getElementById("shareBar"); if(b) b.classList.remove("show"); }
 function keepSharedView(){
   _viewShared=false; _viewSaved="";
-  try{ localStorage.setItem("ms_focusdept", focusDept); localStorage.setItem("ms_sortmode", sortMode); }catch(_){}
+  try{ localStorage.setItem("ms_focusdept", focusDept); localStorage.setItem("ms_sortmode", sortMode);
+       localStorage.setItem(SLOT_KEY, slotMode); }catch(_){}
   saveView(); hideShareBar(); stripShareParams();
   flashNote("이 보기를 내 기본 화면으로 저장했습니다.");
 }
@@ -2083,11 +2093,13 @@ function undoSharedView(){
   _viewShared=false;
   focusDept = bk.fd || "__all";
   sortMode  = SORT_MODES.includes(bk.so) ? bk.so : "manual";
+  slotMode  = SLOT_MODES.some(m=>m.k===bk.sl) ? bk.sl : "dept";
+  groupCollapsed.clear();
   msFilter.clear(); deptFilter.clear(); statusFilter.clear();
   assigneeFilter.clear(); kfFilter.clear(); labelFilter.clear();
   searchQuery=""; lateOnly=false; auditOnly=false; trackFilter="개발";
   try{ if(bk.v!=null) localStorage.setItem(VIEW_KEY,bk.v); }catch(_){}
-  loadView(); normalizeFocusDept(); hideShareBar(); stripShareParams(); render();
+  loadView(); normalizeFocusDept(); applySlotClass(); hideShareBar(); stripShareParams(); render();
   flashNote("링크를 열기 전 화면으로 되돌렸습니다.");
 }
 /* 주소창에 남은 공유 파라미터를 지운다 — 그냥 두면 새로고침 때 또 공유 보기로 들어간다 */
@@ -2380,7 +2392,7 @@ const slotActive = () => !isMemberView() && slotMode!=="dept";
 function applySlotClass(){ document.body.classList.toggle("slot-trello", slotActive()); }
 function setSlotMode(k){
   slotMode = SLOT_MODES.some(m=>m.k===k) ? k : "dept";
-  try{ localStorage.setItem(SLOT_KEY, slotMode); }catch(_){}
+  if(!_viewShared){ try{ localStorage.setItem(SLOT_KEY, slotMode); }catch(_){} }
   applySlotClass(); render(); renderSlot();
 }
 const DT_SOON = 3;                 /* 마감 N영업일 이내면 노랑 (2026-10-13) */
