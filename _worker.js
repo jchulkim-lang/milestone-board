@@ -15,7 +15,7 @@ const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 �
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026101403;
+const APP_BUILD = 2026101501;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -612,6 +612,9 @@ async function handleApi(request, env, url, ctx){
     /* ===== 트렐로 체크리스트 점검 (2026-09-14) =====
  * 보드 단위 엔드포인트 2번이면 전수 검사가 끝난다. 카드마다 부르지 않는다 — 76건이든 300건이든 호출 수가 같다.
  * 4가지만 본다: 기한 지남 / 마일스톤 초과(개발·종료 2단계) / 담당만 있음 / 기한만 있음. */
+/* 2026-10-14 사용자 요청으로 **꺼 둠**. 코드는 남겨 두고 스위치만 내린다.
+   되살리려면 여기와 index.html 의 AUDIT_ON 을 둘 다 true 로. */
+const AUDIT_ON = false;
 const AUDIT_MAX_ITEMS = 300;               // state 비대화 방지 — 이 개수까지만 저장
 const AUDIT_KINDS = ["overdue","overEnd","overDev","noDue","noMember"];
 function auditDay(v){ const s0=String(v||""); return s0 ? s0.slice(0,10) : ""; }   // ISO → YYYY-MM-DD
@@ -754,6 +757,7 @@ async function trelloAudit(env){
 
   /* 체크리스트 점검 스캔 — 편집 권한이면 누구나. 보드 단위 호출 2회. */
   if(p === "/api/trello/audit" && request.method === "POST"){
+    if(!AUDIT_ON) return json({ error:"disabled", reason:"audit-off" }, 410);
     if(!trelloReady(env)) return json({ error:"trello not configured" }, 400);
     if(!canEdit(await effectiveRole(env, user.email))) return json({ error:"forbidden" }, 403);
     let res;

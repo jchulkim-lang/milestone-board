@@ -123,11 +123,15 @@
   .slot-grip{position:absolute;left:0;top:0;bottom:0;width:6px;cursor:col-resize;z-index:3;}
   .slot-grip:hover{background:var(--accent);opacity:.5;}
   .slot-in{flex:1;overflow:auto;padding:12px 14px 20px 16px;}
-  .slot-pick{display:inline-flex;align-items:center;gap:5px;background:var(--panel2);border:1px solid var(--line);
-     color:var(--muted);border-radius:7px;padding:3px 10px;font-size:10.5px;font-weight:800;cursor:pointer;
-     white-space:nowrap;font-family:inherit;flex:0 0 auto;}
-  .slot-pick:hover{border-color:var(--accent);color:var(--text);}
-  .slot-pick.on{border-color:#1868DB;color:#9dc2ff;}
+  /* 2026-10-15: 드롭다운(▾ 팝업) → **세그먼트 탭**. 모드가 둘뿐이라 한 번 더 누르게 할 이유가 없고,
+     지금 무엇을 보고 있는지도 탭이 더 분명하다. 모드를 늘리면 SLOT_MODES 에 추가만 하면 탭도 늘어난다. */
+  .slot-tabs{display:inline-flex;gap:2px;background:var(--bg);border:1px solid var(--line);
+     border-radius:8px;padding:2px;flex:0 0 auto;}
+  .slot-tab{border:0;background:transparent;color:var(--muted);font-family:inherit;font-size:10.5px;
+     font-weight:800;border-radius:6px;padding:3px 11px;cursor:pointer;white-space:nowrap;letter-spacing:-.2px;}
+  .slot-tab:hover{color:var(--text);background:rgba(255,255,255,.05);}
+  .slot-tab.on{background:var(--accent);color:#fff;}
+  .slot-tab.tr.on{background:#1868DB;}
   .slot-head{flex:1 1 0;min-width:0;display:flex;align-items:center;gap:8px;font-size:10px;font-weight:800;
      color:#9dc2ff;margin-left:10px;overflow:hidden;white-space:nowrap;}
   /* 카드 패널 내부 */
@@ -1901,7 +1905,7 @@ function passFilter(t){
     if(!m) return false;
   }
   if(lateOnly && !isLate(t)) return false;
-  if(auditOnly && !auCount(t.id)) return false;
+  if(AUDIT_ON && auditOnly && !auCount(t.id)) return false;   // 점검이 꺼져 있으면 이 필터는 없는 셈 친다
   if(assigneeFilter.size){
     let m=false;
     if(assigneeFilter.has("__unassigned") && taskHasUnassigned(t)) m=true;
@@ -1947,7 +1951,10 @@ function loadView(){
     fill(assigneeFilter,v.ag); fill(kfFilter,v.kf); fill(labelFilter,v.lb);
     if(typeof v.tr==="string" && (TRACKS.includes(v.tr) || v.tr===VIEW_MEMBER)) trackFilter=v.tr;
     if(typeof v.q==="string") searchQuery=v.q;
-    lateOnly=!!v.lt; auditOnly=!!v.au;
+    lateOnly=!!v.lt;
+    /* 점검을 끈 뒤에도 예전에 저장된 au:true 가 남아 있을 수 있다. 그대로 복원하면
+       auCount 가 0 이라 **전 일감이 사라진다**(2026-10-14 실측). 꺼져 있으면 무조건 false. */
+    auditOnly = AUDIT_ON ? !!v.au : false;
     _viewSaved=viewSnapshot();
   }catch(_){}
 }
@@ -2113,15 +2120,15 @@ function renderFilter(){
        <button class="filter-btn ${cnt?'active':''}" id="filterBtn">필터${cnt?' ('+cnt+')':''} ▾</button>
      </div>
      <div class="lh-row dept-head-row">${ headTrack()==="개발"
-        ? `<button class="slot-pick ${slotActive()?'on':''}" id="slotPick" title="이 영역에 무엇을 볼지 고릅니다">▦ ${escapeHtml(slotOf().label)} ▾</button>${slotActive()?`<span class="slot-head">선택한 Task 1건 · 읽기 전용</span>`:""}<span class="th-spacer"></span><span class="kf-head ${(kfFilter.size===1&&kfFilter.has("미완료"))?'on':''}" data-kfhead="1" title="킥오프 — 클릭하면 ‘미완료’만 걸러 봅니다">킥오프</span><span class="mx-head">${depsFor("개발").map(d=>`<span class="h ${focusDept===d.key?'on':''}" data-deptfocus="${escapeHtml(d.key)}" style="border-bottom-color:${d.color}" title="${escapeHtml(d.key)}${(d.owners&&d.owners.length)?' · 부서원: '+escapeHtml(d.owners.join(', ')):''} — 클릭하면 이 부서만 보기">${escapeHtml(d.key)}</span>`).join("")}</span><span class="th-right-spacer"></span>`
-        : `<button class="slot-pick ${slotActive()?'on':''}" id="slotPick" title="이 영역에 무엇을 볼지 고릅니다">▦ ${escapeHtml(slotOf().label)} ▾</button><button class="lh-label legend-edit" id="deptGridToggle" title="부서 체크 색상 표시/숨김" ${slotActive()?'style="display:none"':''}>부서 색상 ${showDeptGrid?'▾':'▸'}</button>${showDeptGrid?`<span class="th-spacer"></span><span class="dept-grid">${depsFor(headTrack()).map(d=>`<span class="dept-slot on" title="${escapeHtml(d.key)}${(d.owners&&d.owners.length)?' · 담당: '+escapeHtml(d.owners.join(', ')):''}"><i style="background:${d.color}"></i></span>`).join("")}</span><span class="th-right-spacer"></span>`:''}` }</div>
+        ? `${slotTabsHtml()}${slotActive()?`<span class="slot-head">선택한 Task 1건 · 읽기 전용</span>`:""}<span class="th-spacer"></span><span class="kf-head ${(kfFilter.size===1&&kfFilter.has("미완료"))?'on':''}" data-kfhead="1" title="킥오프 — 클릭하면 ‘미완료’만 걸러 봅니다">킥오프</span><span class="mx-head">${depsFor("개발").map(d=>`<span class="h ${focusDept===d.key?'on':''}" data-deptfocus="${escapeHtml(d.key)}" style="border-bottom-color:${d.color}" title="${escapeHtml(d.key)}${(d.owners&&d.owners.length)?' · 부서원: '+escapeHtml(d.owners.join(', ')):''} — 클릭하면 이 부서만 보기">${escapeHtml(d.key)}</span>`).join("")}</span><span class="th-right-spacer"></span>`
+        : `${slotTabsHtml()}<button class="lh-label legend-edit" id="deptGridToggle" title="부서 체크 색상 표시/숨김" ${slotActive()?'style="display:none"':''}>부서 색상 ${showDeptGrid?'▾':'▸'}</button>${showDeptGrid?`<span class="th-spacer"></span><span class="dept-grid">${depsFor(headTrack()).map(d=>`<span class="dept-slot on" title="${escapeHtml(d.key)}${(d.owners&&d.owners.length)?' · 담당: '+escapeHtml(d.owners.join(', ')):''}"><i style="background:${d.color}"></i></span>`).join("")}</span><span class="th-right-spacer"></span>`:''}` }</div>
      <div class="filter-pop ${filterOpen?'show':''}" id="filterPop">
        ${cnt?`<div class="fsec fsec-clear"><button class="meta-btn" id="filterClear" title="걸려 있는 필터를 전부 풉니다">✕ 필터 모두 해제 (${cnt})</button></div>`:""}
        <div class="fsec"><span class="lh-label">검색</span><input type="text" id="filterSearch" class="filter-search" placeholder="제목·담당자 단어 검색…" value="${escapeHtml(searchQuery)}"></div>
        <div class="fsec"><span class="lh-label">부서</span><div class="fchips"><span class="fchip all ${allD?'on':''}" data-fd="__all">전체</span>${dchips}</div></div>
        <div class="fsec"><span class="lh-label">상태 점검</span><div class="fchips">`+
          `<span class="fchip late ${lateOnly?'on':''}" data-flate="1" title="부서 일정이 끝났는데 완료가 아닌 일감만">${lateOnly?'✓ ':''}⚠ 지연만 (${state.tasks.filter(isLate).length})</span>`+
-         `<span class="fchip au ${auditOnly?'on':''}" data-fau="1" title="트렐로 체크리스트에 문제가 있는 일감만">${auditOnly?'✓ ':''}🔍 체크리스트 문제 (${state.tasks.filter(t=>auCount(t.id)>0).length})</span>`+
+         (AUDIT_ON?`<span class="fchip au ${auditOnly?'on':''}" data-fau="1" title="트렐로 체크리스트에 문제가 있는 일감만">${auditOnly?'✓ ':''}🔍 체크리스트 문제 (${state.tasks.filter(t=>auCount(t.id)>0).length})</span>`:"")+
        `</div></div>
        <div class="fsec"><span class="lh-label">라벨</span><div class="fchips"><span class="fchip all ${labelFilter.size===0?'on':''}" data-flb="__all">${labelFilter.size===0?'✓ ':''}전체</span>${lbchips}</div></div>
        ${isMemberView()?"":`<div class="fsec"><span class="lh-label">진행 상태</span><div class="fchips"><span class="fchip all ${allS?'on':''}" data-fs="__all">전체</span>${schips}</div></div>
@@ -2216,6 +2223,13 @@ const SLOT_MODES=[
 let slotMode="dept";
 try{ const _s=localStorage.getItem(SLOT_KEY); if(_s && SLOT_MODES.some(m=>m.k===_s)) slotMode=_s; }catch(_){}
 const slotOf = () => SLOT_MODES.find(m=>m.k===slotMode) || SLOT_MODES[0];
+/* 좌측 헤더 2행의 모드 탭. 멤버 뷰에는 슬롯 자체가 없으므로 탭도 안 그린다. */
+function slotTabsHtml(){
+  if(isMemberView()) return "";
+  return `<span class="slot-tabs">`+SLOT_MODES.map(m=>
+    `<button type="button" class="slot-tab ${m.k==="trello"?"tr":""} ${slotMode===m.k?'on':''}" `+
+    `data-slottab="${m.k}" title="${escapeHtml(m.desc)}">${escapeHtml(m.label)}</button>`).join("")+`</span>`;
+}
 /* 멤버 뷰에서는 슬롯을 쓰지 않는다 — 행이 (사람 × 부서) 구조라 매트릭스 자리가 없다. */
 const slotActive = () => !isMemberView() && slotMode!=="dept";
 function applySlotClass(){ document.body.classList.toggle("slot-trello", slotActive()); }
@@ -2647,13 +2661,13 @@ leftHead.addEventListener("click", e=>{
   if(fkf){ const k=fkf.dataset.fkf; if(k==="__all")kfFilter.clear(); else kfFilter.has(k)?kfFilter.delete(k):kfFilter.add(k); render(); return; }
   if(fa){ const k=fa.dataset.fa; if(k==="__all")assigneeFilter.clear(); else assigneeFilter.has(k)?assigneeFilter.delete(k):assigneeFilter.add(k); render(); return; }
   if(e.target.closest("[data-flate]")){ lateOnly=!lateOnly; render(); return; }
-  { const sp=e.target.closest("#slotPick"); if(sp){ e.stopPropagation(); openSlotPop(sp); return; } }
+  { const st=e.target.closest("[data-slottab]"); if(st){ e.stopPropagation(); if(st.dataset.slottab!==slotMode) setSlotMode(st.dataset.slottab); return; } }
   if(e.target.closest("#filterClear")){ clearAllFilters(); return; }
   if(e.target.closest("[data-kfhead]")){          /* 킥오프 머리글 = '미완료만 보기' 토글 */
     const only = kfFilter.size===1 && kfFilter.has("미완료");
     kfFilter.clear(); if(!only) kfFilter.add("미완료");
     render(); return; }
-  if(e.target.closest("[data-fau]")){ auditOnly=!auditOnly; render(); return; }
+  if(e.target.closest("[data-fau]")){ if(!AUDIT_ON) return; auditOnly=!auditOnly; render(); return; }
   const flb=e.target.closest("[data-flb]");
   if(flb){ const k=flb.dataset.flb; if(k==="__all")labelFilter.clear(); else labelFilter.has(k)?labelFilter.delete(k):labelFilter.add(k); render(); return; }
 });
@@ -3217,31 +3231,8 @@ function slotBody(res, t){
 document.addEventListener("click", e=>{
   if(e.target.closest("#scRefresh")){ e.stopPropagation(); if(selectedId) scCache.delete(selectedId); renderSlot(true); }
 });
-/* 모드 선택 팝업 — 킥오프 팝업과 같은 구조(컨테이너 CSS 재사용) */
-let slotPopOpen=false;
-function slotPopEl(){ let p=document.getElementById("slotPop");
-  if(!p){ p=document.createElement("div"); p.id="slotPop"; p.className="kf-pop"; document.body.appendChild(p);
-    p.addEventListener("click", ev=>{ const b=ev.target.closest("[data-slotset]"); if(!b) return;
-      ev.stopPropagation(); closeSlotPop(); setSlotMode(b.dataset.slotset); }); }
-  return p; }
-function openSlotPop(anchor){
-  if(slotPopOpen){ closeSlotPop(); return; }
-  const p=slotPopEl();
-  p.innerHTML=`<div class="kf-hd">이 영역에 무엇을 볼까요</div>`+SLOT_MODES.map(m=>{
-    const on=m.k===slotMode;
-    return `<button type="button" class="kf-opt ${on?'on':''}" data-slotset="${m.k}">`+
-      `<span class="kf-tx"><span>${escapeHtml(m.label)}</span><small>${escapeHtml(m.desc)}</small></span>`+
-      `${on?'<span class="kf-chk">●</span>':''}</button>`; }).join("");
-  p.classList.add("show"); slotPopOpen=true;
-  const r=anchor.getBoundingClientRect(), pw=p.offsetWidth, ph=p.offsetHeight;
-  let left=Math.min(r.left, window.innerWidth-pw-8); if(left<8) left=8;
-  let top=r.bottom+6; if(top+ph>window.innerHeight-8) top=Math.max(8, r.top-ph-6);
-  p.style.left=left+"px"; p.style.top=top+"px";
-}
-function closeSlotPop(){ const p=document.getElementById("slotPop"); if(p) p.classList.remove("show"); slotPopOpen=false; }
-document.addEventListener("click", e=>{ if(slotPopOpen && !e.target.closest("#slotPop") && !e.target.closest("#slotPick")) closeSlotPop(); });
-document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeSlotPop(); });
-window.addEventListener("resize", closeSlotPop);
+/* 모드 선택은 **세그먼트 탭**(.slot-tabs)이다 — 2026-10-15 사용자 요청으로 드롭다운 팝업에서 바꿨다.
+   렌더는 slotTabsHtml(), 클릭은 leftHead 의 [data-slottab] 분기. 팝업 코드는 제거했다. */
 /* 패널 폭 드래그 (개인 설정) */
 try{ const _w=localStorage.getItem("ms_slotw"); if(_w) document.documentElement.style.setProperty("--slotw",_w); }catch(_){}
 (function(){
@@ -4505,9 +4496,16 @@ document.getElementById("spGrid").addEventListener("drop", e=>{
 document.addEventListener("click", e=>{ if(spPopMode && !e.target.closest("#spPop") && !e.target.closest("[data-spitem]") && !e.target.closest("[data-sprowedit]") && !e.target.closest("[data-sprowadd]") && !e.target.closest("[data-spguide]") && !e.target.closest("[data-spsecedit]") && !e.target.closest(".sp-track")) closeSpPop(); });
 document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeSpPop(); });
 
-/* ===== 트렐로 체크리스트 점검 (2026-09-14) =====
- * 체크항목은 Task 보다 한 단계 아래 데이터다. Task 줄에는 **개수 배지 하나만** 붙이고
- * 상세는 이 모달에만 둔다 — 목록에 펼치면 76건이 300줄이 된다(사용자 우려). */
+/* ===== 트렐로 체크리스트 점검 — 2026-10-14 사용자 요청으로 **꺼 둠** =====
+ * "트렐로 체크리스트 점검 기능은 제거해줘. 관련 비주얼 기능들도 off 해줘"
+ * 코드는 **지우지 않고 통째로 남겨 둔다**(되살릴 때 다시 짜지 않으려고).
+ * 되살리려면 아래 AUDIT_ON 을 true 로, `_worker.js` 의 AUDIT_ON 도 같이 true 로 바꾸면 끝.
+ * 끄면 사라지는 것: 하단 바 「🔍 점검」 버튼 · Task 줄 ⚠ 배지 · 필터의 「체크리스트 문제」 칩 · 점검 모달.
+ * `state.trelloAudit` 에 쌓인 데이터는 **건드리지 않는다** — 되살리면 그대로 다시 보인다.
+ *
+ * (원래 설계 메모) 체크항목은 Task 보다 한 단계 아래 데이터다. Task 줄에는 개수 배지 하나만 붙이고
+ * 상세는 모달에만 둔다 — 목록에 펼치면 76건이 300줄이 된다(사용자 우려). */
+const AUDIT_ON = false;
 const AU_KINDS = [
   ["overdue", "⚠ 기한 지남",        "체크항목 기한이 오늘보다 이전인데 미완료", "bad"],
   ["overEnd", "🚩 마일스톤 종료 초과", "체크항목 기한이 마일스톤 종료일 이후",       "bad"],
@@ -4520,12 +4518,13 @@ let auOpen = new Set(["overdue","overEnd","overDev"]); // 펼쳐 둘 섹션
 let auMsFilter = "";                                    // "" = 전체
 let auTaskFilter = "";                                  // Task 배지로 들어왔을 때
 const auditData = () => (state.trelloAudit && typeof state.trelloAudit==="object") ? state.trelloAudit : null;
-const auCount = tid => { const a=auditData(); return (a && a.counts && a.counts[tid]) || 0; };
+const auCount = tid => { if(!AUDIT_ON) return 0; const a=auditData(); return (a && a.counts && a.counts[tid]) || 0; };
 function auSevereFor(tid){
   const a=auditData(); if(!a || !Array.isArray(a.items)) return false;
   return a.items.some(x => x.tid===tid && AU_SEVERE.has(x.kind));
 }
 function auBadgeHtml(t){
+  if(!AUDIT_ON) return "";
   const n = auCount(t.id); if(!n) return "";
   const sev = auSevereFor(t.id);
   const a = auditData();
@@ -4597,7 +4596,7 @@ function renderAuditList(){
   box.innerHTML=html;
 }
 function renderAudit(){ renderAuditScan(); renderAuditList(); }
-function openAudit(taskId){ auTaskFilter=taskId||""; renderAudit(); auditModal.classList.add("show"); }
+function openAudit(taskId){ if(!AUDIT_ON) return; auTaskFilter=taskId||""; renderAudit(); auditModal.classList.add("show"); }
 async function runAuditScan(btn){
   const o=btn?btn.textContent:""; if(btn){ btn.textContent="🔄 스캔 중…"; btn.disabled=true; }
   try{
@@ -4612,6 +4611,12 @@ async function runAuditScan(btn){
   finally{ if(btn){ btn.disabled=false; btn.textContent=o||"🔄 다시 스캔"; } }
 }
 document.getElementById("auditBtn").onclick=()=>openAudit("");
+/* 꺼져 있으면 버튼을 아예 감추고, 예전에 저장된 '체크리스트 문제' 필터도 풀어 준다
+   (ms_view_v1 에 au:true 가 남아 있으면 일감이 0건으로 보인다). */
+if(!AUDIT_ON){
+  const _ab=document.getElementById("auditBtn"); if(_ab) _ab.style.display="none";
+  if(auditOnly){ auditOnly=false; try{ render(); }catch(_){} }
+}
 document.getElementById("auScan").addEventListener("click", e=>{
   if(e.target.closest("#auScanBtn")) return runAuditScan(e.target.closest("#auScanBtn"));
   const m=e.target.closest("[data-aums]"); if(m){ auMsFilter=m.dataset.aums; renderAudit(); return; }
