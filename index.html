@@ -239,6 +239,19 @@
      font-size:12.5px;font-weight:700;color:var(--text);box-shadow:0 12px 32px rgba(0,0,0,.55);
      opacity:0;pointer-events:none;transition:opacity .18s ease, transform .18s ease;}
   .flash-note.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  /* 링크로 들어온 '공유된 보기' 안내 — 토스트와 달리 사용자가 닫을 때까지 남는다(버튼을 눌러야 하므로) */
+  .share-bar{position:fixed;left:50%;bottom:52px;transform:translateX(-50%);z-index:201;display:none;
+     align-items:center;gap:9px;max-width:88vw;background:var(--panel);border:1px solid #6366f1;
+     border-radius:10px;padding:8px 10px 8px 14px;box-shadow:0 12px 32px rgba(0,0,0,.55);}
+  .share-bar.show{display:flex;}
+  .share-bar .sb-txt{font-size:12px;font-weight:700;color:var(--text);line-height:1.45;}
+  .share-bar .sb-txt b{color:#a5b4fc;}
+  .share-bar .sb-sub{display:block;font-size:10.5px;font-weight:600;color:var(--muted);margin-top:2px;}
+  .share-bar button{flex:0 0 auto;background:var(--bg);border:1px solid var(--line);border-radius:6px;
+     color:var(--text);font:inherit;font-size:11px;font-weight:800;padding:5px 9px;cursor:pointer;white-space:nowrap;}
+  .share-bar button:hover{border-color:var(--accent);}
+  .share-bar button.pri{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .share-bar button.x{padding:5px 7px;color:var(--muted);}
   .lm-row{display:flex;align-items:center;gap:7px;padding:6px 0;border-bottom:1px solid var(--grid);}
   .lm-row:last-child{border-bottom:0;}
   .lm-row input[type=color]{width:30px;height:22px;padding:0;border:1px solid var(--line);border-radius:5px;background:transparent;cursor:pointer;flex:0 0 auto;}
@@ -1658,7 +1671,13 @@ let trackFilter="개발";   // 분류 탭(개발/아트) — '전체' 없음
 /* 부서 포커스: "__all" 또는 부서 key. 단일 선택. 개인 로컬 설정(공유 안 함) */
 let focusDept="__all";
 try{ const _fdp=localStorage.getItem("ms_focusdept"); if(_fdp) focusDept=_fdp; }catch(_){}
-function setFocusDept(k){ focusDept=k||"__all"; try{ localStorage.setItem("ms_focusdept", focusDept); }catch(_){} }
+/* 링크(?ms=…)로 들어온 '공유된 보기'인지. true 면 **개인 저장을 일절 건드리지 않는다** —
+   남이 보낸 필터가 내 ms_view_v1 / ms_focusdept / ms_sortmode 를 덮어쓰면
+   다음에 평소처럼 들어와도 남의 화면이 남아 "내 화면이 왜 이래"가 된다(2026-10-15 설계 결정).
+   세션 내내 유지된다. 받는 사람이 「내 보기로 저장」을 누를 때만 해제된다. */
+let _viewShared=false;
+let _viewBackup=null;      // 「원래대로」용 — 공유 보기를 적용하기 **전**의 개인 설정
+function setFocusDept(k){ focusDept=k||"__all"; if(_viewShared) return; try{ localStorage.setItem("ms_focusdept", focusDept); }catch(_){} }
 function normalizeFocusDept(){ if(focusDept!=="__all" && !depsFor(headTrack()).some(d=>d.key===focusDept)) setFocusDept("__all"); }
 const isMiniDept = k => focusDept!=="__all" && k!==focusDept;
 let filterOpen=false;
@@ -1941,7 +1960,7 @@ function viewSnapshot(){
   return JSON.stringify({ ms:[...msFilter], tr:trackFilter, dp:[...deptFilter], st:[...statusFilter],
     ag:[...assigneeFilter], kf:[...kfFilter], lb:[...labelFilter], q:searchQuery, lt:lateOnly, au:auditOnly });
 }
-function saveView(){ try{ const v=viewSnapshot(); if(v===_viewSaved) return; _viewSaved=v; localStorage.setItem(VIEW_KEY,v); }catch(_){} }
+function saveView(){ if(_viewShared) return; try{ const v=viewSnapshot(); if(v===_viewSaved) return; _viewSaved=v; localStorage.setItem(VIEW_KEY,v); }catch(_){} }
 function loadView(){
   try{
     const raw=localStorage.getItem(VIEW_KEY); if(!raw) return;
@@ -1958,6 +1977,131 @@ function loadView(){
     _viewSaved=viewSnapshot();
   }catch(_){}
 }
+/* ===== 보기 공유 (?ms=…&dp=… , 2026-10-15) =====
+   · **읽는 쿼리** 방식. 평소 조합(마일스톤 1개+분류+부서 1~2개)에서 가장 짧고,
+     슬랙에서 무엇을 공유했는지 보이고, 손으로 고칠 수 있다. 서버 변경·추가 요청 0.
+   · 값이 여러 개인 필터는 **같은 이름을 반복**한다(`?dp=기획&dp=서버`). 쉼표로 묶으면
+     사용자가 이름에 쉼표를 넣는 순간(상태 이름은 편집 가능) 깨진다.
+   · 공유 범위: 마일스톤·분류·부서·상태·담당자·킥오프·라벨·검색어·지연 + **부서 포커스·정렬**.
+     테마·분할폭·간트 접힘·슬롯 모드·펼친 Task 는 **넣지 않는다** — 남의 취향을 밀어넣는 쪽이다.
+   · `?task=` 가 함께 오면 **task 가 이긴다**(focusTaskFromUrl 이 필터를 전부 비우므로 섞으면 뒤죽박죽). */
+const SHARE_KEYS=["ms","dp","st","ag","kf","lb","tr","q","lt","fd","so"];
+const SORT_MODES=["manual","name-asc","name-desc","prio"];
+function shareQuery(){
+  const p=new URLSearchParams();
+  const put=(k,set)=>{ [...set].forEach(v=>p.append(k,v)); };
+  put("ms",msFilter); put("dp",deptFilter); put("st",statusFilter);
+  put("ag",assigneeFilter); put("kf",kfFilter); put("lb",labelFilter);
+  p.set("tr", trackFilter);                       // 항상 넣는다 — 안 넣으면 받는 사람이 자기 탭에 그대로 남는다
+  if(searchQuery.trim()) p.set("q", searchQuery.trim());
+  if(lateOnly) p.set("lt","1");
+  if(focusDept && focusDept!=="__all") p.set("fd", focusDept);
+  if(sortMode && sortMode!=="manual") p.set("so", sortMode);
+  return p.toString();
+}
+function shareUrl(){ const q=shareQuery(); return location.origin+location.pathname+(q?"?"+q:""); }
+function sharedParams(){
+  const q=new URLSearchParams(location.search);
+  if(q.has("task")) return null;                  // Task 딥링크가 우선
+  return SHARE_KEYS.some(k=>q.has(k)) ? q : null;
+}
+/* 공유 링크의 값은 **보낸 사람 시점**의 것이다. 그 뒤 마일스톤이 지워지거나 담당자·상태 이름이
+   바뀌면 받는 쪽에서는 아무것도 안 걸려 **일감이 전부 사라진다**(au:true 사고와 같은 계열).
+   그래서 지금 존재하지 않는 값은 **버리고**, 무엇을 버렸는지 알려 준다. */
+function applySharedView(q){
+  const dropped=[];
+  const msOk = v => (state.milestones||[]).some(m=>m&&m.id===v);
+  const dpOk = v => (state.departments||[]).some(d=>d&&d.key===v);
+  const stOk = v => allStatusDefs().some(x=>x.k===v);
+  const agOk = v => v==="__unassigned" || (state.departments||[]).some(d=>(d.owners||[]).includes(v));
+  const kfOk = v => KICKOFFS.some(x=>x.k===v);
+  const lbOk = v => (state.labels||[]).some(l=>l&&l.id===v);
+  const take=(set,key,ok,label)=>{ set.clear();
+    q.getAll(key).forEach(v=>{ v=String(v||""); if(!v) return;
+      if(ok(v)) set.add(v); else dropped.push(label+" 「"+v+"」"); }); };
+  take(msFilter,"ms",msOk,"마일스톤"); take(deptFilter,"dp",dpOk,"부서");
+  take(statusFilter,"st",stOk,"상태");  take(assigneeFilter,"ag",agOk,"담당자");
+  take(kfFilter,"kf",kfOk,"킥오프");    take(labelFilter,"lb",lbOk,"라벨");
+  const tr=q.get("tr")||"";
+  if(tr){ if(TRACKS.includes(tr)||tr===VIEW_MEMBER) trackFilter=tr; else dropped.push("분류 「"+tr+"」"); }
+  searchQuery = q.get("q")||"";
+  lateOnly = q.get("lt")==="1";
+  auditOnly = false;
+  const fd=q.get("fd")||"";
+  focusDept = (fd && dpOk(fd)) ? fd : "__all";
+  if(fd && !dpOk(fd)) dropped.push("부서 포커스 「"+fd+"」");
+  const so=q.get("so")||"";
+  sortMode = SORT_MODES.includes(so) ? so : "manual";
+  return dropped;
+}
+/* ⚠ 순서가 중요하다. 플래그와 백업은 **첫 render() 전**에 세워야 한다.
+   render() 끝에 saveView() 가 있어서, 플래그가 아직 false 면 그 한 번으로
+   사용자의 ms_view_v1 이 빈 보기로 덮어써진다(막으려던 바로 그 사고 — 2026-10-15 실측).
+   그래서 깃발 세우기(beginSharedView)와 적용(enterSharedView)을 나눠 두었다. */
+function beginSharedView(){
+  _viewShared=true;
+  _viewBackup={ v:(function(){ try{ return localStorage.getItem(VIEW_KEY); }catch(_){ return null; } })(),
+                fd:focusDept, so:sortMode };
+}
+/* 클라우드 상태가 늦게 오면 유령값 판정이 틀리므로 도착을 기다린다(`?task=` 처리와 같은 재시도 패턴). */
+function enterSharedView(){
+  const q=sharedParams(); if(!q) return false;
+  if(!_viewShared) beginSharedView();
+  let tries=0;
+  (function attempt(){
+    if(!(state.milestones||[]).length && tries++<20){ setTimeout(attempt,300); return; }
+    const dropped=applySharedView(q);
+    normalizeFocusDept(); render();
+    showShareBar(dropped);
+  })();
+  return true;
+}
+function showShareBar(dropped){
+  let b=document.getElementById("shareBar");
+  if(!b){ b=document.createElement("div"); b.id="shareBar"; b.className="share-bar"; document.body.appendChild(b); }
+  const ms = msFilter.size===1 ? ((findMs([...msFilter][0])||{}).name||"") : (msFilter.size?("마일스톤 "+msFilter.size+"개"):"");
+  const n = deptFilter.size+statusFilter.size+assigneeFilter.size+kfFilter.size+labelFilter.size
+          + (searchQuery.trim()?1:0) + (lateOnly?1:0) + (focusDept!=="__all"?1:0);
+  const drop = (dropped&&dropped.length)
+    ? `<span class="sb-sub">지금은 없는 항목 ${dropped.length}개를 제외했습니다 — ${escapeHtml(dropped.slice(0,3).join(", "))}${dropped.length>3?" 외":""}</span>` : "";
+  b.innerHTML = `<span class="sb-txt"><b>공유된 보기</b>로 열었습니다 · ${escapeHtml(trackFilter)}${ms?" · "+escapeHtml(ms):""}${n?" · 조건 "+n+"개":""}`
+    + `<span class="sb-sub">내 저장된 화면은 그대로 둡니다. 이 창에서는 저장되지 않습니다.</span>${drop}</span>`
+    + `<button type="button" class="pri" id="sbKeep" title="이 조건을 내 기본 화면으로 저장합니다">내 보기로 저장</button>`
+    + `<button type="button" id="sbUndo" title="링크를 열기 전 내 화면으로 되돌립니다">원래대로</button>`
+    + `<button type="button" class="x" id="sbX" title="닫기 (저장하지 않음)">✕</button>`;
+  b.classList.add("show");
+}
+function hideShareBar(){ const b=document.getElementById("shareBar"); if(b) b.classList.remove("show"); }
+function keepSharedView(){
+  _viewShared=false; _viewSaved="";
+  try{ localStorage.setItem("ms_focusdept", focusDept); localStorage.setItem("ms_sortmode", sortMode); }catch(_){}
+  saveView(); hideShareBar(); stripShareParams();
+  flashNote("이 보기를 내 기본 화면으로 저장했습니다.");
+}
+function undoSharedView(){
+  const bk=_viewBackup||{};
+  _viewShared=false;
+  focusDept = bk.fd || "__all";
+  sortMode  = SORT_MODES.includes(bk.so) ? bk.so : "manual";
+  msFilter.clear(); deptFilter.clear(); statusFilter.clear();
+  assigneeFilter.clear(); kfFilter.clear(); labelFilter.clear();
+  searchQuery=""; lateOnly=false; auditOnly=false; trackFilter="개발";
+  try{ if(bk.v!=null) localStorage.setItem(VIEW_KEY,bk.v); }catch(_){}
+  loadView(); normalizeFocusDept(); hideShareBar(); stripShareParams(); render();
+  flashNote("링크를 열기 전 화면으로 되돌렸습니다.");
+}
+/* 주소창에 남은 공유 파라미터를 지운다 — 그냥 두면 새로고침 때 또 공유 보기로 들어간다 */
+function stripShareParams(){
+  try{ history.replaceState(null,"",location.origin+location.pathname); }catch(_){}
+}
+function copyViewLink(btn){
+  const url=shareUrl();
+  const done=()=>{ const b=document.getElementById("shareViewBtn"); if(!b) return;
+    const o=b.textContent; b.textContent="✓ 복사됨"; setTimeout(()=>{ const b2=document.getElementById("shareViewBtn"); if(b2) b2.textContent=o; }, 1500); };
+  if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done).catch(()=>fallbackCopyText(url,done));
+  else fallbackCopyText(url,done);
+}
+
 /* 필터가 걸린 채로 복원되면 "일감이 왜 이것밖에 없지"가 된다 → 복원 직후 한 번 알려 준다. */
 function noticeRestoredView(){
   /* 개수는 '필터 (N)' 버튼과 **같은 기준**으로 센다(마일스톤 선택은 상단 탭이라 거기 안 들어간다). */
@@ -2118,6 +2262,7 @@ function renderFilter(){
        <button class="filter-btn" id="toggleAllBtn" style="margin-left:auto" title="모두 펼침/접기 (개인 화면)">${_allOpen?'⊖ 모두 접기':'⊕ 모두 펼치기'}</button>
        <button class="filter-btn ${sortMode!=='manual'?'active':''}" id="sortBtn" title="정렬 (클릭: 수동 → 이름↑ → 이름↓ → 우선순위)">${sortMode==='name-asc'?'이름 ↑':sortMode==='name-desc'?'이름 ↓':sortMode==='prio'?'우선순위':'↕ 정렬'}</button>
        <button class="filter-btn ${cnt?'active':''}" id="filterBtn">필터${cnt?' ('+cnt+')':''} ▾</button>
+       <button class="filter-btn" id="shareViewBtn" title="지금 보고 있는 조건(마일스톤 · 분류 · 필터 · 부서 포커스 · 정렬)을 링크로 복사합니다. 받는 사람도 로그인이 필요합니다.">🔗 링크</button>
      </div>
      <div class="lh-row dept-head-row">${ headTrack()==="개발"
         ? `${slotTabsHtml()}${slotActive()?`<span class="slot-head">선택한 Task 1건 · 읽기 전용</span>`:""}<span class="th-spacer"></span><span class="kf-head ${(kfFilter.size===1&&kfFilter.has("미완료"))?'on':''}" data-kfhead="1" title="킥오프 — 클릭하면 ‘미완료’만 걸러 봅니다">킥오프</span><span class="mx-head">${depsFor("개발").map(d=>`<span class="h ${focusDept===d.key?'on':''}" data-deptfocus="${escapeHtml(d.key)}" style="border-bottom-color:${d.color}" title="${escapeHtml(d.key)}${(d.owners&&d.owners.length)?' · 부서원: '+escapeHtml(d.owners.join(', ')):''} — 클릭하면 이 부서만 보기">${escapeHtml(d.key)}</span>`).join("")}</span><span class="th-right-spacer"></span>`
@@ -2641,7 +2786,8 @@ leftHead.addEventListener("click", e=>{
   if(stp){ const k=stp.dataset.pstep; statusFilter.has(k)?statusFilter.delete(k):statusFilter.add(k); render(); return; }
   if(e.target.closest("#addTaskBtn")){ openTaskModal(); return; }
   if(e.target.closest("#filterBtn")){ filterOpen=!filterOpen; renderFilter(); return; }
-  if(e.target.closest("#sortBtn")){ sortMode=sortMode==="manual"?"name-asc":sortMode==="name-asc"?"name-desc":sortMode==="name-desc"?"prio":"manual"; try{localStorage.setItem("ms_sortmode",sortMode);}catch(_){}  render(); return; }
+  if(e.target.closest("#sortBtn")){ sortMode=sortMode==="manual"?"name-asc":sortMode==="name-asc"?"name-desc":sortMode==="name-desc"?"prio":"manual"; if(!_viewShared){ try{localStorage.setItem("ms_sortmode",sortMode);}catch(_){} }  render(); return; }
+  if(e.target.closest("#shareViewBtn")){ copyViewLink(); return; }
   if(e.target.closest("#toggleAllBtn") && isMemberView()){
     const ms=[]; memberGroups().forEach(g=>g.members.forEach(m=>ms.push(m)));
     const allOpen=ms.length>0 && ms.every(memOpen);
@@ -4817,12 +4963,15 @@ function checkForceReload(){
 setInterval(checkForceReload,3000);
 const _frb=document.getElementById("forceReloadBtn"); if(_frb) _frb.onclick=triggerForceReload;
 
-loadOpen(); loadDeptGrid(); load(); loadView();
+loadOpen(); loadDeptGrid(); load();
+const _shared = !!sharedParams();
+if(_shared) beginSharedView();    // **render() 보다 먼저** — 아래 주석 참조
+else loadView();                  // 공유 링크면 개인 화면을 먼저 그리지 않는다(깜빡임 방지)
 /* 최초 로드는 이미 최신 코드를 받은 상태이므로 기준선만 설정(불필요한 재로드 방지). 이후 신호 상승분만 감지. */
 if(state && state.forceReloadAt && state.forceReloadAt>reloadSeen){ reloadSeen=state.forceReloadAt; try{ localStorage.setItem(RELOAD_KEY, String(reloadSeen)); }catch(_){} }
 applySlotClass();
 render();
-noticeRestoredView();
+if(_shared) enterSharedView(); else noticeRestoredView();
 const ni=nearestIndex(); if(ni>3) rightBody.scrollLeft=(ni-3)*DAY_W;
 remote.init();
 
@@ -4837,6 +4986,12 @@ function fallbackCopyText(text, done){
   try{ const ta=document.createElement("textarea"); ta.value=text; ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); done&&done(); }
   catch(_){ prompt("아래 주소를 복사해 전달하세요:", text); }
 }
+
+document.addEventListener("click", e=>{
+  if(e.target.closest("#sbKeep")){ keepSharedView(); return; }
+  if(e.target.closest("#sbUndo")){ undoSharedView(); return; }
+  if(e.target.closest("#sbX")){ hideShareBar(); return; }
+});
 
 /* 알림 링크(?task=ID)로 들어오면 해당 Task를 펼치고 강조. 클라우드 동기화 지연 대비 재시도 */
 function focusTaskFromUrl(){
