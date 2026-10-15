@@ -1740,6 +1740,19 @@ function migrate(){
   // '조립' 개발 부서 1회 시드(개발 트랙에만). 삭제 후 재추가 방지 위해 플래그 사용.
   if(!state.holidays || typeof state.holidays!=="object") state.holidays={...HOLIDAY_SEED};   // 공휴일 1회 시드(이후 관리자가 편집)
   if(!state.assembleDeptSeeded){ if(!state.departments.some(d=>d.key==="조립")) state.departments.push({ key:"조립", color:"#14b8a6", tracks:["개발"], owners:[] }); state.assembleDeptSeeded=true; }
+  /* '클라:전투' 1회 시드 (2026-10-15). 사용자 결정:
+     · 기존 '클라' 는 **그대로 둔다** — 데이터를 옮기지 않는다. 새 열은 전부 「없음」으로 시작하고 손으로 지정한다.
+     · **클라 바로 뒤**에 꽂는다. state.departments 배열 순서가 곧 열 순서이고 순서 변경 UI 가 없어서,
+       그냥 push 하면 조립 뒤 맨 끝에 붙는다.
+     · 삭제 후 재추가 방지를 위해 플래그를 쓴다(조립·아트 부서 시드와 같은 패턴). */
+  if(!state.cbDeptSeeded){
+    if(!state.departments.some(d=>d.key==="클라:전투")){
+      const _ci=state.departments.findIndex(d=>d.key==="클라");
+      const _nd={ key:"클라:전투", color:"#8b5cf6", tracks:["개발"], owners:[], subgroups:[], memberGroup:{} };
+      if(_ci>=0) state.departments.splice(_ci+1,0,_nd); else state.departments.push(_nd);
+    }
+    state.cbDeptSeeded=true;
+  }
   /* Task 라벨 1회 시드. t.labels 는 여기서 만들지 않는다 — 76개 Task 에 빈 배열을 심으면
      migrate 가 돌 때마다 state 가 달라져 불필요한 저장/병합이 생긴다. 읽는 쪽에서 (t.labels||[]) 로 받는다. */
   if(!Array.isArray(state.labels)) state.labels=[];
@@ -2475,6 +2488,15 @@ let memOvOnly=false;                            // 겹침 있는 사람만
 let memHideEmpty=false;                         // 부서 명단에만 있고 배정 일감이 0인 사람 숨기기
 const AV_COLORS=["#6366f1","#0ea5e9","#10b981","#f59e0b","#ec4899","#8b5cf6","#ef4444","#14b8a6"];
 function avColor(n){ let h=0; for(let i=0;i<n.length;i++) h=(h*31+n.charCodeAt(i))>>>0; return AV_COLORS[h%AV_COLORS.length]; }
+/* data-* 합성 값에서 「Task id + 부서명」을 가른다.
+   ⚠ 부서 이름에는 ':' 나 '|' 가 들어갈 수 있다(2026-10-15 「클라:전투」 추가).
+   통째로 split 하면 세 토막이 나면서 dep 이 "클라" 가 되어 **다른 부서의 일정을 말없이 고친다**
+   (에러가 안 난다 — t.depts["클라"] 가 실제로 존재하므로). Task id(uid)에는 구분자가 없으니
+   **맨 앞 구분자 한 번만** 자른다. 합성 값은 전부 `id<구분자>부서명` 순서다. */
+function splitIdKey(v, sep){
+  const s0=String(v||""), i=s0.indexOf(sep);
+  return i<0 ? [s0,""] : [s0.slice(0,i), s0.slice(i+1)];
+}
 const memKey = m => "m:"+m.dept+"|"+m.name;
 const memOpen = m => !memCollapsed.has(memKey(m));
 
@@ -2866,7 +2888,7 @@ leftBody.addEventListener("click", e=>{
   const grp=e.target.closest("[data-group]"); if(grp){ const k=grp.dataset.group; groupCollapsed.has(k)?groupCollapsed.delete(k):groupCollapsed.add(k); render(); return; }
   const mg=e.target.closest("[data-memgroup]"); if(mg){ const k="g:"+mg.dataset.memgroup; memCollapsed.has(k)?memCollapsed.delete(k):memCollapsed.add(k); render(); return; }
   const mt=e.target.closest("[data-memtoggle]"); if(mt){ const k=mt.dataset.memtoggle; memCollapsed.has(k)?memCollapsed.delete(k):memCollapsed.add(k); render(); return; }
-  const mk=e.target.closest("[data-memtask]"); if(mk){ const [tid,dep]=mk.dataset.memtask.split("|");
+  const mk=e.target.closest("[data-memtask]"); if(mk){ const [tid,dep]=splitIdKey(mk.dataset.memtask,"|");
     if(dep && findTask(tid) && findTask(tid).depts[dep]) openSchedModal(tid,dep,false); else openDeptModal(tid); return; }
   const lbp=e.target.closest("[data-lbpop]"); if(lbp){ e.stopPropagation(); openLbPop(lbp, lbp.dataset.lbpop); return; }
   const kf=e.target.closest("[data-kf]"); if(kf){ e.stopPropagation(); openKfPop(kf, kf.dataset.kf); return; }
@@ -2876,10 +2898,10 @@ leftBody.addEventListener("click", e=>{
     if(confirm(_msg)){ ignoreTrelloCard(_t); state.tasks=state.tasks.filter(t=>t.id!==id); save(); render(); } return; }
   const pick=e.target.closest("[data-openpicker]"); if(pick){ e.stopPropagation(); openDeptModal(pick.dataset.openpicker); return; }
   const dnt=e.target.closest("[data-dntoggle]");   // 배지가 [data-setsched] 안에 있으므로 반드시 먼저
-  if(dnt){ e.stopPropagation(); const [tid,dep]=dnt.dataset.dntoggle.split("|");
+  if(dnt){ e.stopPropagation(); const [tid,dep]=splitIdKey(dnt.dataset.dntoggle,"|");
     const t=findTask(tid), sg=t&&t.depts[dep];
     if(sg && (sg.assignees||[]).length){ sg.done=!sg.done; save(); render(); } return; }
-  const ss=e.target.closest("[data-setsched]"); if(ss){ e.stopPropagation(); const [tid,dep]=ss.dataset.setsched.split("|"); openSchedModal(tid,dep,false); return; }
+  const ss=e.target.closest("[data-setsched]"); if(ss){ e.stopPropagation(); const [tid,dep]=splitIdKey(ss.dataset.setsched,"|"); openSchedModal(tid,dep,false); return; }
   const dbp=e.target.closest("[data-deptpick]"); if(dbp){ e.stopPropagation(); const tk=e.target.closest("[data-task]");
     if(tk){ const t=findTask(tk.dataset.task); const k=dbp.dataset.deptpick; const turnedOn=toggleTaskDept(t,k); save(); render();
       if(turnedOn) openSchedModal(t.id, k, true);   // 켤 때는 일정 입력창을 바로 띄운다(취소하면 부서도 해제)
@@ -2937,7 +2959,7 @@ function attachBarHandlers(){
   document.querySelectorAll(".bar[data-bar]").forEach(bar=>{
     bar.addEventListener("pointerdown", e=>{
       if(e.button&&e.button!==0) return; e.preventDefault();
-      const [tid,dep]=bar.dataset.bar.split(":"); const t=findTask(tid); const seg=t.depts[dep];
+      const [tid,dep]=splitIdKey(bar.dataset.bar,":"); const t=findTask(tid); const seg=t.depts[dep];
       const isL=e.target.classList.contains("l"), isR=e.target.classList.contains("r");
       const mode=isL?"l":isR?"r":"move"; const startX=e.clientX,s0=seg.start,e0=seg.end; let moved=false;
       try{ bar.setPointerCapture(e.pointerId);}catch(_){}
