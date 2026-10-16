@@ -805,8 +805,22 @@
   .modal-actions .linkrow{flex:0 0 auto;white-space:nowrap;}
   .modal{overflow-x:hidden;}
   hr{border:0;border-top:1px solid var(--line);margin:16px 0;}
-  .ms-list-wrap{max-height:170px;overflow:auto;}
-  .ms-item{display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:7px;cursor:pointer;}
+  .ms-list-wrap{max-height:min(390px,44vh);overflow:auto;}
+  /* === 마일스톤 날짜 스트립 (2026-10-16, 사용자 선택 B안) ===
+     누르지 않아도 각 마일스톤의 날짜가 보이게. **실제 날짜 간격과 무관하게 똑같은 폭**으로
+     좌→우 배치한다(사용자 지시: "타임 그래프를 실제 날짜 구성으로 맞춰달라는 것이 아니라
+     좌측에서 우측의 일정한 공간에 날짜만"). 기획서 마감은 사용자 요청으로 스트립에서 뺐다
+     — 편집칸·간트 마커에는 그대로 있다. */
+  .ms-item{display:block;padding:9px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:7px;cursor:pointer;}
+  .ms-top{display:flex;align-items:center;gap:8px;}
+  .ms-strip{display:flex;gap:0;padding-left:19px;margin-top:7px;}
+  .ms-slot{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:2px;align-items:flex-start;
+     border-left:2px solid var(--c,var(--line));padding-left:6px;margin-right:6px;}
+  .ms-slot:last-child{margin-right:0;}
+  .ms-slab{font-size:9.5px;font-weight:800;color:var(--muted);letter-spacing:-.2px;white-space:nowrap;}
+  .ms-sval{font-size:11.5px;font-weight:700;font-family:ui-monospace,"SF Mono",Menlo,monospace;
+     color:#d7deec;letter-spacing:-.3px;white-space:nowrap;}
+  .ms-sval.none{color:rgba(255,255,255,.17);font-weight:600;}
   .ms-item:hover{border-color:var(--accent);}
   .ms-item.sel{border-color:var(--accent);background:rgba(99,102,241,.12);}
   .ms-name{font-weight:700;font-size:13px;}
@@ -1143,8 +1157,12 @@
   .modal{ width:440px; }
   #deptMgrModal .modal{ width:620px; }
   #dashModal .modal{ width:640px; }
-  #deptModal .modal, #schedModal .modal, #msModal .modal, #notifyModal .modal,
+  #deptModal .modal, #schedModal .modal, #notifyModal .modal,
   #noticeEditModal .modal, #historyModal .modal{ width:540px; }
+  /* 마일스톤 설정 — 목록에 날짜 스트립이 들어가 넓혀야 한다 (2026-10-16). 편집칸은 2열. */
+  #msModal .modal{ width:900px; }
+  #msModal .ms-edit-grid{ display:grid; grid-template-columns:1fr 1fr; gap:0 18px; }
+  #msModal .ms-edit-grid > div{ min-width:0; }
   /* 공지 팝업 — 넓게 + 제목/내용 구분선 */
   #noticePopup .modal{ width:680px; }
   #noticePopup .modal h3{ padding-bottom:13px; border-bottom:1px solid var(--line); margin-bottom:16px; font-size:16px; }
@@ -1351,12 +1369,14 @@
       <hr/>
       <h3 style="font-size:13px" id="msEditHead">선택한 마일스톤 편집</h3>
       <label>마일스톤 이름</label><input id="msName" placeholder="예: 1차 빌드" />
-      <label><i style="background:#22c55e"></i>마일스톤 시작일</label><input type="date" id="msStart" />
-      <label><i style="background:#ef4444"></i>마일스톤 종료일</label><input type="date" id="msEnd" />
-      <label><i style="background:#6366f1"></i>기획서 마감일</label><input type="date" id="msPlan" />
-      <label><i style="background:#f59e0b"></i>리소스 마감일</label><input type="date" id="msResource" />
-      <label><i style="background:#0ea5e9"></i>개발 마감일</label><input type="date" id="msDev" />
-      <label><i style="background:#a855f7"></i>QA 마감일</label><input type="date" id="msQa" />
+      <div class="ms-edit-grid">
+        <div><label><i style="background:#22c55e"></i>마일스톤 시작일</label><input type="date" id="msStart" /></div>
+        <div><label><i style="background:#ef4444"></i>마일스톤 종료일</label><input type="date" id="msEnd" /></div>
+        <div><label><i style="background:#6366f1"></i>기획서 마감일</label><input type="date" id="msPlan" /></div>
+        <div><label><i style="background:#f59e0b"></i>리소스 마감일</label><input type="date" id="msResource" /></div>
+        <div><label><i style="background:#0ea5e9"></i>개발 마감일</label><input type="date" id="msDev" /></div>
+        <div><label><i style="background:#a855f7"></i>QA 마감일</label><input type="date" id="msQa" /></div>
+      </div>
       <div class="modal-actions"><button class="linkrow" id="msDelete">이 마일스톤 삭제</button>
         <div class="right"><button class="btn ghost" data-close>닫기</button><button class="btn" id="msSaveOk">저장</button></div></div>
     </div>
@@ -4868,12 +4888,28 @@ document.getElementById("holReset").onclick=()=>{
 };
 
 /* ===== 마일스톤 관리 ===== */
+/* 스트립에 싣는 날짜와 **순서**. 일이 진행되는 차례대로 둔다(시작 → 리소스 → 개발 → QA → 종료).
+   MARKERS 의 배열 순서(start,end,plan,…)는 간트 마커용이라 여기서 그대로 쓰면 안 된다.
+   'plan'(기획서)은 2026-10-16 사용자 요청으로 뺐다 — 되살리려면 "resource" 앞에 넣으면 된다. */
+const MS_STRIP = ["start","resource","dev","qa","end"];
+const msMk = k => MARKERS.find(x=>x.k===k) || { label:k, color:"#64748b" };
+const msDateShort = v => v ? String(v).slice(5) : "";      // 2026-11-30 → 11-30
+function msStripHtml(m){
+  return `<div class="ms-strip">`+MS_STRIP.map(k=>{
+    const mk=msMk(k), v=m[k]||"";
+    return `<span class="ms-slot" style="--c:${mk.color}" title="${escapeHtml(mk.label)} ${v||'미정'}">`+
+      `<i class="ms-slab">${escapeHtml(mk.label)}</i>`+
+      `<b class="ms-sval ${v?'':'none'}">${v?escapeHtml(msDateShort(v)):'–'}</b></span>`;
+  }).join("")+`</div>`;
+}
 function renderMsList(){
   document.getElementById("msList").innerHTML = state.milestones.filter(m=>!m.free).map(m=>
     `<div class="ms-item ${m.id===msSelId?'sel':''}" data-msitem="${m.id}">
-       <span class="ms-swatch" style="background:${m.color}"></span>
-       <span class="ms-name">${escapeHtml(m.name)}</span>
-       <span class="ms-range">${m.start||'-'} ~ ${m.end||'미정'}</span></div>`).join("");
+       <div class="ms-top">
+         <span class="ms-swatch" style="background:${m.color}"></span>
+         <span class="ms-name">${escapeHtml(m.name)}</span>
+         <span class="ms-range">${m.start||'-'} ~ ${m.end||'미정'}</span>
+       </div>${msStripHtml(m)}</div>`).join("");
 }
 function loadMsEditor(id){ const m=findMs(id);
   document.getElementById("msName").value=m.name||""; document.getElementById("msStart").value=m.start||"";
