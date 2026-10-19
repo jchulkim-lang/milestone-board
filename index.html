@@ -301,6 +301,14 @@
   .task.late .task-head{box-shadow:inset 3px 0 0 0 #ef4444;}
   .fchip.late.on{background:#ef4444;border-color:#ef4444;color:#fff;}
   .lk{font-size:13px;text-decoration:none;flex:0 0 auto;opacity:.85;}
+  /* 트렐로 카드 주소 복사 (2026-10-19). Task 이름 옆 링크 묶음 끝에 붙는다.
+     **고정폭**이라 .task-info 의 가변 예산을 거의 안 먹는다(20px). [[task-row-layout]] */
+  .tr-copy{width:20px;height:19px;display:inline-flex;align-items:center;justify-content:center;
+     flex:0 0 auto;margin-left:4px;padding:0;font-size:10.5px;line-height:1;cursor:pointer;
+     background:transparent;border:1px solid var(--line);border-radius:5px;color:var(--muted);
+     font-family:inherit;user-select:none;}
+  .tr-copy:hover{border-color:#1868DB;color:#9dc2ff;background:rgba(24,104,219,.14);}
+  .tr-copy.ok{border-color:#34d399;color:#34d399;background:rgba(52,211,153,.14);}
   .kf-chip{width:23px;height:23px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;line-height:1;border-radius:7px;cursor:pointer;flex:0 0 auto;user-select:none;background:var(--panel2);border:1.5px solid var(--line);}
   .kf-chip:hover{filter:brightness(1.15);}
   /* 킥오프 선택 팝업 */
@@ -2484,7 +2492,8 @@ function taskHeadHtml(t){
   const isArt=isCatTrack(t.track);
   const stOpts=statusesFor(t.track||"개발").map(s=>`<option ${s.k===t.status?'selected':''}>${escapeHtml(s.k)}</option>`).join("");
   const doneChip=isArt?`<span class="done-chip ${t.done?'on':''}" data-done="${t.id}" title="완료 토글">${t.done?'✓':'○'}</span>`:'';
-  const links=(t.links.plan?`<a class="lk" href="${escapeHtml(t.links.plan)}" target="_blank" rel="noopener" title="기획서">📄</a>`:"")+(trelloUrlOf(t)?`<a class="lk" href="${escapeHtml(trelloUrlOf(t))}" target="_blank" rel="noopener" title="Trello 카드 열기">${TRELLO_ICON}</a>`:"");
+  const links=(t.links.plan?`<a class="lk" href="${escapeHtml(t.links.plan)}" target="_blank" rel="noopener" title="기획서">📄</a>`:"")+(trelloUrlOf(t)?`<a class="lk" href="${escapeHtml(trelloUrlOf(t))}" target="_blank" rel="noopener" title="Trello 카드 열기">${TRELLO_ICON}</a>`+
+    `<button type="button" class="tr-copy" data-trcopy="${t.id}" title="트렐로 카드 주소를 클립보드에 복사합니다">⧉</button>`:"");
   const aps=taskAssignees(t);
   /* 지연 칩·점검 배지는 우측 고정 칸(.th-right 140px)이 아니라 Task 이름 옆에 붙인다.
      우측 칸은 킥오프+상태+삭제 예산(123px)으로 잡혀 있어서, 여기에 넣으면 넘친 만큼
@@ -2942,6 +2951,7 @@ leftBody.addEventListener("click", e=>{
     } return; }
   const dup=e.target.closest("[data-dup]"); if(dup){ e.stopPropagation(); duplicateTask(dup.dataset.dup); return; }
   const cpl=e.target.closest("[data-copylink]"); if(cpl){ e.stopPropagation(); copyTaskLink(cpl.dataset.copylink, cpl); return; }
+  const trc=e.target.closest("[data-trcopy]"); if(trc){ e.stopPropagation(); copyTrelloLink(trc.dataset.trcopy, trc); return; }
   const trs=e.target.closest("[data-trsync]"); if(trs){ e.stopPropagation();
     const tid=trs.dataset.trsync; trs.textContent="🔄 동기화 중…"; trs.disabled=true;
     editing={tid};
@@ -5058,6 +5068,19 @@ render();
 if(_shared) enterSharedView(); else noticeRestoredView();
 const ni=nearestIndex(); if(ni>3) rightBody.scrollLeft=(ni-3)*DAY_W;
 remote.init();
+
+/* 연결된 트렐로 카드 주소를 클립보드로 (2026-10-19 사용자 요청).
+   보드 공유 링크(copyTaskLink, `?task=`)와는 **다른 주소**다 — 이건 trello.com 카드 주소. */
+function copyTrelloLink(id, btn){
+  const t=findTask(id); const url=trelloUrlOf(t);
+  if(!url){ flashNote("이 Task 에는 연결된 트렐로 카드가 없습니다."); return; }
+  const done=()=>{ if(!btn||!btn.isConnected) return;
+    btn.classList.add("ok"); btn.textContent="✓";
+    setTimeout(()=>{ if(btn.isConnected){ btn.classList.remove("ok"); btn.textContent="⧉"; } }, 1400);
+    flashNote("트렐로 카드 주소를 복사했습니다 · "+url); };
+  if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done).catch(()=>fallbackCopyText(url,done));
+  else fallbackCopyText(url,done);
+}
 
 /* 이 Task의 공유 링크를 클립보드에 복사(전달받은 사람 화면에서 해당 Task가 펼쳐짐) */
 function copyTaskLink(id, btn){
