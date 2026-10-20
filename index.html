@@ -778,6 +778,30 @@
           color:#fff; box-shadow:0 0 0 2px var(--bg); pointer-events:none; }
   .rm-mb.none{ background:var(--panel2); color:var(--muted); box-shadow:0 0 0 2px var(--bg), inset 0 0 0 1px var(--line); }
   /* 마일스톤 필터 행 */
+  /* === 발주 로드맵 상단 마일스톤 요약 (2026-10-20, 사용자 선택 A안) ===
+     "마일스톤 시작일 / 리소스 마감일 / 빌드 전달일" 세 값만. 빌드 전달일 = 마일스톤 **종료일**(end)
+     — 사용자 확인. 새 필드를 만들지 않고 기존 end 를 그 이름으로 보여 준다. */
+  .rm-msbar{ display:flex; align-items:stretch; gap:8px; margin:0 0 11px; }
+  .rm-msbar > .lab{ flex:0 0 auto; align-self:center; font-size:11px; font-weight:800; color:var(--muted); margin-right:2px; }
+  .rm-mscard{ flex:1 1 0; min-width:0; background:var(--panel2); border:1px solid var(--line);
+     border-left:3px solid var(--c,var(--line)); border-radius:9px; padding:7px 11px; }
+  .rm-mscard.cur{ border-color:var(--accent); border-left-color:var(--c,var(--accent)); background:rgba(99,102,241,.13); }
+  .rm-msc-top{ display:flex; align-items:center; gap:6px; margin-bottom:6px; }
+  .rm-msc-nm{ font-size:12.5px; font-weight:800; letter-spacing:-.2px; white-space:nowrap;
+     overflow:hidden; text-overflow:ellipsis; }
+  .rm-msc-tag{ font-size:9px; font-weight:800; color:#fff; background:var(--accent);
+     border-radius:999px; padding:1px 6px; flex:0 0 auto; }
+  .rm-msc-vals{ display:flex; gap:0; }
+  .rm-msc-v{ flex:1 1 0; min-width:0; display:flex; flex-direction:column; gap:2px;
+     border-left:2px solid var(--vc,var(--line)); padding-left:6px; margin-right:6px; }
+  .rm-msc-v:last-child{ margin-right:0; }
+  .rm-msc-k{ font-size:9.5px; font-weight:800; color:var(--muted); letter-spacing:-.2px; white-space:nowrap; }
+  .rm-msc-d{ font-size:12px; font-weight:700; font-family:ui-monospace,"SF Mono",Menlo,monospace;
+     color:#d7deec; white-space:nowrap; }
+  .rm-msc-d.past{ color:var(--muted); font-weight:600; }
+  .rm-msc-d.soon{ color:#fbbf24; }
+  .rm-msc-d.none{ color:rgba(255,255,255,.2); font-weight:600; }
+  .rm-msbar .empty{ font-size:11.5px; color:var(--muted); align-self:center; }
   .rm-filter{ display:flex; align-items:center; flex-wrap:wrap; gap:5px; margin:0 0 9px; }
   .rm-filter > span{ font-size:11px; font-weight:800; color:var(--muted); margin-right:2px; }
   .rm-fchip{ display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; color:var(--muted);
@@ -1480,6 +1504,7 @@
       <div class="msub" id="rmSub">월별로 무엇이 발주·킥오프되는지 한눈에 봅니다.</div>
       <div class="rm-notes" id="rmNotes"></div>
       <div class="rm-filter" id="rmFilter"></div>
+      <div class="rm-msbar" id="rmMsBar"></div>
       <div class="rm-scroll scrollbar"><div class="rm-grid" id="rmGrid"></div></div>
       <div class="modal-actions">
         <div class="rm-foot" id="rmFoot"></div>
@@ -4057,6 +4082,42 @@ function rmPassMs(it){
   if(rmFilterMs==="none") return !rmMsById(it.msId);
   return it.msId===rmFilterMs;
 }
+/* 상단 마일스톤 요약 줄. **읽기 전용 요약**이다 — 바로 위 필터 칩과 조작이 겹치면 헷갈리므로
+   클릭 동작을 주지 않는다. 오늘이 기간 안이면 「진행 중」 표시. */
+const RM_MS_VALS = [
+  { k:"start",    label:"시작",      color:"#22c55e" },
+  { k:"resource", label:"리소스",    color:"#f59e0b" },
+  { k:"end",      label:"빌드 전달", color:"#ef4444" },   // 종료일 = 빌드 전달일 (2026-10-20 사용자 확인)
+];
+const RM_SOON_DAYS = 7;
+function rmDayDiff(v){                       // 오늘 기준 남은 일수(달력일). 값이 없으면 null
+  if(!v) return null;
+  const a=new Date(v+"T00:00:00"), b=new Date(ymd(new Date())+"T00:00:00");
+  if(isNaN(a)) return null;
+  return Math.round((a-b)/86400000);
+}
+function renderRmMsBar(){
+  const el=document.getElementById("rmMsBar"); if(!el) return;
+  const list=rmMsList();
+  if(!list.length){ el.innerHTML=`<span class="empty">등록된 마일스톤이 없습니다.</span>`; return; }
+  const today=ymd(new Date());
+  el.innerHTML = `<span class="lab">일정</span>` + list.map(m=>{
+    const cur = m.start && m.end && m.start<=today && today<=m.end;
+    const vals = RM_MS_VALS.map(v=>{
+      const d=m[v.k]||"", n=rmDayDiff(d);
+      const cls = !d ? "none" : (n<0 ? "past" : (n<=RM_SOON_DAYS ? "soon" : ""));
+      const tip = d ? `${v.label} ${d}${n===null?"":(n<0?` (${-n}일 지남)`:n===0?" (오늘)":` (D-${n})`)}` : `${v.label} 미정`;
+      return `<span class="rm-msc-v" style="--vc:${v.color}" title="${escapeHtml(tip)}">`+
+        `<i class="rm-msc-k">${escapeHtml(v.label)}</i>`+
+        `<b class="rm-msc-d ${cls}">${d?escapeHtml(d.slice(5)):'–'}</b>`+
+        `</span>`;
+    }).join("");
+    return `<div class="rm-mscard ${cur?'cur':''}" style="--c:${m.color}">`+
+      `<div class="rm-msc-top"><span class="rm-msc-nm">${escapeHtml(m.name)}</span>`+
+      `${cur?'<span class="rm-msc-tag">진행 중</span>':''}</div>`+
+      `<div class="rm-msc-vals">${vals}</div></div>`;
+  }).join("");
+}
 function renderRmFilter(){
   const list=rmMsList();
   const cnt={none:0}; list.forEach(m=>cnt[m.id]=0); let all=0;
@@ -4072,7 +4133,7 @@ function renderRmFilter(){
 }
 function renderRoadmap(){
   const rm=state.roadmap, ms=rmMonths(), ed=rmCanEdit();
-  renderRmFilter();
+  renderRmFilter(); renderRmMsBar();
   document.getElementById("rmSub").textContent = ed
     ? "월별로 무엇이 발주·킥오프되는지 봅니다. 항목을 끌어 다른 달로 옮기거나, 클릭해 이름·날짜를 고칠 수 있어요."
     : "월별로 무엇이 발주·킥오프되는지 봅니다. (읽기 전용)";
