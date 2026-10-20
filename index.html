@@ -1858,7 +1858,14 @@ function migrate(){
     if(!t.links) t.links={plan:"",trello:""}; if(t.depts) Object.values(t.depts).forEach(s=>{ if(s && !Array.isArray(s.assignees)) s.assignees=[]; }); if(!t.milestoneId || !findMs(t.milestoneId)) t.milestoneId=firstMs; if("open" in t) delete t.open; });   // 펼침은 개인 로컬로 이동
   /* 발주 로드맵 1회 시드 (BR 일정 시트 「임시」 탭 기준). 삭제 후 재생성 방지 위해 플래그 사용 */
   if(!state.roadmapSeeded){ if(!state.roadmap) state.roadmap=seedRoadmap(); state.roadmapSeeded=true; }
-  if(!state.roadmap || !Array.isArray(state.roadmap.groups)) state.roadmap={ startYm:"2026-09", months:5, notes:[], groups:[] };
+  /* 기본 표시 기간 5개월 → 10개월 (2026-10-20 사용자 요청: "2026년 12월 이후도").
+     시작이 2026-08 이면 2027-05 까지 열린다. **1회만** 올린다 — 플래그가 없으면 사용자가
+     일부러 줄여 놓아도 열 때마다 되돌아간다. 이미 10개월 이상 쓰고 있으면 건드리지 않는다. */
+  if(!state.rmMonths10 && state.roadmap){
+    if((Number(state.roadmap.months)||0) < 10) state.roadmap.months = 10;
+    state.rmMonths10 = true;
+  }
+  if(!state.roadmap || !Array.isArray(state.roadmap.groups)) state.roadmap={ startYm:"2026-09", months:10, notes:[], groups:[] };
   reconcileMirrors("init");
 }
 
@@ -3870,7 +3877,7 @@ document.getElementById("trelloHookOff").onclick=function(){ if(confirm("실시�
  *  state.roadmap = { startYm, months, notes[], groups:[{id,name,color,items:[{id,ym,text,date}]}] }
  *  ym "" = 미정 버킷. 최초 1회 'BR 일정' 시트의 「임시」 탭 내용으로 시드한다(roadmapSeeded 플래그). */
 const RM_SEED = {
-  startYm:"2026-09", months:5,
+  startYm:"2026-09", months:10,
   notes:["캐릭터 컨셉 문서 : 5일","캐릭터 가조립 : 7일","캐릭터 최종 조립 : 8일","캐릭터 밸런스 : 5일"],
   groups:[
     { name:"캐릭터 (대표님 니즈 스펙)", color:"#ec4899", items:[
@@ -3935,7 +3942,7 @@ let rmAutoExtra=0;                                            // 자동으로 �
 function rmMonths(){
   const rm=state.roadmap||{};
   const p=(rm.startYm||"2026-09").split("-"); const y=Number(p[0])||2026, m=Number(p[1])||9;
-  const n=Math.min(RM_MAX_MONTHS, Math.max(1, Number(rm.months)||5));
+  const n=Math.min(RM_MAX_MONTHS, Math.max(1, Number(rm.months)||10));
   const base=rmMakeMonths(y,m,n);
   let need=n;
   rmBandMilestones(base).forEach(ms=>{                        // 이미 밴드에 걸린 마일스톤만 대상
@@ -4177,7 +4184,7 @@ function renderRoadmap(){
     `<b id="rmCwVal">${cw}px</b><button id="rmCwReset" title="기본값 ${RM_CW_DEF}px 으로">초기화</button></span>`;
   document.getElementById("rmFoot").innerHTML = (ed
     ? `<span class="rm-range">시작 <input type="month" id="rmStart" value="${escapeHtml(rm.startYm||"2026-09")}">`+
-      `표시 <select id="rmMonths">${[3,4,5,6,8,10,12].map(n=>`<option value="${n}" ${Number(rm.months)===n?"selected":""}>${n}개월</option>`).join("")}</select>`+
+      `표시 <select id="rmMonths">${[3,4,5,6,8,10,12,15,18,24].map(n=>`<option value="${n}" ${Number(rm.months)===n?"selected":""}>${n}개월</option>`).join("")}</select>`+
       `${rmAutoExtra?`<em class="rm-auto" title="마일스톤 마감이 잘리지 않도록 자동으로 늘렸습니다">+${rmAutoExtra}개월 자동</em>`:""}</span>`
     : "") + cwCtl;
 }
@@ -4287,7 +4294,7 @@ document.getElementById("rmFoot").addEventListener("change", e=>{
   if(e.target.closest("#rmCwRange")) return;
   if(!rmCanEdit()) return;
   const st=e.target.closest("#rmStart"); if(st && st.value){ state.roadmap.startYm=st.value; save(); renderRoadmap(); return; }
-  const mo=e.target.closest("#rmMonths"); if(mo){ state.roadmap.months=Number(mo.value)||5; save(); renderRoadmap(); }
+  const mo=e.target.closest("#rmMonths"); if(mo){ state.roadmap.months=Number(mo.value)||10; save(); renderRoadmap(); }
 });
 document.getElementById("rmGrid").addEventListener("click", e=>{
   const ag=e.target.closest("#rmAddGroup"); if(ag){ openRmGroupPop(ag, null); return; }
