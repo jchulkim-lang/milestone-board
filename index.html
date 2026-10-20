@@ -638,10 +638,32 @@
   .tr-detail li{ margin-left:16px; overflow-wrap:anywhere; }
   .tr-detail .tr-amb li{ color:#fbbf24; }
 
-  /* ===== 발주 로드맵 ===== */
-  #roadmapModal .modal{ width:96vw; max-width:96vw; }
-  /* ===== 서비스 플랜 (라이브 운영) ===== */
-  #planModal .modal{ width:96vw; max-width:96vw; }
+  /* ===== 일정 허브 탭 (2026-10-20) — 발주 로드맵 · 서비스 플랜 · 마일스톤 =====
+     세 모달이 **같은 자리·같은 크기**라 탭만 바뀌고 틀은 안 움직인다. 크기를 다르게 두면
+     탭을 누를 때마다 창이 들썩인다(사용자 지시: "전체 크기는 통일해줘"). */
+  .hub-head{ display:flex; align-items:center; gap:10px; margin:0 0 5px; }
+  .hub-tabs{ display:inline-flex; gap:3px; background:var(--bg); border:1px solid var(--line);
+     border-radius:10px; padding:3px; flex:0 0 auto; }
+  .hub-tab{ border:0; background:transparent; color:var(--muted); font-family:inherit; font-size:12.5px;
+     font-weight:800; border-radius:7px; padding:6px 15px; cursor:pointer; white-space:nowrap; letter-spacing:-.2px; }
+  .hub-tab:hover{ color:var(--text); background:rgba(255,255,255,.05); }
+  .hub-tab.on{ background:var(--accent); color:#fff; }
+  .hub-x{ margin-left:auto; flex:0 0 auto; background:var(--panel2); border:1px solid var(--line);
+     color:var(--muted); border-radius:8px; padding:5px 11px; font-family:inherit; font-size:12px;
+     font-weight:700; cursor:pointer; }
+  .hub-x:hover{ color:var(--text); border-color:var(--accent); }
+  /* 마일스톤 탭은 96vw 가 필요 없다 → 틀은 그대로 두고 **안쪽만** 묶어 가운데로 */
+  .ms-cap{ max-width:980px; margin:0 auto; width:100%; }
+
+  /* 세 탭의 **틀을 완전히 같게** 묶는다. 폭만 맞추면 내용 높이가 달라 가운데 정렬이 흔들려
+     탭을 누를 때마다 창이 위아래로 튄다(실측 y 50/76/161). 높이까지 고정해야 안 움직인다.
+     flex 세로 배치 + 표 영역만 flex:1 → 푸터가 항상 바닥에 붙고, 표가 남은 높이를 다 쓴다. */
+  #roadmapModal .modal, #planModal .modal, #msModal .modal{
+     width:96vw; max-width:96vw; height:88vh; max-height:88vh;
+     display:flex; flex-direction:column; overflow:hidden; }
+  #roadmapModal .modal > *, #planModal .modal > *, #msModal .modal > *{ flex:0 0 auto; }
+  #roadmapModal .rm-scroll, #planModal .sp-scroll{ flex:1 1 0; max-height:none; min-height:0; }
+  #msModal .modal > .ms-cap{ flex:1 1 0; min-height:0; overflow:auto; }
   .sp-guide{ margin:0 0 10px; }
   .sp-ghead{ display:flex; align-items:center; gap:9px; font-size:11.5px; font-weight:800; color:var(--muted); cursor:pointer; padding:5px 2px; }
   .sp-ghead .cnt{ font-size:10px; font-weight:700; color:var(--dim); }
@@ -1192,7 +1214,7 @@
   #deptModal .modal, #schedModal .modal, #notifyModal .modal,
   #noticeEditModal .modal, #historyModal .modal{ width:540px; }
   /* 마일스톤 설정 — 목록에 날짜 스트립이 들어가 넓혀야 한다 (2026-10-16). 편집칸은 2열. */
-  #msModal .modal{ width:900px; }
+
   #msModal .ms-edit-grid{ display:grid; grid-template-columns:1fr 1fr; gap:0 18px; }
   #msModal .ms-edit-grid > div{ min-width:0; }
   /* 공지 팝업 — 넓게 + 제목/내용 구분선 */
@@ -1394,7 +1416,8 @@
   </div>
   <div class="modal-bg" id="msModal">
     <div class="modal">
-      <h3>마일스톤 설정</h3><div class="msub" id="msModalSub">여러 마일스톤을 만들고 각 Task에 배정합니다. 목록에서 선택해 편집하세요.</div>
+      <div class="hub-head"><span class="hub-tabs"><button type="button" class="hub-tab " data-hubtab="rm">🗺 발주 로드맵</button><button type="button" class="hub-tab " data-hubtab="sp">📅 서비스 플랜</button><button type="button" class="hub-tab on" data-hubtab="ms">⚙ 마일스톤</button></span><button type="button" class="hub-x" data-close>✕ 닫기</button></div><div class="msub" id="msModalSub">여러 마일스톤을 만들고 각 Task에 배정합니다. 목록에서 선택해 편집하세요.</div>
+      <div class="ms-cap">
       <div class="ro-note" id="msRoNote">🔒 읽기 전용 — 마일스톤 편집은 관리자만 할 수 있습니다. 내용 확인은 자유롭게 하세요.</div>
       <div class="ms-list-wrap" id="msList"></div>
       <button class="meta-btn" id="msAddNew" style="margin-top:2px">＋ 새 마일스톤 추가</button>
@@ -1409,7 +1432,8 @@
         <div><label><i style="background:#0ea5e9"></i>개발 마감일</label><input type="date" id="msDev" /></div>
         <div><label><i style="background:#a855f7"></i>QA 마감일</label><input type="date" id="msQa" /></div>
       </div>
-      <div class="modal-actions"><button class="linkrow" id="msDelete">이 마일스톤 삭제</button>
+      </div>
+      <div class="modal-actions ms-cap"><button class="linkrow" id="msDelete">이 마일스톤 삭제</button>
         <div class="right"><button class="btn ghost" data-close>닫기</button><button class="btn" id="msSaveOk">저장</button></div></div>
     </div>
   </div>
@@ -1490,17 +1514,17 @@
     </div>
   </div>
   <div class="modal-bg" id="planModal">
-    <div class="modal sp-modal"><h3>서비스 플랜 📅</h3>
+    <div class="modal sp-modal"><div class="hub-head"><span class="hub-tabs"><button type="button" class="hub-tab " data-hubtab="rm">🗺 발주 로드맵</button><button type="button" class="hub-tab on" data-hubtab="sp">📅 서비스 플랜</button><button type="button" class="hub-tab " data-hubtab="ms">⚙ 마일스톤</button></span><button type="button" class="hub-x" data-close>✕ 닫기</button></div>
       <div class="msub" id="spSub">런칭 이후 라이브 운영 일정입니다. 행 = 운영 트랙, 열 = 런칭 기준 주차.</div>
       <div class="sp-guide" id="spGuide"></div>
       <div class="sp-scroll scrollbar"><div class="sp-grid" id="spGrid"></div></div>
       <div class="modal-actions">
         <div class="sp-foot" id="spFoot"></div>
-        <div class="right"><button class="btn ghost" id="spToRm" title="발주 로드맵(런칭 이전 · 월별 발주·킥오프)으로 바로 이동합니다">🗺 발주 로드맵</button><button class="btn" data-close>닫기</button></div></div>
+        <div class="right"><button class="btn" data-close>닫기</button></div></div>
     </div>
   </div>
   <div class="modal-bg" id="roadmapModal">
-    <div class="modal rm-modal"><h3>발주 로드맵 🗺</h3>
+    <div class="modal rm-modal"><div class="hub-head"><span class="hub-tabs"><button type="button" class="hub-tab on" data-hubtab="rm">🗺 발주 로드맵</button><button type="button" class="hub-tab " data-hubtab="sp">📅 서비스 플랜</button><button type="button" class="hub-tab " data-hubtab="ms">⚙ 마일스톤</button></span><button type="button" class="hub-x" data-close>✕ 닫기</button></div>
       <div class="msub" id="rmSub">월별로 무엇이 발주·킥오프되는지 한눈에 봅니다.</div>
       <div class="rm-notes" id="rmNotes"></div>
       <div class="rm-filter" id="rmFilter"></div>
@@ -1508,7 +1532,7 @@
       <div class="rm-scroll scrollbar"><div class="rm-grid" id="rmGrid"></div></div>
       <div class="modal-actions">
         <div class="rm-foot" id="rmFoot"></div>
-        <div class="right"><button class="btn ghost" id="rmToSp" title="서비스 플랜(런칭 이후 · 주차별 라이브 운영)으로 바로 이동합니다">📅 서비스 플랜</button><button class="btn" data-close>닫기</button></div></div>
+        <div class="right"><button class="btn" data-close>닫기</button></div></div>
     </div>
   </div>
   <div class="modal-bg" id="dashModal">
@@ -4582,10 +4606,17 @@ function openPlan(){ const fresh=!state.plan; planState();
 /* 발주 로드맵(런칭 이전) ↔ 서비스 플랜(런칭 이후) 바로 이동 (2026-10-20 사용자 요청).
    **반드시 closeModals() 를 거친다** — 두 모달이 동시에 떠 있으면 뒤쪽 모달의 배경 클릭·ESC 가
    엉키고, 열려 있던 팝오버(#rmPop/#spPop)가 남는다. closeModals() 가 그 정리를 전부 한다. */
-function gotoPlanFromRoadmap(){ closeModals(); openPlan(); }
-function gotoRoadmapFromPlan(){ closeModals(); openRoadmap(); }
-document.getElementById("rmToSp").addEventListener("click", gotoPlanFromRoadmap);
-document.getElementById("spToRm").addEventListener("click", gotoRoadmapFromPlan);
+const HUB_OPEN = { rm:()=>openRoadmap(), sp:()=>openPlan(), ms:()=>openMsModal() };
+/* 탭 전환 = closeModals() 후 해당 화면 열기. 세 모달이 같은 자리·같은 크기라 하나의 창처럼 보인다.
+   **반드시 closeModals() 를 거친다** — 두 모달이 겹치면 배경 클릭·ESC 가 엉키고
+   열려 있던 팝오버(#rmPop/#spPop/#kfPop)가 남는다. closeModals() 가 그 정리를 전부 한다.
+   같은 탭을 다시 누르면 아무 일도 하지 않는다(다시 그리면 스크롤만 날아간다). */
+document.addEventListener("click", e=>{
+  const t=e.target.closest("[data-hubtab]"); if(!t) return;
+  const k=t.dataset.hubtab;
+  if(t.classList.contains("on")) return;
+  closeModals(); (HUB_OPEN[k]||HUB_OPEN.rm)();
+});
 
 /* --- 편집 팝오버 (#rmPop 재사용 패턴) --- */
 let spPopMode=null, spPopRef=null;
