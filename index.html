@@ -720,7 +720,7 @@
   .rm-grid{ min-width:100%; --rm-cw:176px; }
   .rm-row{ display:flex; align-items:stretch; border-bottom:1px solid var(--line); }
   .rm-row:last-child{ border-bottom:0; }
-  .rm-label{ flex:0 0 210px; display:flex; align-items:center; gap:7px; padding:8px 10px; font-size:11.5px; font-weight:800; background:var(--rowhead); border-right:1px solid var(--line); position:sticky; left:0; z-index:2; }
+  .rm-label{ flex:0 0 210px; display:flex; align-items:center; gap:7px; padding:8px 10px; font-size:11.5px; font-weight:800; background:var(--rowhead); border-right:1px solid var(--line); position:sticky; left:0; z-index:7; }   /* 가로 스크롤 시 고정되는 좌측 라벨 — 막대(2)·배지(3)·점(4)·마커(5)보다 위 */
   .rm-label i{ width:8px; height:8px; border-radius:50%; flex:0 0 auto; }
   .rm-label .rm-gname{ min-width:0; overflow-wrap:anywhere; }
   .rm-ghandle{ flex:0 0 auto; font-size:12px; line-height:1; color:var(--muted); opacity:.45; cursor:grab; user-select:none; padding:2px 1px; margin-left:-3px; }
@@ -748,7 +748,7 @@
   .rm-bmk{ position:absolute; transform:translateX(-50%); font-size:9px; font-weight:800; white-space:nowrap; z-index:5; pointer-events:none; }
   .rm-bmk span{ background:var(--panel2); border:1px solid var(--line); border-radius:5px; padding:1px 5px; line-height:1.4; }
   .rm-bline{ position:absolute; top:0; width:1px; height:2000px; opacity:.22; z-index:1; pointer-events:none; }
-  .rm-row.rm-head{ position:sticky; top:0; z-index:6; background:var(--panel); }
+  .rm-row.rm-head{ position:sticky; top:0; z-index:9; background:var(--panel); }   /* 좌측 라벨(7)보다 위 — 세로 스크롤 시 헤더가 가려지면 안 된다 */
   .rm-row.rm-head .rm-label{ background:var(--panel); }
   .rm-mh{ min-height:0; align-items:center; font-size:11.5px; font-weight:800; color:var(--text); padding:7px 10px; background:var(--panel); }
   /* 월 칸 너비 조절 — 헤더 오른쪽 모서리를 잡고 끈다 */
@@ -1866,6 +1866,22 @@ function migrate(){
     state.rmMonths10 = true;
   }
   if(!state.roadmap || !Array.isArray(state.roadmap.groups)) state.roadmap={ startYm:"2026-09", months:10, notes:[], groups:[] };
+  /* 서비스 플랜 「이벤트 지급 캐릭터」 트랙 1회 추가 (2026-10-20 사용자 요청).
+     state.plan 은 seedPlan() 으로 통째로 들어가 있어서 SP_SEED 만 고쳐서는 기존 보드에 안 생긴다.
+     '픽업 사이클' 섹션의 **캐릭터 픽업 바로 뒤**에 꽂는다. 순서는 ⠿ 드래그로 바꿀 수 있다.
+     항목은 비워 둔다 — 상시가 아니라 사용자가 그때그때 넣는다. */
+  if(!state.spEvtCharRow && state.plan && Array.isArray(state.plan.sections)){
+    const _sec=state.plan.sections.find(x=>x && x.name==="픽업 사이클") || state.plan.sections[1];
+    if(_sec){
+      if(!Array.isArray(_sec.rows)) _sec.rows=[];
+      if(!_sec.rows.some(r=>r && r.name==="이벤트 지급 캐릭터")){
+        const _at=_sec.rows.findIndex(r=>r && r.name==="캐릭터 픽업");
+        const _row={ id:uid(), name:"이벤트 지급 캐릭터", cycle:"비정기", color:"#06b6d4", items:[] };
+        _sec.rows.splice(_at>=0 ? _at+1 : _sec.rows.length, 0, _row);
+      }
+    }
+    state.spEvtCharRow = true;
+  }
   reconcileMirrors("init");
 }
 
@@ -4391,6 +4407,9 @@ const SP_SEED={
     ]],
     ["픽업 사이클",[
       ["캐릭터 픽업","3주","#ec4899",[["메이",0,3,"[S] 빛"],["사요",3,3,"[S] 어둠"],["엘디스",6,3,"[S] 불/어둠"],["스카디",9,3,"[S] 물"],["셀레나",12,3,"[S] 빛"],["치즈루",15,3,"[S] 땅"],["니샤",18,1,"[S] 전기"]]],
+      /* 상시가 아니라 **간혹 중간에 배치**된다(2026-10-20 사용자). 그래서 주기를 '비정기'로 두고
+         항목은 비워 둔다 — 내용은 사용자가 직접 넣는다. 시드로 가짜 일정을 채우지 말 것. */
+      ["이벤트 지급 캐릭터","비정기","#06b6d4",[]],
       ["캐릭터 에피소드","3주","#ec4899",[["런칭 풀 15종 + 메이",0,3],["사요",3,3],["엘디스",6,3],["스카디",9,3],["셀레나",12,3],["치즈루",15,3],["니샤",18,1]]],
       ["훈련장","3주","#ec4899",[["런칭 풀 15종 + 메이",0,3],["사요",3,3],["엘디스",6,3],["스카디",9,3],["셀레나",12,3],["치즈루",15,3],["니샤",18,1]]],
       ["프리미엄 코스튬 픽업","3주","#a855f7",[["에르카 / 메이",0,3],["사요",3,3],["엘디스",6,3],["스카디",9,3],["셀레나",12,3],["치즈루",15,3],["니샤",18,1]]],
