@@ -664,6 +664,10 @@
   #roadmapModal .modal > *, #planModal .modal > *, #msModal .modal > *{ flex:0 0 auto; }
   #roadmapModal .rm-scroll, #planModal .sp-scroll{ flex:1 1 0; max-height:none; min-height:0; }
   #msModal .modal > .ms-cap{ flex:1 1 0; min-height:0; overflow:auto; }
+  /* ⚠ 푸터 줄도 가운데 정렬하려고 .ms-cap 을 같이 달았는데, 그러면 위 규칙의 flex:1 1 0 까지
+     먹어서 **본문과 푸터가 높이를 반씩 나눠 가진다**(실측 358px/358px — 편집 폼이 잘렸다).
+     가운데 정렬(max-width:980px)만 쓰고 늘어나지는 않게 따로 되돌린다. */
+  #msModal .modal > .modal-actions.ms-cap{ flex:0 0 auto; overflow:visible; }
   .sp-guide{ margin:0 0 10px; }
   .sp-ghead{ display:flex; align-items:center; gap:9px; font-size:11.5px; font-weight:800; color:var(--muted); cursor:pointer; padding:5px 2px; }
   .sp-ghead .cnt{ font-size:10px; font-weight:700; color:var(--dim); }
