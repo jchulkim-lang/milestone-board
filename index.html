@@ -1496,7 +1496,7 @@
       <div class="sp-scroll scrollbar"><div class="sp-grid" id="spGrid"></div></div>
       <div class="modal-actions">
         <div class="sp-foot" id="spFoot"></div>
-        <div class="right"><button class="btn" data-close>닫기</button></div></div>
+        <div class="right"><button class="btn ghost" id="spToRm" title="발주 로드맵(런칭 이전 · 월별 발주·킥오프)으로 바로 이동합니다">🗺 발주 로드맵</button><button class="btn" data-close>닫기</button></div></div>
     </div>
   </div>
   <div class="modal-bg" id="roadmapModal">
@@ -1508,7 +1508,7 @@
       <div class="rm-scroll scrollbar"><div class="rm-grid" id="rmGrid"></div></div>
       <div class="modal-actions">
         <div class="rm-foot" id="rmFoot"></div>
-        <div class="right"><button class="btn" data-close>닫기</button></div></div>
+        <div class="right"><button class="btn ghost" id="rmToSp" title="서비스 플랜(런칭 이후 · 주차별 라이브 운영)으로 바로 이동합니다">📅 서비스 플랜</button><button class="btn" data-close>닫기</button></div></div>
     </div>
   </div>
   <div class="modal-bg" id="dashModal">
@@ -4578,6 +4578,14 @@ function renderPlan(){
 function openPlan(){ const fresh=!state.plan; planState();
   if(fresh && spCanEdit()) save();          // 첫 열람에서 시드를 한 번 저장해 모두가 같은 표를 본다
   renderPlan(); planModal.classList.add("show"); }
+
+/* 발주 로드맵(런칭 이전) ↔ 서비스 플랜(런칭 이후) 바로 이동 (2026-10-20 사용자 요청).
+   **반드시 closeModals() 를 거친다** — 두 모달이 동시에 떠 있으면 뒤쪽 모달의 배경 클릭·ESC 가
+   엉키고, 열려 있던 팝오버(#rmPop/#spPop)가 남는다. closeModals() 가 그 정리를 전부 한다. */
+function gotoPlanFromRoadmap(){ closeModals(); openPlan(); }
+function gotoRoadmapFromPlan(){ closeModals(); openRoadmap(); }
+document.getElementById("rmToSp").addEventListener("click", gotoPlanFromRoadmap);
+document.getElementById("spToRm").addEventListener("click", gotoRoadmapFromPlan);
 
 /* --- 편집 팝오버 (#rmPop 재사용 패턴) --- */
 let spPopMode=null, spPopRef=null;
