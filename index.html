@@ -1885,6 +1885,12 @@ function buildTimeline(){
 const dateOf = i => WORKDAYS[Math.max(0,Math.min(N-1,i))];
 const fmt = d => (d.getMonth()+1)+"/"+d.getDate();
 const ymd = d => d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+/* ⚠ <input type="date|month"> 는 **글자를 하나 칠 때마다** change 를 쏜다.
+   연도 칸에 "2027" 을 치면 값이 0002 → 0020 → 0202 → 2027 순으로 바뀌는데,
+   그 중간 값마다 화면을 다시 그리면 입력칸이 통째로 교체돼 **연도를 끝까지 못 친다.**
+   (2026-10-26 "런칭일에 2027 입력이 안 됩니다" 제보의 원인)
+   날짜 입력칸의 change 로 무언가를 다시 그린다면 반드시 이 가드를 먼저 통과시킬 것. */
+const yearReady = v => /^\d{4}/.test(String(v||"")) && Number(String(v).slice(0,4)) >= 1900;
 function indexOfToday(){ const t=stripTime(new Date()).getTime(); for(let i=0;i<N;i++) if(WORKDAYS[i].getTime()===t) return i; return -1; }
 function nearestIndex(){ const t=stripTime(new Date()).getTime(); for(let i=0;i<N;i++) if(WORKDAYS[i].getTime()>=t) return i; return 0; }
 function nearestWorkdayIndex(ymdStr){ if(!ymdStr) return -1; const t=parseYmd(ymdStr).getTime();
@@ -4680,7 +4686,10 @@ document.getElementById("rmFoot").addEventListener("click", e=>{
 document.getElementById("rmFoot").addEventListener("change", e=>{
   if(e.target.closest("#rmCwRange")) return;
   if(!rmCanEdit()) return;
-  const st=e.target.closest("#rmStart"); if(st && st.value){ state.roadmap.startYm=st.value; save(); renderRoadmap(); return; }
+  const st=e.target.closest("#rmStart");
+  if(st && st.value){ if(!yearReady(st.value)) return;        // 같은 이유 — 연도 입력 중에는 건드리지 않는다
+    state.roadmap.startYm=st.value; save(); renderRoadmap();
+    const el=document.getElementById("rmStart"); if(el) el.focus(); return; }
   const mo=e.target.closest("#rmMonths"); if(mo){ state.roadmap.months=Number(mo.value)||10; save(); renderRoadmap(); }
 });
 document.getElementById("rmGrid").addEventListener("click", e=>{
@@ -5094,7 +5103,10 @@ document.getElementById("spGuide").addEventListener("click", e=>{
 });
 document.getElementById("spFoot").addEventListener("change", e=>{
   if(!spCanEdit()) return; const pl=planState();
-  const l=e.target.closest("#spLaunch"); if(l && l.value){ pl.launch=l.value; save(); renderPlan(); return; }
+  const l=e.target.closest("#spLaunch");
+  if(l && l.value){ if(!yearReady(l.value)) return;           // 연도를 치는 중 — 아직 다시 그리지 않는다
+    pl.launch=l.value; save(); renderPlan();
+    const el=document.getElementById("spLaunch"); if(el) el.focus(); return; }
   const w=e.target.closest("#spWeeks"); if(w){ pl.weeks=Number(w.value)||19; save(); renderPlan(); return; }
   const v=e.target.closest("#spVerW"); if(v){ pl.verWeeks=Number(v.value)||6; save(); renderPlan(); }
 });
@@ -5403,9 +5415,7 @@ function loadMsEditor(id){ const m=findMs(id);
   document.getElementById("msName").value=m.name||""; document.getElementById("msStart").value=m.start||"";
   document.getElementById("msEnd").value=m.end||""; document.getElementById("msPlan").value=m.plan||""; document.getElementById("msResource").value=m.resource||"";
   document.getElementById("msDev").value=m.dev||""; document.getElementById("msQa").value=m.qa||"";
-  mscArm=""; mscAll=false;
-  document.querySelectorAll("#msEditGrid > div").forEach(d=>d.classList.remove("show"));
-  renderMsCal(); }
+  mscArm=""; mscAll=false; mscCloseInputs(); renderMsCal(); }
 /* ===== 마감일 달력 — A안: 마감일이 **있는 달만** 2열로, 빈 달은 한 줄로 접는다 =====
    값의 주인은 끝까지 숨겨 둔 <input type="date"> 6개다. 달력은 그 칸을 읽고 쓸 뿐이므로
    저장·역전검증·권한 로직을 하나도 손대지 않았다. 이 구조를 깨지 말 것. */
@@ -5454,9 +5464,9 @@ function mscMonthHtml(ym){
   return `<div class="msc-mon"><h4>${y}년 ${mo}월</h4>`+
          `<div class="msc-dow">${dow}</div><div class="msc-days">${cells}</div></div>`;
 }
+function mscCloseInputs(){ document.querySelectorAll("#msEditGrid > div").forEach(d=>d.classList.remove("show")); }
 function renderMsCal(){
   const box=document.getElementById("msCal"); if(!box) return;
-  document.querySelectorAll("#msEditGrid > div").forEach(d=>d.classList.remove("show"));
   const { show, skipped } = mscMonths();
   box.innerHTML =
     `<div class="msc-chips">`+MSC_ORDER.map(k=>{ const mk=msMk(k), v=mscVal(k);
@@ -5478,6 +5488,7 @@ function mscShowInput(k){
   if(el){ el.focus(); try{ el.showPicker && el.showPicker(); }catch(_){} }
 }
 document.getElementById("msCal").addEventListener("click", e=>{
+  mscCloseInputs();                 // 달력을 건드리면 열려 있던 입력칸은 접는다
   const all=e.target.closest("[data-mscall]");
   if(all){ mscAll=all.dataset.mscall==="1"; renderMsCal(); return; }
   if(!msCanEdit()) return;
@@ -5495,8 +5506,12 @@ document.getElementById("msCal").addEventListener("click", e=>{
     mscSet(mscArm, day.dataset.mscday); mscArm=""; renderMsCal();
   }
 });
-/* 숨겨 둔 입력칸을 직접 고쳤을 때도 달력이 따라온다 */
-document.getElementById("msEditGrid").addEventListener("change", ()=>renderMsCal());
+/* 숨겨 둔 입력칸을 직접 고쳤을 때도 달력이 따라온다.
+   ⚠ 여기서 입력칸을 닫으면 안 된다 — 연도를 치는 중에 칸이 사라진다(위 yearReady 주석 참조). */
+document.getElementById("msEditGrid").addEventListener("change", e=>{
+  if(e.target.value && !yearReady(e.target.value)) return;
+  renderMsCal();
+});
 
 /* 마일스톤 설정: 열람은 전원, 편집은 관리자만.
    window.APP_ROLE 은 cloud.js 가 로그인 후 채운다. 값이 없으면 = 클라우드 미사용(로컬 단독) → 제한 없음 */
