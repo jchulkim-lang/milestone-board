@@ -4840,6 +4840,31 @@ const spDLabel = i => { const d=spWeekDate(i); return (d.getMonth()+1)+"/"+d.get
 function spRange(it){ const a=spWeekDate(it.s), b=spWeekDate(it.s+it.w); b.setDate(b.getDate()-1);
   return { a, b, label:(a.getMonth()+1)+"/"+a.getDate()+" ~ "+(b.getMonth()+1)+"/"+b.getDate(),
            full:ymd(a)+" ~ "+ymd(b) }; }
+/* ===== 「납품 (→ NC)」 글자 자동 계산 (2026-10-26) ============================
+   사용자 지시: **"납품일자의 텍스트만 -20일로 산정해서 기재 / 나머지는 수정 안 해도 된다"**
+   → 시작 주차·기간·색·트랙은 **절대 건드리지 않는다.** 막대에 쓰는 글자만 갈아 끼운다.
+   날짜를 항목에 저장하지 않는 것이 이 뷰의 원칙이다 — 런칭일을 바꾸면 같이 움직여야 하므로
+   `it.text` 를 고쳐 쓰지 않고 **그릴 때마다 계산**한다.
+   기준은 그 납품 막대가 올라탄 **빌드 버전 항목의 시작일**. -N 일은 푸터에서 바꿀 수 있다. */
+const NC_DAYS_DEFAULT = 20;
+const spNcDays = () => { const v=Number(planState().ncDays); return Number.isFinite(v)?v:NC_DAYS_DEFAULT; };
+const spIsNcRow = row => !!row && /납품/.test(row.name||"");
+function spBuildRow(){
+  for(const sec of planState().sections||[])
+    for(const r of sec.rows||[]) if(/빌드\s*버전/.test(r.name||"")) return r;
+  return null;
+}
+/* 같은 주에 시작하는 빌드 항목 → 없으면 그 주를 품고 있는 빌드 항목 → 그래도 없으면 자기 시작 주 */
+function spNcBase(it){
+  const br=spBuildRow();
+  if(br){ const b=(br.items||[]).find(x=>x.s===it.s) || (br.items||[]).find(x=>it.s>=x.s && it.s<x.s+x.w);
+    if(b) return b.s; }
+  return it.s;
+}
+function spNcText(it){
+  const d=spWeekDate(spNcBase(it)); d.setDate(d.getDate()-spNcDays());
+  return (d.getMonth()+1)+"/"+d.getDate()+" 납품";
+}
 function spTodayWeek(){ const a=spWeekDate(0), t=stripTime(new Date());
   const diff=(t-stripTime(a))/86400000; if(diff<0) return null;
   const w=diff/7; return w<=spWeeks() ? w : null; }
@@ -4880,15 +4905,17 @@ function spLanes(items){
 }
 function spRowHtml(row, ed){
   const W=spWeeks(), {placed,n}=spLanes(row.items), showD=!!planState().showDates;
+  const isNc=spIsNcRow(row);                 // 납품 트랙이면 글자를 계산해서 쓴다
   const H=Math.max(30, n*SP_LANE_H+8);
   const bars=placed.map(({it,li})=>{
     const st=Math.max(0,Math.min(W-1,it.s)), wd=Math.max(1,Math.min(W-st,it.w));
     const l=(st/W)*100, ww=(wd/W)*100;
     const rg=spRange({s:st,w:wd});
+    const lb=isNc ? spNcText(it) : it.text;
     return `<div class="sp-bar ${it.kind==='cont'?'cont':''} ${it.kind==='tbd'?'tbd':''}" data-spitem="${row.id}|${it.id}"`+
       ` style="left:calc(${l}% + 3px);width:calc(${ww}% - 6px);top:${4+li*SP_LANE_H}px;background:${row.color}2e;border-color:${row.color}"`+
-      ` title="${escapeHtml(it.text)}${it.note?' · '+it.note:''}\n${rg.full} (런칭 +${st}주부터 ${wd}주)${ed?'\n클릭: 편집 · 드래그: 이동/기간':''}">`+
-      `${ed?'<span class="h l"></span>':''}${escapeHtml(it.text)}${it.note?`<em>${escapeHtml(it.note)}</em>`:''}`+
+      ` title="${escapeHtml(lb)}${it.note?' · '+it.note:''}${isNc?`\n빌드 시작일 −${spNcDays()}일로 자동 계산`:''}\n${rg.full} (런칭 +${st}주부터 ${wd}주)${ed?'\n클릭: 편집 · 드래그: 이동/기간':''}">`+
+      `${ed?'<span class="h l"></span>':''}${escapeHtml(lb)}${it.note?`<em>${escapeHtml(it.note)}</em>`:''}`+
       `${showD?`<em class="dt">${escapeHtml(rg.label)}</em>`:''}${ed?'<span class="h r"></span>':''}</div>`;
   }).join("");
   let cells=""; for(let i=0;i<W;i++) cells+=`<div class="sp-wk ${Math.floor(i/3)%2?'alt':''}"></div>`;
@@ -4938,7 +4965,11 @@ function renderPlan(){
     ? `<span>런칭일</span><input type="date" id="spLaunch" value="${escapeHtml(pl.launch||"2026-07-08")}">`+
       `<span>표시</span><select id="spWeeks">${[13,19,26,32,39,52].map(n=>`<option value="${n}" ${Number(pl.weeks)===n?"selected":""}>${n}주</option>`).join("")}</select>`+
       `<span>버전 단위</span><select id="spVerW">${[3,4,6,8,12].map(n=>`<option value="${n}" ${Number(pl.verWeeks||6)===n?"selected":""}>${n}주</option>`).join("")}</select>`+
-      `<button class="tgl ${pl.showDates?"on":""}" id="spDates" title="헤더와 막대에 런칭일 기준 실제 날짜를 표시">📅 실제 날짜</button>`
+      `<button class="tgl ${pl.showDates?"on":""}" id="spDates" title="헤더와 막대에 런칭일 기준 실제 날짜를 표시">📅 실제 날짜</button>`+
+      `<span title="납품 트랙의 글자를 '빌드 시작일 − N일' 로 계산합니다">납품 D−</span>`+
+      `<input type="number" id="spNcDays" min="0" max="120" step="1" value="${spNcDays()}" `+
+      `style="width:58px" title="빌드 버전 시작일에서 며칠 전으로 적을지">`+
+      `<span>일</span>`
     : `<span>런칭 ${escapeHtml(pl.launch||"")} 기준 ${W}주</span>`;
 }
 function openPlan(){ const fresh=!state.plan; planState();
@@ -4986,7 +5017,12 @@ function openSpItemPop(anchor, rid, iid, startWeek){
   const rowOpts=planState().sections.map(sec=>`<optgroup label="${escapeHtml(sec.name)}">`+
     (sec.rows||[]).map(r=>`<option value="${r.id}" ${r.id===rid?"selected":""}>${escapeHtml(r.name)}</option>`).join("")+`</optgroup>`).join("");
   spPopEl().innerHTML =
-    `<label>내용</label><input id="sppText" value="${escapeHtml(it?it.text:"")}" placeholder="예: 「엘디스 픽업」">`+
+    (spIsNcRow(row)
+      ? `<label>내용</label><input id="sppText" value="${escapeHtml(it?it.text:"")}" disabled `+
+        `title="납품 트랙은 글자를 자동으로 계산합니다" placeholder="자동">`+
+        `<div class="rmp-hint" style="margin-top:4px">막대 글자는 <b>빌드 시작일 −${spNcDays()}일</b>로 자동 계산됩니다`+
+        `(아래 푸터의 「납품 D−」에서 바꿉니다). 시작 주차·지속은 여기서 그대로 고칠 수 있습니다.</div>`
+      : `<label>내용</label><input id="sppText" value="${escapeHtml(it?it.text:"")}" placeholder="예: 「엘디스 픽업」">`)+
     `<label>트랙</label><select id="sppRow">${rowOpts}</select>`+
     `<div style="display:flex;gap:6px"><div style="flex:1"><label>시작 주차</label><select id="sppS">${spWeekOptions(cs)}</select></div>`+
     `<div style="flex:0 0 74px"><label>지속</label><select id="sppW">${Array.from({length:W},(_,k)=>k+1).map(k=>`<option value="${k}" ${k===cw?"selected":""}>${k}주</option>`).join("")}</select></div></div>`+
@@ -5108,7 +5144,11 @@ document.getElementById("spFoot").addEventListener("change", e=>{
     pl.launch=l.value; save(); renderPlan();
     const el=document.getElementById("spLaunch"); if(el) el.focus(); return; }
   const w=e.target.closest("#spWeeks"); if(w){ pl.weeks=Number(w.value)||19; save(); renderPlan(); return; }
-  const v=e.target.closest("#spVerW"); if(v){ pl.verWeeks=Number(v.value)||6; save(); renderPlan(); }
+  const v=e.target.closest("#spVerW"); if(v){ pl.verWeeks=Number(v.value)||6; save(); renderPlan(); return; }
+  const nd=e.target.closest("#spNcDays");
+  if(nd){ const n=Math.max(0,Math.min(120,Math.round(Number(nd.value))));
+    pl.ncDays = Number.isFinite(n) ? n : NC_DAYS_DEFAULT; save(); renderPlan();
+    const el=document.getElementById("spNcDays"); if(el) el.focus(); }
 });
 document.getElementById("spFoot").addEventListener("click", e=>{
   if(!spCanEdit()) return;
