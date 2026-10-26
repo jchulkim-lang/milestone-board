@@ -727,6 +727,7 @@
   .mt-pill:hover{ border-color:var(--accent); }
   .mt-pill.off{ opacity:.42; text-decoration:line-through; }
   .mt-pill.all{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .mt-pill.all.hashid{ background:#f59e0b; border-color:#f59e0b; color:#1f2937; }
   .mt-seg{ display:inline-flex; gap:2px; background:var(--bg); border:1px solid var(--line);
      border-radius:7px; padding:2px; flex:0 0 auto; }
   .mt-seg button{ border:0; background:transparent; color:var(--muted); font-family:inherit; font-size:10px;
@@ -769,6 +770,7 @@
      background:rgba(251,191,36,.14); border-radius:999px; padding:0 5px; }
   .mt-empty{ text-align:center; color:var(--muted); font-size:12px; padding:26px 0; }
   .mt-over{ color:#fbbf24; font-weight:800; }
+  .mt-hid{ color:#93c5fd; font-weight:800; }
   .mt-foot{ flex:0 0 auto; display:flex; gap:11px; flex-wrap:wrap; align-items:center;
      padding:5px 11px; border-top:1px solid var(--line); font-size:10.5px; color:var(--muted); }
   .mt-foot span{ display:inline-flex; align-items:center; gap:4px; }
@@ -5438,7 +5440,18 @@ function mtRowHtml(t){
 }
 /* 본문·바닥을 한 군데서 그린다 — 검색은 헤더를 다시 그리면 입력 포커스가 날아가므로
    이 함수만 부른다. 넘침 판정도 여기서 같이 한다(둘이 갈라지면 또 어긋난다). */
-function mtPaintBody(vis, total){
+/* 「전체 129」 옆에 「41건 표시」가 뜨면 사람은 버그로 읽는다 (2026-10-26 제보).
+   숨긴 상태와 그 건수를 **머리글 버튼과 바닥에 같이** 적어 둔다. 둘 중 하나만 고치지 말 것. */
+function mtHiddenInfo(all){
+  const keys=[]; let n=0;
+  (all||[]).forEach(t=>{
+    if(isDone(t)){ if(mtHide.has("__done")){ n++; if(!keys.includes("완료")) keys.push("완료"); } }
+    else if(mtHide.has(t.status)){ n++; if(!keys.includes(t.status)) keys.push(t.status); }
+  });
+  return { n, label:keys.join("·") };
+}
+function mtPaintBody(all){
+  const vis=mtVisible(all||[]), total=(all||[]).length, hid=mtHiddenInfo(all);
   const body=document.getElementById("mtBody"), wrap=document.getElementById("mtWrap"), foot=document.getElementById("mtFoot");
   if(!body) return;
   body.style.setProperty("--mtcols", String(mtEffCols(vis.length)));
@@ -5451,6 +5464,7 @@ function mtPaintBody(vis, total){
   if(foot) foot.innerHTML =
     allStatusDefs().slice(0,6).map(d=>`<span><i style="background:${d.color}"></i>${escapeHtml(d.k)}</span>`).join("")+
     `<span style="margin-left:auto">${vis.length}건 표시`+
+    (hid.n?` · <b class="mt-hid">${escapeHtml(hid.label)} ${hid.n}건 숨김 — 「모두 보기」를 누르면 나옵니다</b>`:"")+
     (over?` · <b class="mt-over">\u25BE 아래로 더 있습니다 — 「자동」을 누르면 한 화면에</b>`:"")+
     ` · 줄을 누르면 보드판에서 펼쳐집니다</span>`;
 }
@@ -5460,13 +5474,16 @@ function renderMsTasks(){
   const m=findMs(msSelId)||{}; const all=msTasksOf(msSelId);
   const defs=allStatusDefs().filter(d=>all.some(t=>!isDone(t)&&t.status===d.k));
   const doneN=all.filter(isDone).length;
+  const hid=mtHiddenInfo(all);
   const pill=(key,label,n,color,extra)=>
     `<button type="button" class="mt-pill ${mtHide.has(key)?'off':''}" data-mtpill="${escapeHtml(key)}" `+
     `title="누르면 이 상태를 숨기거나 다시 보여 줍니다" style="${color?`border-left:3px solid ${color}`:''}">${escapeHtml(label)} ${n}</button>`;
   head.innerHTML =
     `<button type="button" class="mt-fold" id="mtFoldBtn" title="좌측 마일스톤 칸을 접어 일감을 더 넓게 봅니다">${mtFold?'▶ 펼치기':'◀ 접기'}</button>`+
     `<span class="mt-title">${escapeHtml(m.name||"-")}</span>`+
-    `<button type="button" class="mt-pill all" data-mtpill="__all" title="숨긴 상태를 모두 되돌립니다">전체 ${all.length}</button>`+
+    `<button type="button" class="mt-pill all ${hid.n?'hashid':''}" data-mtpill="__all" `+
+    `title="${hid.n?`${escapeHtml(hid.label)} ${hid.n}건이 숨겨져 있습니다 — 누르면 모두 보입니다`:'숨긴 상태를 모두 되돌립니다'}">`+
+    `${hid.n?`모두 보기 ${all.length}`:`전체 ${all.length}`}</button>`+
     defs.map(d=>pill(d.k,d.k,all.filter(t=>!isDone(t)&&t.status===d.k).length,d.color)).join("")+
     (doneN?pill("__done","완료",doneN,"#10b981"):"")+
     `<span class="mt-seg"><button type="button" data-mtcol="2" class="${mtCols===2?'on':''}">2열</button>`+
@@ -5477,7 +5494,7 @@ function renderMsTasks(){
     `<span class="mt-seg"><button type="button" data-mtdense="0" class="${mtDense?'':'on'}">보통</button>`+
     `<button type="button" data-mtdense="1" class="${mtDense?'on':''}">조밀</button></span>`+
     `<input class="mt-srch" id="mtSrch" placeholder="이 마일스톤 안에서 검색…" value="${escapeHtml(mtQuery)}">`;
-  mtPaintBody(mtVisible(all), all.length);
+  mtPaintBody(all);
   document.body.classList.toggle("ms-fold", mtFold);
 }
 /* 줄 클릭 = 보드판으로. 팝업을 닫고 그 Task 를 펼쳐 강조한다 — 여기는 보는 곳이고 고치는 곳이 아니다. */
@@ -5506,7 +5523,7 @@ document.getElementById("mtHead").addEventListener("click", e=>{
 document.getElementById("mtHead").addEventListener("input", e=>{
   if(e.target.closest("#mtSrch")){ mtQuery=e.target.value||"";
     /* 검색은 본문만 다시 그린다 — 헤더를 갈아끼우면 입력칸이 날아가 포커스가 풀린다. */
-    const all=msTasksOf(msSelId); mtPaintBody(mtVisible(all), all.length);
+    mtPaintBody(msTasksOf(msSelId));
   }
 });
 document.getElementById("mtBody").addEventListener("click", e=>{
