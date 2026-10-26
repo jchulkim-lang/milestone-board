@@ -737,8 +737,20 @@
   /* 우측 본문 — 다단 */
   /* ⚠ grid 로 깔면 **가로로 먼저** 채워져 정렬 순서가 좌→우로 흐른다. 60건을 훑을 때는
      세로로 읽혀야 상태 색띠도 세로로 뭉친다 → CSS 다단(column-count)을 쓴다. */
+  /* 넘칠 때 **스크롤된다는 사실이 보여야** 한다 — 2026-10-26 "오버되는 task는 볼 수가 없는데" 제보.
+     ① scrollbar-gutter:stable 로 자리를 항상 비워 두고 ② 썸을 눈에 띄는 색으로 칠하고
+     ③ .mt-wrap.over 바닥 페이드로 "아직 더 있다"를 보여 준다. 셋 다 빼지 말 것. */
+  /* ⚠ **flex-direction:column 을 빼지 말 것.** 가로 flex 안에 넣으면 .mt-body 의 블록 크기가
+     definite 가 되어 다단이 **가로로** 넘치고 overflow-x:hidden 에 잘린다(아래 column-fill 경고와 같은 사고).
+     세로 flex 안에서 flex:1 1 0 이어야 높이가 auto 로 잡혀 세로로 넘치고 스크롤된다. */
+  .mt-wrap{ flex:1 1 0; min-height:0; position:relative; display:flex; flex-direction:column; }
+  .mt-wrap.over::after{ content:""; position:absolute; left:0; right:0; bottom:0; height:22px;
+     background:linear-gradient(to bottom, rgba(0,0,0,0), var(--bg)); pointer-events:none; }
   .mt-body{ flex:1 1 0; min-height:0; overflow-y:auto; overflow-x:hidden; padding:4px 6px;
-     column-count:var(--mtcols,3); column-gap:10px; }
+     column-count:var(--mtcols,3); column-gap:10px; scrollbar-gutter:stable; scrollbar-width:thin; }
+  .mt-body::-webkit-scrollbar{ width:10px; }
+  .mt-body::-webkit-scrollbar-thumb{ background:var(--scroll); border-radius:8px; }
+  .mt-body::-webkit-scrollbar-thumb:hover{ background:var(--accent); }
   /* ⚠ column-fill:auto 를 쓰면 **줄이 많을 때 가로로 넘쳐** overflow-x:hidden 에 잘려
      절반이 아예 닿지 않는다(134줄 실측: scrollWidth 2522 vs 1262). 기본값 balance 를 유지할 것. */
   .mt-body > *{ break-inside:avoid; }
@@ -756,6 +768,7 @@
   .mt-note{ flex:0 0 auto; font-size:9px; font-weight:800; color:#fde68a;
      background:rgba(251,191,36,.14); border-radius:999px; padding:0 5px; }
   .mt-empty{ text-align:center; color:var(--muted); font-size:12px; padding:26px 0; }
+  .mt-over{ color:#fbbf24; font-weight:800; }
   .mt-foot{ flex:0 0 auto; display:flex; gap:11px; flex-wrap:wrap; align-items:center;
      padding:5px 11px; border-top:1px solid var(--line); font-size:10.5px; color:var(--muted); }
   .mt-foot span{ display:inline-flex; align-items:center; gap:4px; }
@@ -1546,7 +1559,7 @@
       </div>
       <div class="ms-right">
         <div class="mt-head" id="mtHead"></div>
-        <div class="mt-body" id="mtBody"></div>
+        <div class="mt-wrap" id="mtWrap"><div class="mt-body" id="mtBody"></div></div>
         <div class="mt-foot" id="mtFoot"></div>
       </div>
       </div>
@@ -5364,13 +5377,17 @@ function applyMsRole(){
    여기는 **보는 곳**이다 — 고치려면 줄을 눌러 보드판으로 간다. 상태 select·삭제는 두지 않는다.
    상단 필터(보드판)는 **따르지 않는다** — "32건이라더니 왜 4건만 보이지"가 되기 때문. 전용 검색을 둔다. */
 const MT_COLS_KEY="ms_mtcols", MT_DENSE_KEY="ms_mtdense", MT_FOLD_KEY="ms_mtfold";
-let mtCols=3, mtDense=false, mtFold=false;
-try{ mtCols=Number(localStorage.getItem(MT_COLS_KEY))||3; }catch(_){}
+let mtCols=3, mtDense=false, mtFold=false;   // mtCols: 2 | 3 | 4 | "auto"
+try{ const _c=localStorage.getItem(MT_COLS_KEY); mtCols = _c==="auto" ? "auto" : (Number(_c)||3); }catch(_){}
 try{ mtDense=localStorage.getItem(MT_DENSE_KEY)==="1"; }catch(_){}
 try{ mtFold=localStorage.getItem(MT_FOLD_KEY)==="1"; }catch(_){}
 let mtHide=new Set(["__done"]);      // 기본: 완료 접힘
 let mtQuery="";
-const msTasksOf = id => (state.tasks||[]).filter(t=>t && t.milestoneId===id);
+/* 마일스톤 탭은 **개발 분류만** 센다 (2026-10-26 사용자 지시).
+   아트·전투·네러티브 Task 는 마일스톤에 붙어 있어도 여기 건수·목록에 나오지 않는다.
+   보드판 쪽 마일스톤 필터는 종전대로 모든 분류를 센다 — 여기만 좁힌 것이다. */
+const MT_TRACK = "개발";
+const msTasksOf = id => (state.tasks||[]).filter(t=>t && t.milestoneId===id && t.track===MT_TRACK);
 function mtStatusDefs(){ return allStatusDefs(); }
 function mtColorOf(t){
   if(isDone(t)) return "#10b981";
@@ -5401,6 +5418,42 @@ function mtVisible(all){
     return true;
   }));
 }
+/* 「자동」 = 스크롤이 안 생기는 **가장 적은 열 수**. 한 칸에 들어가는 줄 수로 역산한다.
+   6열이 상한 — 그보다 좁히면 이름이 거의 안 보인다(좌측을 접으면 6열도 쓸 만하다). */
+function mtEffCols(n){
+  if(mtCols!=="auto") return mtCols;
+  const b=document.getElementById("mtBody");
+  const h=(b&&b.clientHeight)||632, rh=mtDense?20:24;
+  const cap=Math.max(1, Math.floor((h-8)/rh));
+  return Math.min(6, Math.max(3, Math.ceil(n/cap)));
+}
+function mtRowHtml(t){
+  return `<div class="mt-row ${isDone(t)?'done':''}" data-mtgo="${t.id}" style="--sc:${mtColorOf(t)}" `+
+    `title="${escapeHtml(t.name)}\n${escapeHtml(t.status||"")} — 누르면 보드판에서 펼쳐집니다">`+
+    `<span class="mt-trk" style="background:${TRACK_COLORS[t.track]||"#64748b"}"></span>`+
+    mtPrio(t)+
+    `<span class="mt-nm">${escapeHtml(t.name)}</span>`+
+    (noteCount(t)?`<span class="mt-note">📝${noteCount(t)}</span>`:"")+
+    `</div>`;
+}
+/* 본문·바닥을 한 군데서 그린다 — 검색은 헤더를 다시 그리면 입력 포커스가 날아가므로
+   이 함수만 부른다. 넘침 판정도 여기서 같이 한다(둘이 갈라지면 또 어긋난다). */
+function mtPaintBody(vis, total){
+  const body=document.getElementById("mtBody"), wrap=document.getElementById("mtWrap"), foot=document.getElementById("mtFoot");
+  if(!body) return;
+  body.style.setProperty("--mtcols", String(mtEffCols(vis.length)));
+  body.style.setProperty("--mtrh", mtDense?"20px":"24px");
+  body.style.setProperty("--mtfs", mtDense?"10.5px":"11.5px");
+  body.innerHTML = vis.length ? vis.map(mtRowHtml).join("")
+    : `<div class="mt-empty">${total?"조건에 맞는 일감이 없습니다.":"이 마일스톤에 배정된 개발 일감이 없습니다."}</div>`;
+  const over = body.scrollHeight > body.clientHeight + 1;
+  if(wrap) wrap.classList.toggle("over", over);
+  if(foot) foot.innerHTML =
+    allStatusDefs().slice(0,6).map(d=>`<span><i style="background:${d.color}"></i>${escapeHtml(d.k)}</span>`).join("")+
+    `<span style="margin-left:auto">${vis.length}건 표시`+
+    (over?` · <b class="mt-over">\u25BE 아래로 더 있습니다 — 「자동」을 누르면 한 화면에</b>`:"")+
+    ` · 줄을 누르면 보드판에서 펼쳐집니다</span>`;
+}
 function renderMsTasks(){
   const head=document.getElementById("mtHead"), body=document.getElementById("mtBody"), foot=document.getElementById("mtFoot");
   if(!head||!body) return;
@@ -5417,26 +5470,14 @@ function renderMsTasks(){
     defs.map(d=>pill(d.k,d.k,all.filter(t=>!isDone(t)&&t.status===d.k).length,d.color)).join("")+
     (doneN?pill("__done","완료",doneN,"#10b981"):"")+
     `<span class="mt-seg"><button type="button" data-mtcol="2" class="${mtCols===2?'on':''}">2열</button>`+
-    `<button type="button" data-mtcol="3" class="${mtCols===3?'on':''}">3열</button></span>`+
+    `<button type="button" data-mtcol="3" class="${mtCols===3?'on':''}">3열</button>`+
+    `<button type="button" data-mtcol="4" class="${mtCols===4?'on':''}">4열</button>`+
+    `<button type="button" data-mtcol="auto" class="${mtCols==="auto"?'on':''}" `+
+    `title="스크롤이 생기지 않는 가장 적은 열 수로 맞춥니다">자동</button></span>`+
     `<span class="mt-seg"><button type="button" data-mtdense="0" class="${mtDense?'':'on'}">보통</button>`+
     `<button type="button" data-mtdense="1" class="${mtDense?'on':''}">조밀</button></span>`+
     `<input class="mt-srch" id="mtSrch" placeholder="이 마일스톤 안에서 검색…" value="${escapeHtml(mtQuery)}">`;
-  const vis=mtVisible(all);
-  body.style.setProperty("--mtcols", String(mtCols));
-  body.style.setProperty("--mtrh", mtDense?"20px":"24px");
-  body.style.setProperty("--mtfs", mtDense?"10.5px":"11.5px");
-  body.innerHTML = vis.length ? vis.map(t=>
-    `<div class="mt-row ${isDone(t)?'done':''}" data-mtgo="${t.id}" style="--sc:${mtColorOf(t)}" `+
-    `title="${escapeHtml(t.name)}\n${escapeHtml(t.status||"")} — 누르면 보드판에서 펼쳐집니다">`+
-    `<span class="mt-trk" style="background:${TRACK_COLORS[t.track]||"#64748b"}"></span>`+
-    mtPrio(t)+
-    `<span class="mt-nm">${escapeHtml(t.name)}</span>`+
-    (noteCount(t)?`<span class="mt-note">📝${noteCount(t)}</span>`:"")+
-    `</div>`).join("")
-    : `<div class="mt-empty">${all.length?"조건에 맞는 일감이 없습니다.":"이 마일스톤에 배정된 일감이 없습니다."}</div>`;
-  if(foot) foot.innerHTML =
-    allStatusDefs().slice(0,6).map(d=>`<span><i style="background:${d.color}"></i>${escapeHtml(d.k)}</span>`).join("")+
-    `<span style="margin-left:auto">${vis.length}건 표시 · 줄을 누르면 보드판에서 펼쳐집니다</span>`;
+  mtPaintBody(mtVisible(all), all.length);
   document.body.classList.toggle("ms-fold", mtFold);
 }
 /* 줄 클릭 = 보드판으로. 팝업을 닫고 그 Task 를 펼쳐 강조한다 — 여기는 보는 곳이고 고치는 곳이 아니다. */
@@ -5456,24 +5497,16 @@ document.getElementById("mtHead").addEventListener("click", e=>{
     if(k==="__all") mtHide.clear(); else mtHide.has(k)?mtHide.delete(k):mtHide.add(k);
     renderMsTasks(); return; }
   const c=e.target.closest("[data-mtcol]");
-  if(c){ mtCols=Number(c.dataset.mtcol)||3; try{localStorage.setItem(MT_COLS_KEY,String(mtCols));}catch(_){}  renderMsTasks(); return; }
+  if(c){ const v=c.dataset.mtcol; mtCols = v==="auto" ? "auto" : (Number(v)||3);
+    try{localStorage.setItem(MT_COLS_KEY,String(mtCols));}catch(_){}  renderMsTasks(); return; }
   const d=e.target.closest("[data-mtdense]");
   if(d){ mtDense=d.dataset.mtdense==="1"; try{localStorage.setItem(MT_DENSE_KEY,mtDense?"1":"0");}catch(_){}  renderMsTasks(); return; }
   if(e.target.closest("#mtFoldBtn")){ mtFold=!mtFold; try{localStorage.setItem(MT_FOLD_KEY,mtFold?"1":"0");}catch(_){}  renderMsTasks(); return; }
 });
 document.getElementById("mtHead").addEventListener("input", e=>{
-  if(e.target.closest("#mtSrch")){ mtQuery=e.target.value||""; const el=document.getElementById("mtBody");
-    const m=findMs(msSelId)||{}; const vis=mtVisible(msTasksOf(msSelId));
+  if(e.target.closest("#mtSrch")){ mtQuery=e.target.value||"";
     /* 검색은 본문만 다시 그린다 — 헤더를 갈아끼우면 입력칸이 날아가 포커스가 풀린다. */
-    el.innerHTML = vis.length ? vis.map(t=>
-      `<div class="mt-row ${isDone(t)?'done':''}" data-mtgo="${t.id}" style="--sc:${mtColorOf(t)}" title="${escapeHtml(t.name)}">`+
-      `<span class="mt-trk" style="background:${TRACK_COLORS[t.track]||"#64748b"}"></span>`+mtPrio(t)+
-      `<span class="mt-nm">${escapeHtml(t.name)}</span>`+
-      (noteCount(t)?`<span class="mt-note">📝${noteCount(t)}</span>`:"")+`</div>`).join("")
-      : `<div class="mt-empty">조건에 맞는 일감이 없습니다.</div>`;
-    const f=document.getElementById("mtFoot");
-    if(f) f.innerHTML = allStatusDefs().slice(0,6).map(d=>`<span><i style="background:${d.color}"></i>${escapeHtml(d.k)}</span>`).join("")
-      + `<span style="margin-left:auto">${vis.length}건 표시 · 줄을 누르면 보드판에서 펼쳐집니다</span>`;
+    const all=msTasksOf(msSelId); mtPaintBody(mtVisible(all), all.length);
   }
 });
 document.getElementById("mtBody").addEventListener("click", e=>{
