@@ -715,6 +715,48 @@
   #msModal .modal label{ margin:7px 0 3px; font-size:10.5px; }
   #msModal .modal input{ padding:6px 9px; font-size:12.5px; }
   #msModal .ms-edit-grid{ gap:0 12px; }
+  /* ===== 마일스톤 마감일 달력 — A안 (2026-10-26) =====================================
+     사용자: "달력 형태로 구성되었으면 합니다. 이게 눈에 잘 들어오지 않네요."
+     값은 여전히 숨겨 둔 <input type="date"> 6개가 들고 있다 — 달력은 그 칸을 쓸 뿐이다.
+     덕분에 loadMsEditor / msSaveOk / applyMsRole / 마감일 역전 confirm 을 하나도 안 건드렸다.
+     입력칸은 기본 숨김, 칩을 **더블클릭**하면 그 칸만 열린다(먼 날짜는 타자가 빠르다). */
+  #msModal .ms-edit-grid > div{ display:none; }
+  #msModal .ms-edit-grid > div.show{ display:block; }
+  .msc{ margin-top:5px; }
+  .msc-chips{ display:flex; flex-wrap:wrap; gap:5px; margin-bottom:5px; }
+  .msc-chip{ display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:800;
+     padding:3px 8px; border-radius:999px; background:var(--panel2); border:1px solid var(--line);
+     color:#cbd5e1; cursor:pointer; font-family:inherit; }
+  .msc-chip:hover{ border-color:var(--accent); }
+  .msc-chip i{ width:7px; height:7px; border-radius:50%; flex:0 0 auto; }
+  .msc-chip b{ font-family:ui-monospace,Menlo,monospace; color:#fff; font-weight:800; }
+  .msc-chip b.none{ color:#64748b; }
+  .msc-chip.arm{ border-color:#fbbf24; box-shadow:0 0 0 1px #fbbf24 inset; background:rgba(251,191,36,.12); }
+  .msc-chip .x{ color:#64748b; font-weight:900; margin-left:1px; }
+  .msc-chip .x:hover{ color:#f87171; }
+  .msc-note{ font-size:10.5px; color:#fbbf24; font-weight:700; margin:-2px 0 6px; }
+  .msc-grid{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .msc-mon{ background:var(--bg); border:1px solid var(--line); border-radius:9px; padding:4px; min-width:0; }
+  .msc-mon h4{ margin:0 0 3px; font-size:10.5px; font-weight:800; color:#cbd5e1; text-align:center; }
+  .msc-dow, .msc-days{ display:grid; grid-template-columns:repeat(7,1fr); gap:1px; }
+  .msc-dow span{ font-size:9px; color:var(--muted); text-align:center; padding:1px 0; }
+  .msc-dow span.s{ color:#f87171; } .msc-dow span.a{ color:#60a5fa; }
+  /* 26px — **3개월(2열 2줄)까지 좌측 패널에 스크롤 없이 들어가는 한계값.** 더 키우지 말 것.
+     색 범례를 따로 두지 않는 이유도 같다(위 칩이 색·이름을 이미 보여 준다 — 한 줄 32px 절약). */
+  .msc-d{ height:26px; border-radius:5px; display:flex; flex-direction:column; align-items:center;
+     justify-content:center; font-size:10px; color:#cbd5e1; position:relative; cursor:pointer; line-height:1; }
+  .msc-d.pad{ cursor:default; }
+  .msc-d:not(.pad):hover{ background:#222a3a; }
+  .msc-d.sat{ color:#60a5fa; } .msc-d.sun, .msc-d.hol{ color:#f87171; }
+  .msc-d.in{ background:rgba(99,102,241,.13); }
+  .msc-d .n{ display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px;
+     border-radius:50%; font-size:9.5px; font-weight:800; color:#fff; }
+  .msc-d .nm{ font-size:7px; font-weight:800; letter-spacing:-.3px; margin-top:1px; }
+  .msc-skip{ grid-column:1/-1; text-align:center; font-size:10.5px; color:var(--muted);
+     border:1px dashed var(--line); border-radius:8px; padding:6px; }
+  .msc-skip b{ color:#a5b4fc; cursor:pointer; }
+  .msc-tip{ font-size:9.5px; color:var(--muted); align-self:center; margin-left:auto; }
+  .ms-readonly .msc-chip, .ms-readonly .msc-d{ cursor:default; }
   /* 우측 헤더 */
   .mt-head{ flex:0 0 auto; display:flex; align-items:center; gap:7px; flex-wrap:wrap;
      padding:8px 11px; border-bottom:1px solid var(--line); background:var(--panel); }
@@ -1548,16 +1590,17 @@
       <div class="ms-list-wrap" id="msList"></div>
       <button class="meta-btn" id="msAddNew" style="margin-top:2px">＋ 새 마일스톤 추가</button>
       <hr/>
-      <h3 style="font-size:13px" id="msEditHead">선택한 마일스톤 편집</h3>
+      <h3 style="font-size:12.5px;margin:4px 0 2px" id="msEditHead">선택한 마일스톤 편집</h3>
       <label>마일스톤 이름</label><input id="msName" placeholder="예: 1차 빌드" />
-      <div class="ms-edit-grid">
-        <div><label><i style="background:#22c55e"></i>마일스톤 시작일</label><input type="date" id="msStart" /></div>
-        <div><label><i style="background:#ef4444"></i>마일스톤 종료일</label><input type="date" id="msEnd" /></div>
-        <div><label><i style="background:#6366f1"></i>기획서 마감일</label><input type="date" id="msPlan" /></div>
-        <div><label><i style="background:#f59e0b"></i>리소스 마감일</label><input type="date" id="msResource" /></div>
-        <div><label><i style="background:#0ea5e9"></i>개발 마감일</label><input type="date" id="msDev" /></div>
-        <div><label><i style="background:#a855f7"></i>QA 마감일</label><input type="date" id="msQa" /></div>
+      <div class="ms-edit-grid" id="msEditGrid">
+        <div data-mscell="start"><label><i style="background:#22c55e"></i>마일스톤 시작일</label><input type="date" id="msStart" /></div>
+        <div data-mscell="end"><label><i style="background:#ef4444"></i>마일스톤 종료일</label><input type="date" id="msEnd" /></div>
+        <div data-mscell="plan"><label><i style="background:#6366f1"></i>기획서 마감일</label><input type="date" id="msPlan" /></div>
+        <div data-mscell="resource"><label><i style="background:#f59e0b"></i>리소스 마감일</label><input type="date" id="msResource" /></div>
+        <div data-mscell="dev"><label><i style="background:#0ea5e9"></i>개발 마감일</label><input type="date" id="msDev" /></div>
+        <div data-mscell="qa"><label><i style="background:#a855f7"></i>QA 마감일</label><input type="date" id="msQa" /></div>
       </div>
+      <div class="msc" id="msCal"></div>
       </div>
       <div class="ms-right">
         <div class="mt-head" id="mtHead"></div>
@@ -5343,21 +5386,118 @@ function msStripHtml(m){
       `<b class="ms-sval ${v?'':'none'}">${v?escapeHtml(msDateShort(v)):'–'}</b></span>`;
   }).join("")+`</div>`;
 }
+/* 목록은 **명칭만** (2026-10-26 사용자 지시). 날짜는 아래 달력이 보여 준다.
+   되돌리려면 ms-range 와 msStripHtml(m) 을 다시 끼우면 된다 — 둘 다 그대로 남겨 뒀다. */
 function renderMsList(){
   document.getElementById("msList").innerHTML = state.milestones.filter(m=>!m.free).map(m=>
-    `<div class="ms-item ${m.id===msSelId?'sel':''}" data-msitem="${m.id}">
+    `<div class="ms-item ${m.id===msSelId?'sel':''}" data-msitem="${m.id}" `+
+     `title="${escapeHtml(m.name)}  ${(m.start||'-')} ~ ${(m.end||'미정')}">
        <div class="ms-top">
          <span class="ms-swatch" style="background:${m.color}"></span>
          <span class="ms-name">${escapeHtml(m.name)}</span>
-         <span class="ms-range">${(m.start||'-').slice(5)} ~ ${(m.end||'미정').slice(5)}</span>
          <span class="ms-cnt">${msTasksOf(m.id).length}건</span>
-       </div>${msStripHtml(m)}</div>`).join("");
+       </div></div>`).join("");
   renderMsTasks();
 }
 function loadMsEditor(id){ const m=findMs(id);
   document.getElementById("msName").value=m.name||""; document.getElementById("msStart").value=m.start||"";
   document.getElementById("msEnd").value=m.end||""; document.getElementById("msPlan").value=m.plan||""; document.getElementById("msResource").value=m.resource||"";
-  document.getElementById("msDev").value=m.dev||""; document.getElementById("msQa").value=m.qa||""; }
+  document.getElementById("msDev").value=m.dev||""; document.getElementById("msQa").value=m.qa||"";
+  mscArm=""; mscAll=false;
+  document.querySelectorAll("#msEditGrid > div").forEach(d=>d.classList.remove("show"));
+  renderMsCal(); }
+/* ===== 마감일 달력 — A안: 마감일이 **있는 달만** 2열로, 빈 달은 한 줄로 접는다 =====
+   값의 주인은 끝까지 숨겨 둔 <input type="date"> 6개다. 달력은 그 칸을 읽고 쓸 뿐이므로
+   저장·역전검증·권한 로직을 하나도 손대지 않았다. 이 구조를 깨지 말 것. */
+const MSC_IN = { start:"msStart", plan:"msPlan", resource:"msResource", dev:"msDev", qa:"msQa", end:"msEnd" };
+const MSC_ORDER = ["start","plan","resource","dev","qa","end"];   // 일이 진행되는 차례
+let mscArm="", mscAll=false;
+const mscVal = k => { const el=document.getElementById(MSC_IN[k]); return (el&&el.value)||""; };
+function mscSet(k,v){ const el=document.getElementById(MSC_IN[k]); if(el) el.value=v||""; }
+function mscSpan(a,b){                       // "2026-08" ~ "2026-11" → 사이의 모든 달
+  const out=[]; let [y,m]=a.split("-").map(Number); const [Y,M]=b.split("-").map(Number);
+  for(let i=0;i<120;i++){ out.push(y+"-"+String(m).padStart(2,"0"));
+    if(y===Y&&m===M) break; m++; if(m>12){ m=1; y++; } }
+  return out;
+}
+function mscMonths(){
+  const set=new Set();
+  MSC_ORDER.forEach(k=>{ const v=mscVal(k); if(v) set.add(v.slice(0,7)); });
+  const list=[...set].sort();
+  if(!list.length) return { show:[ymd(new Date()).slice(0,7)], skipped:0 };
+  const all=mscSpan(list[0], list[list.length-1]);
+  return mscAll ? { show:all, skipped:0 } : { show:list, skipped:all.length-list.length };
+}
+function mscMonthHtml(ym){
+  const [y,mo]=ym.split("-").map(Number);
+  const pad0=new Date(y,mo-1,1).getDay(), last=new Date(y,mo,0).getDate();
+  const S=mscVal("start"), E=mscVal("end"), HOL=holidayMap();
+  const byDate={};
+  MSC_ORDER.forEach(k=>{ const v=mscVal(k); if(v){ (byDate[v]=byDate[v]||[]).push(msMk(k)); } });
+  let cells="";
+  for(let i=0;i<pad0;i++) cells+=`<div class="msc-d pad"></div>`;
+  for(let d=1;d<=last;d++){
+    const iso=y+"-"+String(mo).padStart(2,"0")+"-"+String(d).padStart(2,"0");
+    const w=new Date(y,mo-1,d).getDay(), hol=HOL[iso]||"", mks=byDate[iso]||[];
+    const cls=["msc-d", w===0?"sun":(w===6?"sat":""), hol?"hol":"",
+               (S&&E&&iso>=S&&iso<=E)?"in":""].filter(Boolean).join(" ");
+    const tip=[iso, hol, mks.map(x=>x.label).join(" · ")].filter(Boolean).join(" · ");
+    const inner = mks.length
+      ? `<span class="n" style="background:${mks[0].color}">${d}</span>`+
+        `<span class="nm" style="color:${mks[0].color}">`+
+        escapeHtml(mks.length>1 ? mks[0].label+"+"+(mks.length-1) : mks[0].label)+`</span>`
+      : String(d);
+    cells+=`<div class="${cls}" data-mscday="${iso}" title="${escapeHtml(tip)}">${inner}</div>`;
+  }
+  const dow=["일","월","화","수","목","금","토"].map((x,i)=>
+    `<span class="${i===0?'s':(i===6?'a':'')}">${x}</span>`).join("");
+  return `<div class="msc-mon"><h4>${y}년 ${mo}월</h4>`+
+         `<div class="msc-dow">${dow}</div><div class="msc-days">${cells}</div></div>`;
+}
+function renderMsCal(){
+  const box=document.getElementById("msCal"); if(!box) return;
+  document.querySelectorAll("#msEditGrid > div").forEach(d=>d.classList.remove("show"));
+  const { show, skipped } = mscMonths();
+  box.innerHTML =
+    `<div class="msc-chips">`+MSC_ORDER.map(k=>{ const mk=msMk(k), v=mscVal(k);
+      return `<button type="button" class="msc-chip ${mscArm===k?'arm':''}" data-mscchip="${k}" `+
+        `title="누르면 날짜 찍기 · 더블클릭하면 날짜 입력칸이 열립니다">`+
+        `<i style="background:${mk.color}"></i>${escapeHtml(mk.label)}`+
+        `<b class="${v?'':'none'}">${v?escapeHtml(msDateShort(v)):'–'}</b>`+
+        (v?`<span class="x" data-mscclr="${k}" title="비우기">×</span>`:"")+`</button>`;
+    }).join("")+`<span class="msc-tip">옅은 보라 = 마일스톤 기간</span></div>`+
+    (mscArm?`<div class="msc-note">「${escapeHtml(msMk(mscArm).label)}」를 고른 상태 — 달력에서 날짜를 누르면 그 날로 지정됩니다.</div>`:"")+
+    `<div class="msc-grid">`+show.map(mscMonthHtml).join("")+
+    (skipped?`<div class="msc-skip">마감일이 없는 달 ${skipped}개는 접혀 있습니다 — <b data-mscall="1">전부 펼치기</b></div>`
+            :(mscAll?`<div class="msc-skip"><b data-mscall="0">마감일 있는 달만 보기</b></div>`:""))+
+    `</div>`;
+}
+function mscShowInput(k){
+  document.querySelectorAll("#msEditGrid > div").forEach(d=>d.classList.toggle("show", d.dataset.mscell===k));
+  const el=document.getElementById(MSC_IN[k]);
+  if(el){ el.focus(); try{ el.showPicker && el.showPicker(); }catch(_){} }
+}
+document.getElementById("msCal").addEventListener("click", e=>{
+  const all=e.target.closest("[data-mscall]");
+  if(all){ mscAll=all.dataset.mscall==="1"; renderMsCal(); return; }
+  if(!msCanEdit()) return;
+  const clr=e.target.closest("[data-mscclr]");
+  if(clr){ mscSet(clr.dataset.mscclr,""); mscArm=""; renderMsCal(); return; }
+  const chip=e.target.closest("[data-mscchip]");
+  if(chip){ const k=chip.dataset.mscchip;
+    /* ⚠ dblclick 이벤트를 쓰지 말 것 — 첫 클릭의 renderMsCal() 이 칩을 DOM 에서 떼어내
+       두 번째 클릭의 dblclick 이 #msCal 까지 전파되지 않는다(실측 확인). click 의 detail 로 잡는다. */
+    if(e.detail>=2){ mscArm=""; renderMsCal(); mscShowInput(k); return; }
+    mscArm=(mscArm===k)?"":k; renderMsCal(); return; }
+  const day=e.target.closest("[data-mscday]");
+  if(day){
+    if(!mscArm){ flashNote("먼저 위에서 마감일 종류를 고르세요 — 「시작」·「리소스」처럼 누르면 달력에서 찍을 수 있습니다."); return; }
+    mscSet(mscArm, day.dataset.mscday); mscArm=""; renderMsCal();
+  }
+});
+/* 숨겨 둔 입력칸을 직접 고쳤을 때도 달력이 따라온다 */
+document.getElementById("msEditGrid").addEventListener("change", ()=>renderMsCal());
+
 /* 마일스톤 설정: 열람은 전원, 편집은 관리자만.
    window.APP_ROLE 은 cloud.js 가 로그인 후 채운다. 값이 없으면 = 클라우드 미사용(로컬 단독) → 제한 없음 */
 const msCanEdit = () => !window.APP_ROLE || window.APP_ROLE === "admin";
