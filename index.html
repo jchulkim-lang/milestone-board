@@ -303,6 +303,36 @@
   .lk{font-size:13px;text-decoration:none;flex:0 0 auto;opacity:.85;}
   /* 트렐로 카드 주소 복사 (2026-10-19). Task 이름 옆 링크 묶음 끝에 붙는다.
      **고정폭**이라 .task-info 의 가변 예산을 거의 안 먹는다(20px). [[task-row-layout]] */
+  /* === Task 메모 (2026-10-26) === */
+  .note-badge{display:inline-flex;align-items:center;gap:3px;height:19px;padding:0 7px;flex:0 0 auto;
+     margin-left:5px;border:1px solid var(--line);border-radius:999px;background:var(--panel2);
+     font-size:10px;font-weight:800;color:#cbd5e1;cursor:pointer;white-space:nowrap;
+     font-family:inherit;line-height:1;}
+  .note-badge:hover{border-color:#fbbf24;color:#fde68a;}
+  .note-badge b{font-weight:800;color:#fbbf24;}
+  .note-badge.fresh{border-color:#fbbf24;background:rgba(251,191,36,.12);}
+  #noteModal .modal{width:600px;}
+  .nt-ta{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);
+     border-radius:9px;padding:10px 12px;font:inherit;font-size:13px;resize:vertical;min-height:74px;}
+  .nt-ta:focus{outline:none;border-color:var(--accent);}
+  .nt-row{display:flex;align-items:center;gap:8px;margin-top:8px;}
+  .nt-hint{font-size:10.5px;color:var(--muted);line-height:1.45;}
+  .nt-hint.over{color:#f87171;font-weight:700;}
+  .nt-sep{display:flex;align-items:center;gap:9px;margin:18px 0 10px;font-size:11px;font-weight:800;color:var(--muted);}
+  .nt-sep:after{content:"";flex:1;height:1px;background:var(--line);}
+  .nt-list{max-height:320px;overflow:auto;display:flex;flex-direction:column;gap:7px;}
+  .nt-item{background:var(--bg);border:1px solid var(--line);border-left:3px solid var(--accent);
+     border-radius:9px;padding:9px 12px;}
+  .nt-item.mine{border-left-color:#34d399;}
+  .nt-hd{display:flex;align-items:center;gap:7px;margin-bottom:4px;}
+  .nt-who{font-size:11.5px;font-weight:800;color:#cbd5e1;}
+  .nt-at{font-size:10.5px;color:var(--muted);font-family:ui-monospace,Menlo,monospace;}
+  .nt-ago{font-size:10px;color:var(--muted);opacity:.75;}
+  .nt-del{margin-left:auto;background:none;border:0;color:var(--muted);font-size:11px;
+     cursor:pointer;opacity:.55;font-family:inherit;padding:1px 4px;border-radius:4px;}
+  .nt-del:hover{opacity:1;color:#f87171;background:rgba(248,113,113,.12);}
+  .nt-txt{font-size:12.5px;color:var(--text);white-space:pre-wrap;word-break:break-word;}
+  .nt-empty{font-size:12px;color:var(--muted);text-align:center;padding:22px 0;}
   .tr-copy{width:20px;height:19px;display:inline-flex;align-items:center;justify-content:center;
      flex:0 0 auto;margin-left:4px;padding:0;font-size:10.5px;line-height:1;cursor:pointer;
      background:transparent;border:1px solid var(--line);border-radius:5px;color:var(--muted);
@@ -1418,6 +1448,16 @@
         <button class="linkrow" id="schedRemove" title="이 Task에서 이 부서를 아예 빼냅니다 (일정·담당자도 함께 사라집니다)">✕ 이 Task에서 부서 빼기</button>
         <div class="right"><button class="btn ghost" data-close>취소</button><button class="btn ghost" id="schedUnset" title="부서는 그대로 두고 날짜만 비워 둡니다 (목록에 ‘일정 미정’으로 표시)">일정 미정</button><button class="btn" id="schedSaveOk">저장</button></div></div></div>
   </div>
+  <div class="modal-bg" id="noteModal">
+    <div class="modal"><h3>📝 메모</h3><div class="msub" id="ntSub"></div>
+      <textarea class="nt-ta" id="ntText" placeholder="메모를 입력하세요. 완료를 눌러야 저장됩니다." maxlength="1200"></textarea>
+      <div class="nt-row"><span class="nt-hint" id="ntHint"></span>
+        <button class="btn" id="ntAdd" style="margin-left:auto" disabled>완료</button></div>
+      <div class="nt-sep" id="ntSep">히스토리</div>
+      <div class="nt-list" id="ntList"></div>
+      <div class="modal-actions"><span></span><div class="right"><button class="btn ghost" data-close>닫기</button></div></div>
+    </div>
+  </div>
   <div class="modal-bg" id="msModal">
     <div class="modal">
       <div class="hub-head"><span class="hub-tabs"><button type="button" class="hub-tab " data-hubtab="rm">🗺 발주 로드맵</button><button type="button" class="hub-tab " data-hubtab="sp">📅 서비스 플랜</button><button type="button" class="hub-tab on" data-hubtab="ms">⚙ 마일스톤</button></span><button type="button" class="hub-x" data-close>✕ 닫기</button></div><div class="msub" id="msModalSub">여러 마일스톤을 만들고 각 Task에 배정합니다. 목록에서 선택해 편집하세요.</div>
@@ -1749,6 +1789,7 @@ const uid=()=>Math.random().toString(36).slice(2,9);
 let state = { milestones:[{ id:"m1", name:"마일스톤 1", color:MS_PALETTE[0], start:"2026-06-01", end:"", plan:"", resource:"", dev:"", qa:"" }], tasks:[] };
 let deptFilter=new Set(), statusFilter=new Set(), msFilter=new Set(), assigneeFilter=new Set(), kfFilter=new Set(), labelFilter=new Set();
 let lateOnly=false;        // 지연된 일감만 보기 (뷰 상태, 저장 안 함)
+let noteOnly=false;        // 메모가 달린 일감만 보기 (2026-10-26)
 let auditOnly=false;       // 체크리스트 문제 있는 일감만 (뷰 상태)
 let trackFilter="개발";   // 분류 탭(개발/아트) — '전체' 없음
 /* 부서 포커스: "__all" 또는 부서 key. 단일 선택. 개인 로컬 설정(공유 안 함) */
@@ -1970,7 +2011,25 @@ function reconcileMirrors(mode){
 function _clone(o){ return o==null?o:JSON.parse(JSON.stringify(o)); }
 function _byId(arr){ const m={}; (arr||[]).forEach(x=>{ if(x&&x.id) m[x.id]=x; }); return m; }
 function _eq(a,b){ return JSON.stringify(a)===JSON.stringify(b); }
-function _mergeFields(b,o,t){ const out=_clone(t)||{}; Object.keys(o||{}).forEach(k=>{ if(!_eq(o[k],b?b[k]:undefined)) out[k]=_clone(o[k]); }); return out; }
+/* Task 메모는 **합집합**으로 병합한다. 필드 단위 last-writer-wins 로 두면 두 사람이 같은 Task 에
+   동시에 메모를 남겼을 때 한쪽 배열이 통째로 이기고 **다른 메모가 흔적 없이 사라진다**
+   — "히스토리가 계속 쌓인다"는 요구와 정면으로 충돌한다(2026-10-26 설계 단계에서 잡음).
+   id 로 합치고 작성 시각 순으로 세운다. 지운 메모가 되살아나는 건 감수한다(5분 창이라 사실상 없음). */
+function _mergeNotes(b,o,t){
+  const m=new Map();
+  [b,o,t].forEach(arr=>(Array.isArray(arr)?arr:[]).forEach(n=>{ if(n&&n.id) m.set(n.id,n); }));
+  const delAll = ids => ids.forEach(id=>m.delete(id));
+  const B=new Set((Array.isArray(b)?b:[]).map(n=>n&&n.id).filter(Boolean));
+  const oIds=new Set((Array.isArray(o)?o:[]).map(n=>n&&n.id).filter(Boolean));
+  const tIds=new Set((Array.isArray(t)?t:[]).map(n=>n&&n.id).filter(Boolean));
+  delAll([...B].filter(id=>!oIds.has(id)||!tIds.has(id)));   // 기준에 있었는데 한쪽에서 지웠으면 삭제 유지
+  return [...m.values()].sort((x,y)=>String(x.at||"").localeCompare(String(y.at||"")));
+}
+function _mergeFields(b,o,t){ const out=_clone(t)||{};
+  Object.keys(o||{}).forEach(k=>{ if(!_eq(o[k],b?b[k]:undefined)) out[k]=_clone(o[k]); });
+  if(Array.isArray((o||{}).notes) || Array.isArray((t||{}).notes) || Array.isArray((b||{}).notes))
+    out.notes=_mergeNotes(b&&b.notes, o&&o.notes, t&&t.notes);
+  return out; }
 function _mergeTasks(base,ours,theirs){
   const B=_byId(base),O=_byId(ours),T=_byId(theirs);
   const ids=new Set([...Object.keys(B),...Object.keys(O),...Object.keys(T)]);
@@ -2051,7 +2110,10 @@ const isLate = t => taskLateDays(t)>0;
 function taskHasUnassigned(t){ const ad=activeDepts(t); if(!ad.length) return true; return ad.some(d=>!((t.depts[d.key].assignees)||[]).length); }
 function passFilter(t){
   if(focusDept!=="__all"){ const _sg=t.depts&&t.depts[focusDept]; if(!(_sg&&_sg.on)) return false; }   // 그 부서가 참여 중인 Task만 (일정 미정도 포함)
-  if(searchQuery.trim()){ const q=searchQuery.trim().toLowerCase(); const hay=((t.name||"")+" "+taskAssignees(t).join(" ")).toLowerCase(); if(!hay.includes(q)) return false; }
+  if(searchQuery.trim()){ const q=searchQuery.trim().toLowerCase();
+    /* 메모 본문도 찾는다(2026-10-26 사용자 선택) — "그 얘기 어느 Task 였지"를 찾을 수 있어야 한다. */
+    const hay=((t.name||"")+" "+taskAssignees(t).join(" ")+" "+noteList(t).map(n=>n&&n.text||"").join(" ")).toLowerCase();
+    if(!hay.includes(q)) return false; }
   if(deptFilter.size && !activeDepts(t).some(d=>deptFilter.has(d.key))) return false;
   if(msFilter.size && !msFilter.has(t.milestoneId)) return false;
   if(trackFilter!=="__all" && t.track!==trackFilter) return false;
@@ -2065,6 +2127,7 @@ function passFilter(t){
     if(!m) return false;
   }
   if(lateOnly && !isLate(t)) return false;
+  if(noteOnly && !noteCount(t)) return false;
   if(AUDIT_ON && auditOnly && !auCount(t.id)) return false;   // 점검이 꺼져 있으면 이 필터는 없는 셈 친다
   if(assigneeFilter.size){
     let m=false;
@@ -2099,7 +2162,7 @@ const VIEW_KEY="ms_view_v1";
 let _viewSaved="";
 function viewSnapshot(){
   return JSON.stringify({ ms:[...msFilter], tr:trackFilter, dp:[...deptFilter], st:[...statusFilter],
-    ag:[...assigneeFilter], kf:[...kfFilter], lb:[...labelFilter], q:searchQuery, lt:lateOnly, au:auditOnly });
+    ag:[...assigneeFilter], kf:[...kfFilter], lb:[...labelFilter], q:searchQuery, lt:lateOnly, nt:noteOnly, au:auditOnly });
 }
 function saveView(){ if(_viewShared) return; try{ const v=viewSnapshot(); if(v===_viewSaved) return; _viewSaved=v; localStorage.setItem(VIEW_KEY,v); }catch(_){} }
 function loadView(){
@@ -2111,7 +2174,7 @@ function loadView(){
     fill(assigneeFilter,v.ag); fill(kfFilter,v.kf); fill(labelFilter,v.lb);
     if(typeof v.tr==="string" && (TRACKS.includes(v.tr) || v.tr===VIEW_MEMBER)) trackFilter=v.tr;
     if(typeof v.q==="string") searchQuery=v.q;
-    lateOnly=!!v.lt;
+    lateOnly=!!v.lt; noteOnly=!!v.nt;
     /* 점검을 끈 뒤에도 예전에 저장된 au:true 가 남아 있을 수 있다. 그대로 복원하면
        auCount 가 0 이라 **전 일감이 사라진다**(2026-10-14 실측). 꺼져 있으면 무조건 false. */
     auditOnly = AUDIT_ON ? !!v.au : false;
@@ -2126,7 +2189,7 @@ function loadView(){
    · 공유 범위: 마일스톤·분류·부서·상태·담당자·킥오프·라벨·검색어·지연 + **부서 포커스·정렬**.
      테마·분할폭·간트 접힘·슬롯 모드·펼친 Task 는 **넣지 않는다** — 남의 취향을 밀어넣는 쪽이다.
    · `?task=` 가 함께 오면 **task 가 이긴다**(focusTaskFromUrl 이 필터를 전부 비우므로 섞으면 뒤죽박죽). */
-const SHARE_KEYS=["ms","dp","st","ag","kf","lb","tr","q","lt","fd","so","sl","gc"];
+const SHARE_KEYS=["ms","dp","st","ag","kf","lb","tr","q","lt","nt","fd","so","sl","gc"];
 const SORT_MODES=["manual","name-asc","name-desc","prio"];
 function shareQuery(){
   const p=new URLSearchParams();
@@ -2136,6 +2199,7 @@ function shareQuery(){
   p.set("tr", trackFilter);                       // 항상 넣는다 — 안 넣으면 받는 사람이 자기 탭에 그대로 남는다
   if(searchQuery.trim()) p.set("q", searchQuery.trim());
   if(lateOnly) p.set("lt","1");
+  if(noteOnly) p.set("nt","1");
   if(focusDept && focusDept!=="__all") p.set("fd", focusDept);
   if(sortMode && sortMode!=="manual") p.set("so", sortMode);
   if(slotMode && slotMode!=="dept") p.set("sl", slotMode);     // 슬롯 탭 (2026-10-15 추가)
@@ -2169,6 +2233,7 @@ function applySharedView(q){
   if(tr){ if(TRACKS.includes(tr)||tr===VIEW_MEMBER) trackFilter=tr; else dropped.push("분류 「"+tr+"」"); }
   searchQuery = q.get("q")||"";
   lateOnly = q.get("lt")==="1";
+  noteOnly = q.get("nt")==="1";
   auditOnly = false;
   const fd=q.get("fd")||"";
   focusDept = (fd && dpOk(fd)) ? fd : "__all";
@@ -2210,7 +2275,7 @@ function showShareBar(dropped){
   if(!b){ b=document.createElement("div"); b.id="shareBar"; b.className="share-bar"; document.body.appendChild(b); }
   const ms = msFilter.size===1 ? ((findMs([...msFilter][0])||{}).name||"") : (msFilter.size?("마일스톤 "+msFilter.size+"개"):"");
   const n = deptFilter.size+statusFilter.size+assigneeFilter.size+kfFilter.size+labelFilter.size
-          + (searchQuery.trim()?1:0) + (lateOnly?1:0) + (focusDept!=="__all"?1:0);
+          + (searchQuery.trim()?1:0) + (lateOnly?1:0) + (noteOnly?1:0) + (focusDept!=="__all"?1:0);
   const extra = (slotMode!=="dept" ? " · "+slotOf().label : "") + (groupCollapsed.size ? " · 접은 그룹 "+groupCollapsed.size : "");
   const drop = (dropped&&dropped.length)
     ? `<span class="sb-sub">지금은 없는 항목 ${dropped.length}개를 제외했습니다 — ${escapeHtml(dropped.slice(0,3).join(", "))}${dropped.length>3?" 외":""}</span>` : "";
@@ -2238,7 +2303,7 @@ function undoSharedView(){
   groupCollapsed.clear();
   msFilter.clear(); deptFilter.clear(); statusFilter.clear();
   assigneeFilter.clear(); kfFilter.clear(); labelFilter.clear();
-  searchQuery=""; lateOnly=false; auditOnly=false; trackFilter="개발";
+  searchQuery=""; lateOnly=false; noteOnly=false; auditOnly=false; trackFilter="개발";
   try{ if(bk.v!=null) localStorage.setItem(VIEW_KEY,bk.v); }catch(_){}
   loadView(); normalizeFocusDept(); applySlotClass(); hideShareBar(); stripShareParams(); render();
   flashNote("링크를 열기 전 화면으로 되돌렸습니다.");
@@ -2259,14 +2324,14 @@ function copyViewLink(btn){
 function noticeRestoredView(){
   /* 개수는 '필터 (N)' 버튼과 **같은 기준**으로 센다(마일스톤 선택은 상단 탭이라 거기 안 들어간다). */
   const n=deptFilter.size+statusFilter.size+assigneeFilter.size+kfFilter.size+labelFilter.size
-        + (searchQuery.trim()?1:0) + (lateOnly?1:0) + (auditOnly?1:0);
+        + (searchQuery.trim()?1:0) + (lateOnly?1:0) + (noteOnly?1:0) + (auditOnly?1:0);
   if(!n && !msFilter.size) return;
   const ms = msFilter.size===1 ? (findMs([...msFilter][0])||{}).name : (msFilter.size?`마일스톤 ${msFilter.size}개`:null);
   flashNote(`지난번에 보시던 화면을 복원했습니다${ms?` · ${ms}`:""}${n?` · 필터 ${n}개`:""}${n?" — 「필터 ▾ → 모두 해제」로 전체를 볼 수 있습니다.":""}`);
 }
 function clearAllFilters(){
   deptFilter.clear(); statusFilter.clear(); msFilter.clear(); assigneeFilter.clear();
-  kfFilter.clear(); labelFilter.clear(); searchQuery=""; lateOnly=false; auditOnly=false;
+  kfFilter.clear(); labelFilter.clear(); searchQuery=""; lateOnly=false; noteOnly=false; auditOnly=false;
   setFocusDept("__all"); render();
 }
 function render(){ normalizeFocusDept(); renderTitle(); renderDeptFocus(); renderContext(); renderPipeline(); renderLegend(); renderFilter(); renderHead(); renderLeft(); renderBody(); refreshRoadmapIfOpen(); saveView(); if(slotActive()) renderSlot(); }
@@ -2391,7 +2456,7 @@ function renderFilter(){
       const n=state.tasks.filter(t=>taskLabelIds(t).includes(l.id)).length;
       return `<span class="fchip ${on?'on':''}" style="${on?'background:'+l.color:''}" data-flb="${escapeHtml(l.id)}"><span class="dot" style="background:${on?'#fff':l.color}"></span>${escapeHtml(l.name)} <b>${n}</b></span>`; }).join("")
     + `<span class="fchip ${labelFilter.has("__none")?'on':''}" data-flb="__none"><span class="dot" style="background:var(--line)"></span>라벨 없음 <b>${state.tasks.filter(t=>!taskLabelIds(t).length).length}</b></span>`;
-  const cnt=deptFilter.size+statusFilter.size+assigneeFilter.size+kfFilter.size+labelFilter.size+(lateOnly?1:0)+(auditOnly?1:0)+(searchQuery.trim()?1:0);
+  const cnt=deptFilter.size+statusFilter.size+assigneeFilter.size+kfFilter.size+labelFilter.size+(lateOnly?1:0)+(noteOnly?1:0)+(auditOnly?1:0)+(searchQuery.trim()?1:0);
   const allA=assigneeFilter.size===0;
   const aSec=`<div class="fsec"><span class="lh-label">담당자</span>
        <div class="fchips"><span class="fchip all ${allA?'on':''}" data-fa="__all">${allA?'✓ ':''}전체</span><span class="fchip ${assigneeFilter.has('__unassigned')?'on':''}" data-fa="__unassigned">${assigneeFilter.has('__unassigned')?'✓ ':''}미정</span></div>
@@ -2426,6 +2491,7 @@ function renderFilter(){
        <div class="fsec"><span class="lh-label">부서</span><div class="fchips"><span class="fchip all ${allD?'on':''}" data-fd="__all">전체</span>${dchips}</div></div>
        <div class="fsec"><span class="lh-label">상태 점검</span><div class="fchips">`+
          `<span class="fchip late ${lateOnly?'on':''}" data-flate="1" title="부서 일정이 끝났는데 완료가 아닌 일감만">${lateOnly?'✓ ':''}⚠ 지연만 (${state.tasks.filter(isLate).length})</span>`+
+         `<span class="fchip ${noteOnly?'on':''}" data-fnote="1" title="메모가 하나라도 달린 일감만">${noteOnly?'✓ ':''}📝 메모 있는 것만 (${state.tasks.filter(x=>noteCount(x)).length})</span>`+
          (AUDIT_ON?`<span class="fchip au ${auditOnly?'on':''}" data-fau="1" title="트렐로 체크리스트에 문제가 있는 일감만">${auditOnly?'✓ ':''}🔍 체크리스트 문제 (${state.tasks.filter(t=>auCount(t.id)>0).length})</span>`:"")+
        `</div></div>
        <div class="fsec"><span class="lh-label">라벨</span><div class="fchips"><span class="fchip all ${labelFilter.size===0?'on':''}" data-flb="__all">${labelFilter.size===0?'✓ ':''}전체</span>${lbchips}</div></div>
@@ -2583,7 +2649,8 @@ function taskHeadHtml(t){
   const stOpts=statusesFor(t.track||"개발").map(s=>`<option ${s.k===t.status?'selected':''}>${escapeHtml(s.k)}</option>`).join("");
   const doneChip=isArt?`<span class="done-chip ${t.done?'on':''}" data-done="${t.id}" title="완료 토글">${t.done?'✓':'○'}</span>`:'';
   const links=(t.links.plan?`<a class="lk" href="${escapeHtml(t.links.plan)}" target="_blank" rel="noopener" title="기획서">📄</a>`:"")+(trelloUrlOf(t)?`<a class="lk" href="${escapeHtml(trelloUrlOf(t))}" target="_blank" rel="noopener" title="Trello 카드 열기">${TRELLO_ICON}</a>`+
-    `<button type="button" class="tr-copy" data-trcopy="${t.id}" title="트렐로 카드 주소를 클립보드에 복사합니다">⧉</button>`:"");
+    `<button type="button" class="tr-copy" data-trcopy="${t.id}" title="트렐로 카드 주소를 클립보드에 복사합니다">⧉</button>`:"")
+    + noteBadgeHtml(t);
   const aps=taskAssignees(t);
   /* 지연 칩·점검 배지는 우측 고정 칸(.th-right 140px)이 아니라 Task 이름 옆에 붙인다.
      우측 칸은 킥오프+상태+삭제 예산(123px)으로 잡혀 있어서, 여기에 넣으면 넘친 만큼
@@ -2835,7 +2902,7 @@ function renderLeft(){
         const trelloBtn=trelloUrlOf(t)?`<a class="meta-btn set" href="${escapeHtml(trelloUrlOf(t))}" target="_blank" rel="noopener" title="Trello 열기">${TRELLO_ICON} Trello</a>`:`<button class="meta-btn dim" data-openedit="${t.id}" title="Trello 링크 추가">${TRELLO_ICON} Trello +</button>`;
         const trSyncBtn=t.trelloCardId?`<button class="meta-btn" data-trsync="${t.id}" title="이 Task를 트렐로 카드 기준으로 다시 맞춥니다">🔄 동기화</button>`:"";
         const trOpts=TRACKS.map(tr=>`<option value="${tr}" ${tr===t.track?'selected':''}>${tr}</option>`).join("");
-        const meta=`<div class="meta-rows"><div class="meta-row"><button class="meta-btn" data-openpicker="${t.id}">＋ 부서</button><button class="meta-btn" data-openedit="${t.id}">✏️ 편집</button><button class="meta-btn" data-dup="${t.id}" title="이 Task 복제">⧉ 복제</button><button class="meta-btn" data-copylink="${t.id}" title="이 Task 링크 복사(전달용)">🔗 링크</button>${planBtn}${trelloBtn}${trSyncBtn}<select class="meta-sel" data-settrack="${t.id}" title="분류">${trOpts}</select><select class="meta-sel" data-setms="${t.id}" title="마일스톤">${msOpts}</select></div></div>`;
+        const meta=`<div class="meta-rows"><div class="meta-row"><button class="meta-btn" data-openpicker="${t.id}">＋ 부서</button><button class="meta-btn" data-openedit="${t.id}">✏️ 편집</button><button class="meta-btn" data-dup="${t.id}" title="이 Task 복제">⧉ 복제</button><button class="meta-btn" data-copylink="${t.id}" title="이 Task 링크 복사(전달용)">🔗 링크</button><button class="meta-btn" data-note="${t.id}" title="이 Task 의 메모를 보고 남깁니다">📝 메모${noteCount(t)?" ("+noteCount(t)+")":""}</button>${planBtn}${trelloBtn}${trSyncBtn}<select class="meta-sel" data-settrack="${t.id}" title="분류">${trOpts}</select><select class="meta-sel" data-setms="${t.id}" title="마일스톤">${msOpts}</select></div></div>`;
         html+=`<div class="task ${isOpen(t.id)?'open':''} ${isLate(t)?'late':''} ${t.kickoff==='Skip'?'skip':''} ${isCatTrack(t.track)&&t.done?'tdone':''} ${t.id===selectedId?'selected':''}" data-task="${t.id}" draggable="${canReorder()?'true':'false'}">${taskHeadHtml(t)}${inner}${meta}</div>`;
       });
     }
@@ -2970,6 +3037,7 @@ leftHead.addEventListener("click", e=>{
   if(fkf){ const k=fkf.dataset.fkf; if(k==="__all")kfFilter.clear(); else kfFilter.has(k)?kfFilter.delete(k):kfFilter.add(k); render(); return; }
   if(fa){ const k=fa.dataset.fa; if(k==="__all")assigneeFilter.clear(); else assigneeFilter.has(k)?assigneeFilter.delete(k):assigneeFilter.add(k); render(); return; }
   if(e.target.closest("[data-flate]")){ lateOnly=!lateOnly; render(); return; }
+  if(e.target.closest("[data-fnote]")){ noteOnly=!noteOnly; render(); return; }
   { const st=e.target.closest("[data-slottab]"); if(st){ e.stopPropagation(); if(st.dataset.slottab!==slotMode) setSlotMode(st.dataset.slottab); return; } }
   if(e.target.closest("#filterClear")){ clearAllFilters(); return; }
   if(e.target.closest("[data-kfhead]")){          /* 킥오프 머리글 = '미완료만 보기' 토글 */
@@ -3132,6 +3200,7 @@ const roadmapModal=document.getElementById("roadmapModal"), trelloModal=document
 const planModal=document.getElementById("planModal");
 const holModal=document.getElementById("holModal");
 const auditModal=document.getElementById("auditModal");
+const noteModal=document.getElementById("noteModal");
 const deptModal=document.getElementById("deptModal"), linkModal=document.getElementById("linkModal"), schedModal=document.getElementById("schedModal"), msModal=document.getElementById("msModal"), deptMgrModal=document.getElementById("deptMgrModal"), catMgrModal=document.getElementById("catMgrModal"), lbMgrModal=document.getElementById("lbMgrModal"), titleModal=document.getElementById("titleModal"), dashModal=document.getElementById("dashModal"), historyModal=document.getElementById("historyModal"), notifyModal=document.getElementById("notifyModal"), noticePopup=document.getElementById("noticePopup"), noticeEditModal=document.getElementById("noticeEditModal");
 /* 부서 칩 클릭으로 막 켠 부서인데 일정을 정하지 않고 닫으면 → 부서를 다시 끈다 */
 function cancelPendingDept(){
@@ -3140,9 +3209,9 @@ function cancelPendingDept(){
   editing.justOn=false;
   if(sg && sg.on && sg.sched===false){ sg.on=false; save(); render(); }
 }
-function closeModals(){ cancelPendingDept(); closeRmPop(); closeSpPop(); [taskModal,auditModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,lbMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.classList.remove("show")); }
+function closeModals(){ cancelPendingDept(); closeRmPop(); closeSpPop(); [noteModal,taskModal,auditModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,lbMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.classList.remove("show")); }
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=closeModals);
-[taskModal,auditModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,lbMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
+[noteModal,taskModal,auditModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,lbMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
 
 /* ===== 종류 관리 (아트·전투 등 종류 방식 분류) ===== */
 let catMgrTrack="아트", catEditKey=null;
@@ -3571,6 +3640,134 @@ function flashNote(msg){
   n.textContent=msg; n.classList.add("show");
   clearTimeout(flashNote._t); flashNote._t=setTimeout(()=>n.classList.remove("show"), 4200);
 }
+/* ===== Task 메모 (2026-10-26) =====
+   `t.notes = [{id, at, by, byEmail, text}]` — **오래된 것이 앞**(push). 화면에서만 뒤집어 보여 준다.
+   「완료」를 눌러야 저장되고, 그 시점이 `at` 이다. 저장된 메모는 **고칠 수 없다**(히스토리라서).
+
+   ⚠ 상한은 **무료 D1 때문에** 있다(사용자 지시). state 는 한 덩어리 JSON 이라 저장·폴링마다 통째로
+   오가고, 서버가 10분마다 그 전체를 history 테이블에 스냅샷해 **50벌**을 보관한다 →
+   메모 1KB 가 늘면 저장 용량은 약 50KB 늘어난다. 그래서 길이와 건수를 둘 다 막는다. */
+const NOTE_MAX_LEN = 1000;            // 본문 글자 수
+const NOTE_MAX_PER_TASK = 50;         // Task 하나당 메모 건수
+const NOTE_DEL_MS = 5*60*1000;        // 본인 메모를 지울 수 있는 시간(5분)
+const NOTE_FRESH_DAYS = 3;            // 배지에 '새 메모' 표시를 유지하는 기간
+const noteList = t => Array.isArray(t && t.notes) ? t.notes : [];
+const noteCount = t => noteList(t).length;
+function noteMe(){
+  const u = window.APP_USER || null;
+  const email = (u && u.email) || "";
+  const name  = (u && (u.name || (u.email||"").split("@")[0])) || "나";
+  return { name, email };
+}
+function noteFresh(t){
+  const ns=noteList(t); if(!ns.length) return false;
+  const last=Date.parse(ns[ns.length-1].at||""); if(isNaN(last)) return false;
+  return (Date.now()-last) < NOTE_FRESH_DAYS*86400000;
+}
+/* 메모가 0건이면 **아예 안 그린다.** 117개 행에 빈 배지가 깔리면 격자만 눈에 들어온다
+   (매트릭스 「없음」 칸에서 이미 겪은 문제). 입구는 펼쳤을 때의 메타 행 버튼이 맡는다. */
+function noteBadgeHtml(t){
+  const n=noteCount(t); if(!n) return "";
+  const ns=noteList(t), last=ns[ns.length-1];
+  return `<button type="button" class="note-badge ${noteFresh(t)?'fresh':''}" data-note="${t.id}" `+
+    `title="메모 ${n}건 · 최근 ${escapeHtml((last&&last.by)||"")} ${escapeHtml(ntWhen(last&&last.at))}">📝 <b>${n}</b></button>`;
+}
+function ntWhen(at){
+  const d=new Date(at||""); if(isNaN(d)) return "";
+  const p=n=>String(n).padStart(2,"0");
+  return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes());
+}
+function ntAgo(at){
+  const t0=Date.parse(at||""); if(isNaN(t0)) return "";
+  const s0=Math.max(0,(Date.now()-t0)/1000);
+  if(s0<60) return "방금"; if(s0<3600) return Math.floor(s0/60)+"분 전";
+  if(s0<86400) return Math.floor(s0/3600)+"시간 전"; return Math.floor(s0/86400)+"일 전";
+}
+let ntTaskId=null;
+function openNoteModal(id){
+  const t=findTask(id); if(!t) return;
+  ntTaskId=id;
+  const ms=findMs(t.milestoneId);
+  document.getElementById("ntSub").innerHTML=`<b style="color:#cbd5e1">${escapeHtml(t.name)}</b> · ${escapeHtml(ms.name)}`;
+  const ta=document.getElementById("ntText"); ta.value="";
+  renderNoteList(); ntSyncInput();
+  noteModal.classList.add("show");
+  setTimeout(()=>{ try{ ta.focus(); }catch(_){} }, 30);
+}
+/* 쓰기는 편집 권한자만(사용자 결정). viewer 는 입력칸을 **숨기지 않고 잠근다** — 읽기는 되어야 한다. [[roles]] */
+const ntCanWrite = () => !document.body.classList.contains("readonly");
+function ntSyncInput(){
+  const ta=document.getElementById("ntText"), btn=document.getElementById("ntAdd"), hint=document.getElementById("ntHint");
+  const t=findTask(ntTaskId); const n=noteCount(t);
+  const len=(ta.value||"").trim().length;
+  const full = n>=NOTE_MAX_PER_TASK;
+  const over = len>NOTE_MAX_LEN;
+  ta.disabled = !ntCanWrite() || full;
+  btn.disabled = !ntCanWrite() || full || over || len===0;
+  hint.className = "nt-hint"+((over||full)?" over":"");
+  hint.textContent = !ntCanWrite() ? "읽기 전용 권한이라 메모를 남길 수 없습니다. 내용은 자유롭게 보실 수 있습니다."
+    : full ? `이 Task 의 메모가 상한(${NOTE_MAX_PER_TASK}건)에 찼습니다. 오래된 메모를 지운 뒤 추가하세요.`
+    : over ? `${len} / ${NOTE_MAX_LEN}자 — ${len-NOTE_MAX_LEN}자 넘었습니다.`
+    : `Ctrl+Enter 로도 완료됩니다. 저장 후에는 내용을 고칠 수 없습니다. ${len} / ${NOTE_MAX_LEN}자`;
+}
+function ntCanDelete(nt){
+  if(!ntCanWrite()) return false;
+  if(window.APP_ROLE==="admin") return true;          // 상한에 찼을 때 풀어 줄 사람이 필요하다
+  const me=noteMe();
+  if(!me.email || nt.byEmail!==me.email) return false;
+  const at=Date.parse(nt.at||""); if(isNaN(at)) return false;
+  return (Date.now()-at) < NOTE_DEL_MS;
+}
+function renderNoteList(){
+  const t=findTask(ntTaskId); const ns=noteList(t);
+  document.getElementById("ntSep").textContent = `히스토리 ${ns.length}건`;
+  const el=document.getElementById("ntList");
+  if(!ns.length){ el.innerHTML=`<div class="nt-empty">아직 메모가 없습니다. 첫 메모를 남겨 보세요.</div>`; return; }
+  const me=noteMe();
+  el.innerHTML = ns.slice().reverse().map(nt=>{          // 최신이 위
+    const mine = me.email && nt.byEmail===me.email;
+    const del  = ntCanDelete(nt)
+      ? `<button type="button" class="nt-del" data-ntdel="${escapeHtml(nt.id)}" title="${window.APP_ROLE==="admin"?"관리자는 언제든 지울 수 있습니다":"작성 후 5분 이내, 본인 메모만 지울 수 있습니다"}">삭제</button>` : "";
+    return `<div class="nt-item ${mine?'mine':''}"><div class="nt-hd">`+
+      `<span class="nt-who">${escapeHtml(nt.by||"?")}</span>`+
+      `<span class="nt-at">${escapeHtml(ntWhen(nt.at))}</span>`+
+      `<span class="nt-ago">${escapeHtml(ntAgo(nt.at))}</span>${del}</div>`+
+      `<div class="nt-txt">${escapeHtml(nt.text||"")}</div></div>`;
+  }).join("");
+}
+function addNote(){
+  if(!ntCanWrite()) return;
+  const t=findTask(ntTaskId); if(!t) return;
+  const ta=document.getElementById("ntText");
+  const text=(ta.value||"").trim();
+  if(!text) return;
+  if(text.length>NOTE_MAX_LEN){ flashNote(`메모는 ${NOTE_MAX_LEN}자까지입니다.`); return; }
+  if(!Array.isArray(t.notes)) t.notes=[];
+  if(t.notes.length>=NOTE_MAX_PER_TASK){ flashNote(`이 Task 의 메모가 상한(${NOTE_MAX_PER_TASK}건)에 찼습니다.`); return; }
+  const me=noteMe();
+  t.notes.push({ id:uid(), at:new Date().toISOString(), by:me.name, byEmail:me.email, text });
+  ta.value=""; save(); render(); renderNoteList(); ntSyncInput();
+  flashNote("메모를 남겼습니다.");
+}
+function deleteNote(nid){
+  const t=findTask(ntTaskId); if(!t||!Array.isArray(t.notes)) return;
+  const i=t.notes.findIndex(x=>x&&x.id===nid); if(i<0) return;
+  if(!ntCanDelete(t.notes[i])){ flashNote("이 메모는 지울 수 없습니다."); return; }
+  if(!confirm("이 메모를 지울까요? 되돌릴 수 없습니다.")) return;
+  t.notes.splice(i,1); save(); render(); renderNoteList(); ntSyncInput();
+}
+document.addEventListener("click", e=>{
+  const b=e.target.closest("[data-note]");
+  if(b){ e.stopPropagation(); openNoteModal(b.dataset.note); return; }
+  const d=e.target.closest("[data-ntdel]");
+  if(d){ e.stopPropagation(); deleteNote(d.dataset.ntdel); return; }
+  if(e.target.closest("#ntAdd")){ addNote(); return; }
+});
+document.getElementById("ntText").addEventListener("input", ntSyncInput);
+document.getElementById("ntText").addEventListener("keydown", e=>{
+  if(e.key==="Enter" && (e.ctrlKey||e.metaKey)){ e.preventDefault(); addNote(); }
+});
+
 /* 새로 만든 Task 가 지금 걸려 있는 필터에 가려지면 화면에 안 나온다 → 사용자에게는
    "Task 생성이 안 된다"로 보인다(2026-10-12 제보). state 에는 멀쩡히 들어가 있어서 원인을 알 길이 없다.
    만든 Task 가 안 보이면 **가리고 있는 필터만 골라서 풀고**, 무엇을 풀었는지 알려 준다.
@@ -3589,6 +3786,7 @@ function unhideNewTask(t){
   if(labelFilter.size){ labelFilter.clear(); off.push("라벨"); }
   if(assigneeFilter.size){ assigneeFilter.clear(); off.push("담당자"); }
   if(lateOnly){ lateOnly=false; off.push("지연만"); }
+  if(noteOnly){ noteOnly=false; off.push("메모 있는 것만"); }
   if(auditOnly){ auditOnly=false; off.push("체크리스트 문제"); }
   return off.join(" · ");
 }

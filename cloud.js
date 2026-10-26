@@ -6,6 +6,7 @@
  * ===================================================================== */
 (function(){
   let ROLE = "viewer";
+  let ME = null;            // /api/me 가 돌려준 사용자 — Task 메모 작성자 표기에 쓴다
   let ACCESS_USERS = [], accessQuery = "", viewersOpen = false;
   const esc = s => (s||"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
   const canEdit = () => ROLE==="editor" || ROLE==="admin";
@@ -216,6 +217,8 @@
   /* ----- 역할별 UI ----- */
   function applyRoleUI(){
     window.APP_ROLE = ROLE;   // index.html 이 읽는 역할값 (마일스톤 설정 읽기전용 판단 등)
+    /* Task 메모의 '누가 썼는지'에 쓴다. 로컬 단독 실행이면 null 이라 index.html 이 '나'로 적는다. */
+    window.APP_USER = ME ? { name: ME.name || "", email: ME.email || "" } : null;
     document.body.classList.toggle("role-admin", ROLE==="admin");
     if(!canEdit()){ document.body.classList.add("readonly"); injectReadonlyStyle(); injectRequestButton(); }
     if(ROLE==="admin"){ injectAccessButton(); const fr=document.getElementById("forceReloadBtn"); if(fr) fr.style.display="";
@@ -305,7 +308,7 @@
     const me = await getMe();
     // 편집 전 매 접속(탭) 1회 로그인 요구 — 세션이 살아있어도 이 탭에서 로그인해야 진입. 로그인 시 최신 버전으로 새로고침.
     let authedTab=false; try{ authedTab = sessionStorage.getItem("ms_authed_tab")==="1"; }catch(_){}
-    if(me && authedTab){ ROLE = me.role || "viewer"; setupSync(); applyRoleUI(); return; }
+    if(me && authedTab){ ME = me; ROLE = me.role || "viewer"; setupSync(); applyRoleUI(); return; }
     let cfg = {};
     try{ cfg = await (await fetch("/api/config")).json(); }catch(_){}
     showLogin(cfg);
