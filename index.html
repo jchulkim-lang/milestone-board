@@ -693,11 +693,77 @@
      display:flex; flex-direction:column; overflow:hidden; }
   #roadmapModal .modal > *, #planModal .modal > *, #msModal .modal > *{ flex:0 0 auto; }
   #roadmapModal .rm-scroll, #planModal .sp-scroll{ flex:1 1 0; max-height:none; min-height:0; }
-  #msModal .modal > .ms-cap{ flex:1 1 0; min-height:0; overflow:auto; }
+  /* === 마일스톤 탭 좌우 분할 (2026-10-26) =====================================
+     좌: 마일스톤 목록 + 편집 폼(압축) / 우: **선택한 마일스톤의 일감**.
+     사용자 지시: 마일스톤당 40~60건이라 **3열 기본**, **담당자·지연은 행에 안 띄운다**. */
+  #msModal .modal > .ms-split{ flex:1 1 0; min-height:0; display:flex; gap:13px; }
+  .ms-left{ flex:0 0 520px; min-width:0; overflow:auto; padding-right:4px; }
+  body.ms-fold .ms-left{ flex-basis:0; overflow:hidden; padding:0; }
+  .ms-right{ flex:1 1 0; min-width:0; display:flex; flex-direction:column;
+     border:1px solid var(--line); border-radius:11px; background:var(--bg); overflow:hidden; }
+  /* 좌측 압축 — 카드 패딩을 줄이고 날짜 라벨을 값 옆에 붙여 2줄 → 1줄 */
+  #msModal .ms-item{ padding:5px 9px; margin-bottom:4px; }
+  #msModal .ms-name{ font-size:12px; }
+  #msModal .ms-range{ font-size:10.5px; font-family:ui-monospace,Menlo,monospace; }
+  #msModal .ms-strip{ padding-left:17px; margin-top:3px; }
+  #msModal .ms-slot{ flex-direction:row; align-items:baseline; gap:4px; padding-left:5px; margin-right:5px; }
+  #msModal .ms-slab{ font-size:9px; }
+  #msModal .ms-sval{ font-size:11px; }
+  #msModal .ms-cnt{ margin-left:auto; font-size:10px; font-weight:800; color:var(--muted);
+     background:var(--panel2); border-radius:999px; padding:1px 7px; flex:0 0 auto; }
+  #msModal .ms-list-wrap{ max-height:none; overflow:visible; }
+  #msModal .modal label{ margin:7px 0 3px; font-size:10.5px; }
+  #msModal .modal input{ padding:6px 9px; font-size:12.5px; }
+  #msModal .ms-edit-grid{ gap:0 12px; }
+  /* 우측 헤더 */
+  .mt-head{ flex:0 0 auto; display:flex; align-items:center; gap:7px; flex-wrap:wrap;
+     padding:8px 11px; border-bottom:1px solid var(--line); background:var(--panel); }
+  .mt-fold{ background:var(--panel2); border:1px solid var(--line); color:var(--muted); border-radius:6px;
+     font-family:inherit; font-size:11px; font-weight:800; padding:3px 8px; cursor:pointer; flex:0 0 auto; }
+  .mt-fold:hover{ color:var(--text); border-color:var(--accent); }
+  .mt-title{ font-size:12.5px; font-weight:800; flex:0 0 auto; }
+  .mt-pill{ font-size:10px; font-weight:800; border-radius:999px; padding:2px 8px; cursor:pointer;
+     background:var(--panel2); border:1px solid var(--line); color:#cbd5e1; flex:0 0 auto; font-family:inherit; }
+  .mt-pill:hover{ border-color:var(--accent); }
+  .mt-pill.off{ opacity:.42; text-decoration:line-through; }
+  .mt-pill.all{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .mt-seg{ display:inline-flex; gap:2px; background:var(--bg); border:1px solid var(--line);
+     border-radius:7px; padding:2px; flex:0 0 auto; }
+  .mt-seg button{ border:0; background:transparent; color:var(--muted); font-family:inherit; font-size:10px;
+     font-weight:800; border-radius:5px; padding:2px 8px; cursor:pointer; }
+  .mt-seg button.on{ background:var(--accent); color:#fff; }
+  .mt-srch{ flex:1 1 110px; min-width:100px; background:var(--panel2); border:1px solid var(--line);
+     border-radius:7px; color:var(--text); font-family:inherit; font-size:11.5px; padding:3px 8px; }
+  /* 우측 본문 — 다단 */
+  /* ⚠ grid 로 깔면 **가로로 먼저** 채워져 정렬 순서가 좌→우로 흐른다. 60건을 훑을 때는
+     세로로 읽혀야 상태 색띠도 세로로 뭉친다 → CSS 다단(column-count)을 쓴다. */
+  .mt-body{ flex:1 1 0; min-height:0; overflow-y:auto; overflow-x:hidden; padding:4px 6px;
+     column-count:var(--mtcols,3); column-gap:10px; }
+  /* ⚠ column-fill:auto 를 쓰면 **줄이 많을 때 가로로 넘쳐** overflow-x:hidden 에 잘려
+     절반이 아예 닿지 않는다(134줄 실측: scrollWidth 2522 vs 1262). 기본값 balance 를 유지할 것. */
+  .mt-body > *{ break-inside:avoid; }
+  .mt-empty{ column-span:all; }
+  .mt-row{ display:flex; align-items:center; gap:6px; height:var(--mtrh,24px); padding:0 7px;
+     cursor:pointer; border-left:3px solid var(--sc,#64748b);
+     border-bottom:1px solid rgba(255,255,255,.03); min-width:0; }
+  .mt-row:hover{ background:rgba(99,102,241,.12); }
+  .mt-row.done{ opacity:.5; }
+  .mt-trk{ width:5px; height:5px; border-radius:50%; flex:0 0 auto; }
+  .mt-pr{ flex:0 0 auto; width:14px; height:14px; border-radius:4px; display:inline-flex;
+     align-items:center; justify-content:center; font-size:8.5px; font-weight:800; color:#fff; background:#5c6474; }
+  .mt-nm{ flex:1 1 0; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+     font-size:var(--mtfs,11.5px); }
+  .mt-note{ flex:0 0 auto; font-size:9px; font-weight:800; color:#fde68a;
+     background:rgba(251,191,36,.14); border-radius:999px; padding:0 5px; }
+  .mt-empty{ text-align:center; color:var(--muted); font-size:12px; padding:26px 0; }
+  .mt-foot{ flex:0 0 auto; display:flex; gap:11px; flex-wrap:wrap; align-items:center;
+     padding:5px 11px; border-top:1px solid var(--line); font-size:10.5px; color:var(--muted); }
+  .mt-foot span{ display:inline-flex; align-items:center; gap:4px; }
+  .mt-foot i{ width:3px; height:11px; border-radius:2px; }
   /* ⚠ 푸터 줄도 가운데 정렬하려고 .ms-cap 을 같이 달았는데, 그러면 위 규칙의 flex:1 1 0 까지
      먹어서 **본문과 푸터가 높이를 반씩 나눠 가진다**(실측 358px/358px — 편집 폼이 잘렸다).
      가운데 정렬(max-width:980px)만 쓰고 늘어나지는 않게 따로 되돌린다. */
-  #msModal .modal > .modal-actions.ms-cap{ flex:0 0 auto; overflow:visible; }
+
   .sp-guide{ margin:0 0 10px; }
   .sp-ghead{ display:flex; align-items:center; gap:9px; font-size:11.5px; font-weight:800; color:var(--muted); cursor:pointer; padding:5px 2px; }
   .sp-ghead .cnt{ font-size:10px; font-weight:700; color:var(--dim); }
@@ -1461,7 +1527,8 @@
   <div class="modal-bg" id="msModal">
     <div class="modal">
       <div class="hub-head"><span class="hub-tabs"><button type="button" class="hub-tab " data-hubtab="rm">🗺 발주 로드맵</button><button type="button" class="hub-tab " data-hubtab="sp">📅 서비스 플랜</button><button type="button" class="hub-tab on" data-hubtab="ms">⚙ 마일스톤</button></span><button type="button" class="hub-x" data-close>✕ 닫기</button></div><div class="msub" id="msModalSub">여러 마일스톤을 만들고 각 Task에 배정합니다. 목록에서 선택해 편집하세요.</div>
-      <div class="ms-cap">
+      <div class="ms-split">
+      <div class="ms-left" id="msLeft">
       <div class="ro-note" id="msRoNote">🔒 읽기 전용 — 마일스톤 편집은 관리자만 할 수 있습니다. 내용 확인은 자유롭게 하세요.</div>
       <div class="ms-list-wrap" id="msList"></div>
       <button class="meta-btn" id="msAddNew" style="margin-top:2px">＋ 새 마일스톤 추가</button>
@@ -1477,7 +1544,13 @@
         <div><label><i style="background:#a855f7"></i>QA 마감일</label><input type="date" id="msQa" /></div>
       </div>
       </div>
-      <div class="modal-actions ms-cap"><button class="linkrow" id="msDelete">이 마일스톤 삭제</button>
+      <div class="ms-right">
+        <div class="mt-head" id="mtHead"></div>
+        <div class="mt-body" id="mtBody"></div>
+        <div class="mt-foot" id="mtFoot"></div>
+      </div>
+      </div>
+      <div class="modal-actions"><button class="linkrow" id="msDelete">이 마일스톤 삭제</button>
         <div class="right"><button class="btn ghost" data-close>닫기</button><button class="btn" id="msSaveOk">저장</button></div></div>
     </div>
   </div>
@@ -5261,8 +5334,10 @@ function renderMsList(){
        <div class="ms-top">
          <span class="ms-swatch" style="background:${m.color}"></span>
          <span class="ms-name">${escapeHtml(m.name)}</span>
-         <span class="ms-range">${m.start||'-'} ~ ${m.end||'미정'}</span>
+         <span class="ms-range">${(m.start||'-').slice(5)} ~ ${(m.end||'미정').slice(5)}</span>
+         <span class="ms-cnt">${msTasksOf(m.id).length}건</span>
        </div>${msStripHtml(m)}</div>`).join("");
+  renderMsTasks();
 }
 function loadMsEditor(id){ const m=findMs(id);
   document.getElementById("msName").value=m.name||""; document.getElementById("msStart").value=m.start||"";
@@ -5279,7 +5354,134 @@ function applyMsRole(){
   if(sub) sub.textContent = ro ? "각 마일스톤의 기간과 마감일을 확인합니다. 목록에서 선택하세요."
                                : "여러 마일스톤을 만들고 각 Task에 배정합니다. 목록에서 선택해 편집하세요.";
 }
-function openMsModal(){ msSelId=(state.milestones.find(m=>!m.free)||state.milestones[0]).id; applyMsRole(); renderMsList(); loadMsEditor(msSelId); msModal.classList.add("show"); }
+/* ===== 마일스톤 탭 우측 — 그 마일스톤의 일감 (2026-10-26) =====================
+   사용자: "보통 마일스톤별로 40~60개의 티켓" → **밀도가 전부다.**
+   ① 묶음 헤더를 없애고 상태를 **좌측 세로 색띠**로 (헤더 4~6줄 회수)
+   ② **3열** 기본 (사용자 지시)
+   ③ 줄 24px, 완료는 기본 접힘
+   → 640px 높이에 약 78줄. 60건짜리도 스크롤 없이 들어간다.
+   ④ **담당자·지연은 행에 안 띄운다**(사용자 지시). 남긴 것: 분류점·우선순위·이름·메모.
+   여기는 **보는 곳**이다 — 고치려면 줄을 눌러 보드판으로 간다. 상태 select·삭제는 두지 않는다.
+   상단 필터(보드판)는 **따르지 않는다** — "32건이라더니 왜 4건만 보이지"가 되기 때문. 전용 검색을 둔다. */
+const MT_COLS_KEY="ms_mtcols", MT_DENSE_KEY="ms_mtdense", MT_FOLD_KEY="ms_mtfold";
+let mtCols=3, mtDense=false, mtFold=false;
+try{ mtCols=Number(localStorage.getItem(MT_COLS_KEY))||3; }catch(_){}
+try{ mtDense=localStorage.getItem(MT_DENSE_KEY)==="1"; }catch(_){}
+try{ mtFold=localStorage.getItem(MT_FOLD_KEY)==="1"; }catch(_){}
+let mtHide=new Set(["__done"]);      // 기본: 완료 접힘
+let mtQuery="";
+const msTasksOf = id => (state.tasks||[]).filter(t=>t && t.milestoneId===id);
+function mtStatusDefs(){ return allStatusDefs(); }
+function mtColorOf(t){
+  if(isDone(t)) return "#10b981";
+  const d=allStatusDefs().find(x=>x.k===t.status);
+  return (d&&d.color)||"#64748b";
+}
+function mtPrio(t){
+  const p=String(t.priority||"");
+  const cls={ "S":"#a855f7","1":"#ef4444","2":"#f59e0b","3":"#3b82f6" }[p]||"#5c6474";
+  return `<span class="mt-pr" style="background:${cls}">${escapeHtml(p||"–")}</span>`;
+}
+function mtSorted(list){
+  /* 2열 이상에서 눈이 길을 잃지 않도록 **정렬을 고정**한다.
+     완료를 맨 뒤로 → 상태 목록 순서 → 우선순위 → 이름. 자유 정렬은 주지 않는다. */
+  const order=allStatusDefs().map(x=>x.k);
+  const rank=t=>isDone(t)?999:(order.indexOf(t.status)+1||500);
+  const pr=t=>{ const p=String(t.priority||""); return p==="S"?0:(Number(p)||9); };
+  return list.slice().sort((a,b)=> rank(a)-rank(b) || pr(a)-pr(b)
+    || String(a.name||"").localeCompare(String(b.name||""),"ko",{numeric:true}));
+}
+function mtVisible(all){
+  const q=mtQuery.trim().toLowerCase();
+  return mtSorted(all.filter(t=>{
+    if(isDone(t)){ if(mtHide.has("__done")) return false; }
+    else if(mtHide.has(t.status)) return false;
+    if(q){ const hay=((t.name||"")+" "+noteList(t).map(n=>n&&n.text||"").join(" ")).toLowerCase();
+      if(!hay.includes(q)) return false; }
+    return true;
+  }));
+}
+function renderMsTasks(){
+  const head=document.getElementById("mtHead"), body=document.getElementById("mtBody"), foot=document.getElementById("mtFoot");
+  if(!head||!body) return;
+  const m=findMs(msSelId)||{}; const all=msTasksOf(msSelId);
+  const defs=allStatusDefs().filter(d=>all.some(t=>!isDone(t)&&t.status===d.k));
+  const doneN=all.filter(isDone).length;
+  const pill=(key,label,n,color,extra)=>
+    `<button type="button" class="mt-pill ${mtHide.has(key)?'off':''}" data-mtpill="${escapeHtml(key)}" `+
+    `title="누르면 이 상태를 숨기거나 다시 보여 줍니다" style="${color?`border-left:3px solid ${color}`:''}">${escapeHtml(label)} ${n}</button>`;
+  head.innerHTML =
+    `<button type="button" class="mt-fold" id="mtFoldBtn" title="좌측 마일스톤 칸을 접어 일감을 더 넓게 봅니다">${mtFold?'▶ 펼치기':'◀ 접기'}</button>`+
+    `<span class="mt-title">${escapeHtml(m.name||"-")}</span>`+
+    `<button type="button" class="mt-pill all" data-mtpill="__all" title="숨긴 상태를 모두 되돌립니다">전체 ${all.length}</button>`+
+    defs.map(d=>pill(d.k,d.k,all.filter(t=>!isDone(t)&&t.status===d.k).length,d.color)).join("")+
+    (doneN?pill("__done","완료",doneN,"#10b981"):"")+
+    `<span class="mt-seg"><button type="button" data-mtcol="2" class="${mtCols===2?'on':''}">2열</button>`+
+    `<button type="button" data-mtcol="3" class="${mtCols===3?'on':''}">3열</button></span>`+
+    `<span class="mt-seg"><button type="button" data-mtdense="0" class="${mtDense?'':'on'}">보통</button>`+
+    `<button type="button" data-mtdense="1" class="${mtDense?'on':''}">조밀</button></span>`+
+    `<input class="mt-srch" id="mtSrch" placeholder="이 마일스톤 안에서 검색…" value="${escapeHtml(mtQuery)}">`;
+  const vis=mtVisible(all);
+  body.style.setProperty("--mtcols", String(mtCols));
+  body.style.setProperty("--mtrh", mtDense?"20px":"24px");
+  body.style.setProperty("--mtfs", mtDense?"10.5px":"11.5px");
+  body.innerHTML = vis.length ? vis.map(t=>
+    `<div class="mt-row ${isDone(t)?'done':''}" data-mtgo="${t.id}" style="--sc:${mtColorOf(t)}" `+
+    `title="${escapeHtml(t.name)}\n${escapeHtml(t.status||"")} — 누르면 보드판에서 펼쳐집니다">`+
+    `<span class="mt-trk" style="background:${TRACK_COLORS[t.track]||"#64748b"}"></span>`+
+    mtPrio(t)+
+    `<span class="mt-nm">${escapeHtml(t.name)}</span>`+
+    (noteCount(t)?`<span class="mt-note">📝${noteCount(t)}</span>`:"")+
+    `</div>`).join("")
+    : `<div class="mt-empty">${all.length?"조건에 맞는 일감이 없습니다.":"이 마일스톤에 배정된 일감이 없습니다."}</div>`;
+  if(foot) foot.innerHTML =
+    allStatusDefs().slice(0,6).map(d=>`<span><i style="background:${d.color}"></i>${escapeHtml(d.k)}</span>`).join("")+
+    `<span style="margin-left:auto">${vis.length}건 표시 · 줄을 누르면 보드판에서 펼쳐집니다</span>`;
+  document.body.classList.toggle("ms-fold", mtFold);
+}
+/* 줄 클릭 = 보드판으로. 팝업을 닫고 그 Task 를 펼쳐 강조한다 — 여기는 보는 곳이고 고치는 곳이 아니다. */
+function mtGoTo(id){
+  const t=findTask(id); if(!t) return;
+  closeModals();
+  msFilter.clear(); if(t.milestoneId) msFilter.add(t.milestoneId);
+  if(TRACKS.includes(t.track)) trackFilter=t.track;
+  groupCollapsed.delete(t.status);
+  selectedId=t.id; setOpen(t.id,true); render(); scrollToTask(t);
+  const el=document.querySelector('.task[data-task="'+(window.CSS&&CSS.escape?CSS.escape(id):id)+'"]');
+  if(el){ el.scrollIntoView({behavior:"smooth",block:"center"}); el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
+}
+document.getElementById("mtHead").addEventListener("click", e=>{
+  const p=e.target.closest("[data-mtpill]");
+  if(p){ const k=p.dataset.mtpill;
+    if(k==="__all") mtHide.clear(); else mtHide.has(k)?mtHide.delete(k):mtHide.add(k);
+    renderMsTasks(); return; }
+  const c=e.target.closest("[data-mtcol]");
+  if(c){ mtCols=Number(c.dataset.mtcol)||3; try{localStorage.setItem(MT_COLS_KEY,String(mtCols));}catch(_){}  renderMsTasks(); return; }
+  const d=e.target.closest("[data-mtdense]");
+  if(d){ mtDense=d.dataset.mtdense==="1"; try{localStorage.setItem(MT_DENSE_KEY,mtDense?"1":"0");}catch(_){}  renderMsTasks(); return; }
+  if(e.target.closest("#mtFoldBtn")){ mtFold=!mtFold; try{localStorage.setItem(MT_FOLD_KEY,mtFold?"1":"0");}catch(_){}  renderMsTasks(); return; }
+});
+document.getElementById("mtHead").addEventListener("input", e=>{
+  if(e.target.closest("#mtSrch")){ mtQuery=e.target.value||""; const el=document.getElementById("mtBody");
+    const m=findMs(msSelId)||{}; const vis=mtVisible(msTasksOf(msSelId));
+    /* 검색은 본문만 다시 그린다 — 헤더를 갈아끼우면 입력칸이 날아가 포커스가 풀린다. */
+    el.innerHTML = vis.length ? vis.map(t=>
+      `<div class="mt-row ${isDone(t)?'done':''}" data-mtgo="${t.id}" style="--sc:${mtColorOf(t)}" title="${escapeHtml(t.name)}">`+
+      `<span class="mt-trk" style="background:${TRACK_COLORS[t.track]||"#64748b"}"></span>`+mtPrio(t)+
+      `<span class="mt-nm">${escapeHtml(t.name)}</span>`+
+      (noteCount(t)?`<span class="mt-note">📝${noteCount(t)}</span>`:"")+`</div>`).join("")
+      : `<div class="mt-empty">조건에 맞는 일감이 없습니다.</div>`;
+    const f=document.getElementById("mtFoot");
+    if(f) f.innerHTML = allStatusDefs().slice(0,6).map(d=>`<span><i style="background:${d.color}"></i>${escapeHtml(d.k)}</span>`).join("")
+      + `<span style="margin-left:auto">${vis.length}건 표시 · 줄을 누르면 보드판에서 펼쳐집니다</span>`;
+  }
+});
+document.getElementById("mtBody").addEventListener("click", e=>{
+  const r=e.target.closest("[data-mtgo]"); if(r) mtGoTo(r.dataset.mtgo);
+});
+
+function openMsModal(){ msSelId=(state.milestones.find(m=>!m.free)||state.milestones[0]).id;
+  mtQuery=""; applyMsRole(); renderMsList(); loadMsEditor(msSelId); msModal.classList.add("show"); }
 document.getElementById("msBtn").onclick=openMsModal;
 document.getElementById("msList").addEventListener("click", e=>{ const it=e.target.closest("[data-msitem]"); if(!it) return;
   msSelId=it.dataset.msitem; renderMsList(); loadMsEditor(msSelId); });
