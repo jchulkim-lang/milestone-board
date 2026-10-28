@@ -722,8 +722,8 @@
      입력칸은 기본 숨김, 칩을 **더블클릭**하면 그 칸만 열린다(먼 날짜는 타자가 빠르다). */
   #msModal .ms-edit-grid > div{ display:none; }
   #msModal .ms-edit-grid > div.show{ display:block; }
-  .msc{ margin-top:5px; }
-  .msc-chips{ display:flex; flex-wrap:wrap; gap:5px; margin-bottom:5px; }
+  .msc{ margin-top:3px; }
+  .msc-chips{ display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
   .msc-chip{ display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:800;
      padding:3px 8px; border-radius:999px; background:var(--panel2); border:1px solid var(--line);
      color:#cbd5e1; cursor:pointer; font-family:inherit; }
@@ -735,15 +735,15 @@
   .msc-chip .x{ color:#64748b; font-weight:900; margin-left:1px; }
   .msc-chip .x:hover{ color:#f87171; }
   .msc-note{ font-size:10.5px; color:#fbbf24; font-weight:700; margin:-2px 0 6px; }
-  .msc-grid{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .msc-grid{ display:grid; grid-template-columns:1fr 1fr; gap:5px; }
   .msc-mon{ background:var(--bg); border:1px solid var(--line); border-radius:9px; padding:4px; min-width:0; }
-  .msc-mon h4{ margin:0 0 3px; font-size:10.5px; font-weight:800; color:#cbd5e1; text-align:center; }
+  .msc-mon h4{ margin:0 0 2px; font-size:10px; font-weight:800; color:#cbd5e1; text-align:center; }
   .msc-dow, .msc-days{ display:grid; grid-template-columns:repeat(7,1fr); gap:1px; }
-  .msc-dow span{ font-size:9px; color:var(--muted); text-align:center; padding:1px 0; }
+  .msc-dow span{ font-size:9px; color:var(--muted); text-align:center; padding:0; }
   .msc-dow span.s{ color:#f87171; } .msc-dow span.a{ color:#60a5fa; }
   /* 26px — **3개월(2열 2줄)까지 좌측 패널에 스크롤 없이 들어가는 한계값.** 더 키우지 말 것.
      색 범례를 따로 두지 않는 이유도 같다(위 칩이 색·이름을 이미 보여 준다 — 한 줄 32px 절약). */
-  .msc-d{ height:26px; border-radius:5px; display:flex; flex-direction:column; align-items:center;
+  .msc-d{ height:25px; border-radius:5px; display:flex; flex-direction:column; align-items:center;
      justify-content:center; font-size:10px; color:#cbd5e1; position:relative; cursor:pointer; line-height:1; }
   .msc-d.pad{ cursor:default; }
   .msc-d:not(.pad):hover{ background:#222a3a; }
@@ -752,9 +752,12 @@
   .msc-d .n{ display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px;
      border-radius:50%; font-size:9.5px; font-weight:800; color:#fff; }
   .msc-d .nm{ font-size:7px; font-weight:800; letter-spacing:-.3px; margin-top:1px; }
-  .msc-skip{ grid-column:1/-1; text-align:center; font-size:10.5px; color:var(--muted);
-     border:1px dashed var(--line); border-radius:8px; padding:6px; }
-  .msc-skip b{ color:#a5b4fc; cursor:pointer; }
+  .msc-nav{ grid-column:1/-1; display:flex; align-items:center; gap:8px; font-size:10px; color:var(--muted); }
+  .msc-nav span{ flex:1 1 auto; text-align:center; min-width:0; }
+  .msc-nav b{ color:#a5b4fc; cursor:pointer; }
+  .msc-nav button{ flex:0 0 auto; background:var(--panel2); border:1px solid var(--line); color:#cbd5e1;
+     font-family:inherit; font-size:10px; font-weight:800; border-radius:7px; padding:2px 9px; cursor:pointer; }
+  .msc-nav button:hover{ border-color:var(--accent); color:#fff; }
   .msc-tip{ font-size:9.5px; color:var(--muted); align-self:center; margin-left:auto; }
   .ms-readonly .msc-chip, .ms-readonly .msc-d{ cursor:default; }
   /* 우측 헤더 */
@@ -5455,13 +5458,13 @@ function loadMsEditor(id){ const m=findMs(id);
   document.getElementById("msName").value=m.name||""; document.getElementById("msStart").value=m.start||"";
   document.getElementById("msEnd").value=m.end||""; document.getElementById("msPlan").value=m.plan||""; document.getElementById("msResource").value=m.resource||"";
   document.getElementById("msDev").value=m.dev||""; document.getElementById("msQa").value=m.qa||"";
-  mscArm=""; mscAll=false; mscCloseInputs(); renderMsCal(); }
+  mscArm=""; mscAll=false; mscPadL=0; mscPadR=0; mscCloseInputs(); renderMsCal(); }
 /* ===== 마감일 달력 — A안: 마감일이 **있는 달만** 2열로, 빈 달은 한 줄로 접는다 =====
    값의 주인은 끝까지 숨겨 둔 <input type="date"> 6개다. 달력은 그 칸을 읽고 쓸 뿐이므로
    저장·역전검증·권한 로직을 하나도 손대지 않았다. 이 구조를 깨지 말 것. */
 const MSC_IN = { start:"msStart", plan:"msPlan", resource:"msResource", dev:"msDev", qa:"msQa", end:"msEnd" };
 const MSC_ORDER = ["start","plan","resource","dev","qa","end"];   // 일이 진행되는 차례
-let mscArm="", mscAll=false;
+let mscArm="", mscAll=false, mscPadL=0, mscPadR=0;   // Pad = 앞뒤로 더 펼친 달 수
 const mscVal = k => { const el=document.getElementById(MSC_IN[k]); return (el&&el.value)||""; };
 function mscSet(k,v){ const el=document.getElementById(MSC_IN[k]); if(el) el.value=v||""; }
 function mscSpan(a,b){                       // "2026-08" ~ "2026-11" → 사이의 모든 달
@@ -5470,13 +5473,25 @@ function mscSpan(a,b){                       // "2026-08" ~ "2026-11" → 사이
     if(y===Y&&m===M) break; m++; if(m>12){ m=1; y++; } }
   return out;
 }
+function mscAddMonth(ym, d){
+  let [y,m]=ym.split("-").map(Number); m+=d;
+  while(m<1){ m+=12; y--; } while(m>12){ m-=12; y++; }
+  return y+"-"+String(m).padStart(2,"0");
+}
+/* 마감일이 **있는 달만** 보여 주는 게 기본이다. 그런데 그러면 **다음 달로 넘어갈 방법이 없다**
+   — 6개 날짜가 전부 한 달 안에 있으면 달력이 그 달 한 장뿐이다(2026-10-28 제보).
+   그래서 앞뒤로 한 달씩 더 펼치는 `mscPadL/R` 을 둔다. 아래 `‹ 10월 / 12월 ›` 버튼이 이것을 올린다. */
 function mscMonths(){
   const set=new Set();
   MSC_ORDER.forEach(k=>{ const v=mscVal(k); if(v) set.add(v.slice(0,7)); });
-  const list=[...set].sort();
-  if(!list.length) return { show:[ymd(new Date()).slice(0,7)], skipped:0 };
+  let list=[...set].sort();
+  if(!list.length) list=[ymd(new Date()).slice(0,7)];
   const all=mscSpan(list[0], list[list.length-1]);
-  return mscAll ? { show:all, skipped:0 } : { show:list, skipped:all.length-list.length };
+  const show = (mscAll ? all : list).slice();
+  const skipped = mscAll ? 0 : all.length-list.length;
+  for(let i=0;i<mscPadL;i++) show.unshift(mscAddMonth(show[0],-1));
+  for(let i=0;i<mscPadR;i++) show.push(mscAddMonth(show[show.length-1],1));
+  return { show, skipped };
 }
 function mscMonthHtml(ym){
   const [y,mo]=ym.split("-").map(Number);
@@ -5504,6 +5519,18 @@ function mscMonthHtml(ym){
   return `<div class="msc-mon"><h4>${y}년 ${mo}월</h4>`+
          `<div class="msc-dow">${dow}</div><div class="msc-days">${cells}</div></div>`;
 }
+/* 달력 아래 한 줄: 「‹ 이전 달 | 안내 | 다음 달 ›」. 항상 보인다 — 없으면 다른 달로 갈 길이 없다. */
+function mscNavHtml(show, skipped){
+  const pv=mscAddMonth(show[0],-1), nx=mscAddMonth(show[show.length-1],1);
+  const lab=ym=>Number(ym.split("-")[1])+"월";
+  const mid = skipped
+    ? `마감일 없는 달 ${skipped}개 접힘 — <b data-mscall="1">전부 펼치기</b>`
+    : ((mscAll||mscPadL||mscPadR) ? `<b data-mscall="0">접기</b>` : "");
+  return `<div class="msc-nav">`+
+    `<button type="button" data-mscpad="l" title="${pv}">‹ ${lab(pv)}</button>`+
+    `<span>${mid}</span>`+
+    `<button type="button" data-mscpad="r" title="${nx}">${lab(nx)} ›</button></div>`;
+}
 function mscCloseInputs(){ document.querySelectorAll("#msEditGrid > div").forEach(d=>d.classList.remove("show")); }
 function renderMsCal(){
   const box=document.getElementById("msCal"); if(!box) return;
@@ -5517,10 +5544,7 @@ function renderMsCal(){
         (v?`<span class="x" data-mscclr="${k}" title="비우기">×</span>`:"")+`</button>`;
     }).join("")+`<span class="msc-tip">옅은 보라 = 마일스톤 기간</span></div>`+
     (mscArm?`<div class="msc-note">「${escapeHtml(msMk(mscArm).label)}」를 고른 상태 — 달력에서 날짜를 누르면 그 날로 지정됩니다.</div>`:"")+
-    `<div class="msc-grid">`+show.map(mscMonthHtml).join("")+
-    (skipped?`<div class="msc-skip">마감일이 없는 달 ${skipped}개는 접혀 있습니다 — <b data-mscall="1">전부 펼치기</b></div>`
-            :(mscAll?`<div class="msc-skip"><b data-mscall="0">마감일 있는 달만 보기</b></div>`:""))+
-    `</div>`;
+    `<div class="msc-grid">`+show.map(mscMonthHtml).join("")+ mscNavHtml(show, skipped) +`</div>`;
 }
 function mscShowInput(k){
   document.querySelectorAll("#msEditGrid > div").forEach(d=>d.classList.toggle("show", d.dataset.mscell===k));
@@ -5529,8 +5553,11 @@ function mscShowInput(k){
 }
 document.getElementById("msCal").addEventListener("click", e=>{
   mscCloseInputs();                 // 달력을 건드리면 열려 있던 입력칸은 접는다
+  const pad=e.target.closest("[data-mscpad]");          // 달 이동은 읽기 전용에서도 쓴다
+  if(pad){ if(pad.dataset.mscpad==="l") mscPadL++; else mscPadR++; renderMsCal(); return; }
   const all=e.target.closest("[data-mscall]");
-  if(all){ mscAll=all.dataset.mscall==="1"; renderMsCal(); return; }
+  if(all){ const on=all.dataset.mscall==="1";
+    mscAll=on; if(!on){ mscPadL=0; mscPadR=0; } renderMsCal(); return; }
   if(!msCanEdit()) return;
   const clr=e.target.closest("[data-mscclr]");
   if(clr){ mscSet(clr.dataset.mscclr,""); mscArm=""; renderMsCal(); return; }
