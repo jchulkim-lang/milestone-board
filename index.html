@@ -1185,7 +1185,27 @@
 
   /* 컨텍스트 바 */
   .ctxbar{ flex:0 0 auto; display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:9px 16px; background:var(--panel); border-bottom:1px solid var(--line); }
-  .ctx-ms{ background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:9px; padding:7px 10px; font-size:13px; font-weight:700; cursor:pointer; }
+  .ctx-ms{ background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:9px;
+     padding:7px 10px; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit;
+     display:inline-flex; align-items:center; gap:6px; flex:0 0 auto; max-width:230px; }
+  .ctx-ms:hover{ border-color:var(--accent); }
+  .ctx-msn{ font-size:10px; font-weight:800; background:var(--accent); color:#fff; border-radius:999px; padding:1px 6px; }
+  .ctx-car{ font-style:normal; font-size:9px; color:var(--muted); margin-left:auto; }
+  /* 마일스톤 다중 선택 팝업 — 고르는 동안 닫히지 않는다 */
+  .ms-pop{ min-width:232px; max-height:66vh; overflow:auto; }
+  .ms-pop .ms-opt{ display:flex; align-items:center; gap:8px; width:100%; padding:6px 9px; border:0;
+     border-radius:8px; background:transparent; color:var(--text); font-size:12.5px; font-weight:700;
+     font-family:inherit; cursor:pointer; text-align:left; }
+  .ms-pop .ms-opt:hover{ background:var(--panel2); }
+  .ms-pop .ms-opt.on{ background:var(--grad-soft); box-shadow:inset 0 0 0 1px var(--accent); }
+  .ms-pop .ms-box{ flex:0 0 auto; width:15px; height:15px; border-radius:4px; border:1.5px solid var(--line);
+     display:inline-flex; align-items:center; justify-content:center; font-size:10px; color:#fff; }
+  .ms-pop .ms-opt.on .ms-box{ background:var(--accent); border-color:var(--accent); }
+  .ms-pop .ms-dot{ flex:0 0 auto; width:8px; height:8px; border-radius:3px; }
+  .ms-pop .ms-dot.none{ background:transparent; }
+  .ms-pop .ms-nm{ flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ms-pop .ms-n{ flex:0 0 auto; font-size:10px; font-weight:800; color:var(--muted);
+     background:var(--panel2); border-radius:999px; padding:1px 7px; }
   .ctx-prog{ display:flex; align-items:center; gap:9px; margin-left:auto; flex:0 0 auto; }
   .ctx-track{ width:170px; height:9px; border-radius:99px; background:var(--panel2); overflow:hidden; display:flex; }
   .ctx-fill{ display:block; height:100%; background:var(--grad); border-radius:99px; transition:width .3s ease; flex:0 0 auto; }
@@ -1428,7 +1448,7 @@
   /* 컨텍스트 바(마일스톤·분류·진행·D-day) */
   .ctxbar{ padding:4px 12px; gap:8px; }
   .ctxbar .lh-label{ font-size:10px; }
-  .ctx-ms{ padding:3px 7px; font-size:11.5px; border-radius:7px; }
+  .ctx-ms{ padding:3px 7px; font-size:11.5px; border-radius:7px; max-width:190px; }
   .ctx-prog{ gap:7px; margin-left:auto; }
   .ctx-track{ width:150px; height:7px; }
   .ctx-num{ font-size:11.5px; }
@@ -2519,8 +2539,6 @@ function deadlineBarHtml(){
 // 한 줄 컨텍스트 바: 마일스톤 + 분류 + 진행률 + 마감
 function renderContext(){
   const box=document.getElementById("contextBar"); if(!box) return;
-  const curMs = msFilter.size===1 ? [...msFilter][0] : "__all";
-  const msOpts = `<option value="__all">전체 마일스톤</option>`+msFor(headTrack()).map(m=>`<option value="${m.id}" ${m.id===curMs?'selected':''}>${escapeHtml(m.name)}</option>`).join("");
   const trackTabs=TRACKS.map(tr=>`<span class="trtab ${trackFilter===tr?'on':''}" data-track="${tr}"><i class="trdot" style="background:${TRACK_COLORS[tr]||'#888'}"></i>${escapeHtml(tr)}</span>`).join("")
     + `<span class="trtab ${isMemberView()?'on':''}" data-track="${VIEW_MEMBER}" title="마일스톤 안의 모든 일감을 담당자 기준으로 봅니다"><i class="trdot" style="background:${TRACK_COLORS[VIEW_MEMBER]}"></i>${VIEW_MEMBER}</span>`;
   const scope=state.tasks.filter(t=> (msFilter.size===0||msFilter.has(t.milestoneId)) &&
@@ -2537,10 +2555,13 @@ function renderContext(){
     ? `완료 ${done}건 · ${pct}%\n${qst.key} ${qaN}건 · ${Math.round(qaN/tot*1000)/10}%  (검증 중)\n남은 일감 ${tot-done-qaN}건\n이 단계가 다 끝나면 ${done+qaN}/${tot} · ${Math.round((done+qaN)/tot*100)}%`
     : `완료 ${done}건 · ${pct}%\n남은 일감 ${tot-done}건`;
   box.innerHTML=
-    `<span class="lh-label">마일스톤</span><select class="ctx-ms" id="ctxMs">${msOpts}</select>`+
+    `<span class="lh-label">마일스톤</span>`+
+    `<button type="button" class="ctx-ms" id="ctxMs" title="체크로 여러 개를 함께 볼 수 있습니다">`+
+      `${escapeHtml(msFilterLabel())}<i class="ctx-car">▾</i></button>`+
     `<span class="lh-label" style="margin-left:6px">분류</span><div class="seg-group">${trackTabs}</div>`+
     `<div class="ctx-dday">${deadlineBarHtml()}</div>`+
     `<div class="ctx-prog" title="${escapeHtml(qaTip)}"><span class="lh-label">진행</span><span class="ctx-track ${showQa?'hasqa':''}"><span class="ctx-fill" style="width:${pct}%"></span>${qaSeg}</span>${qaChip}<span class="ctx-num">${pct}% <span>(${done}/${tot})</span></span></div>`;
+  renderMsPop();            // 팝업이 열려 있으면 건수·체크 상태를 같이 갱신한다(닫혀 있으면 아무것도 안 한다)
 }
 
 // 상태 파이프라인 스테퍼 (클릭 시 해당 상태만 필터)
@@ -2587,7 +2608,7 @@ function renderFilter(){
     return `<span class="fchip ${on?'on':''}" style="${on?'background:'+d.color:''}" data-fd="${d.key}"><span class="dot" style="background:${on?'#fff':d.color}"></span>${d.key}</span>`; }).join("");
   const schips=statusesFor(headTrack()).map(s=>{ const on=statusFilter.has(s.k);
     return `<span class="fchip ${on?'on':''}" style="${on?'background:'+s.color:''}" data-fs="${s.k}"><span class="dot" style="background:${on?'#fff':s.color}"></span>${s.k}</span>`; }).join("");
-  const mstabs=`<span class="mstab ${allM?'on':''}" data-mstab="__all">전체</span>`+state.milestones.map(m=>{ const on=msFilter.size===1&&msFilter.has(m.id);
+  const mstabs=`<span class="mstab ${allM?'on':''}" data-mstab="__all">전체</span>`+state.milestones.map(m=>{ const on=msFilter.has(m.id);   // 다중 선택도 그대로 표시
     return `<span class="mstab ${on?'on':''}" data-mstab="${m.id}" style="${on?'background:'+m.color+';border-color:transparent;color:#fff':''}"><i class="dot" style="background:${on?'#fff':m.color}"></i>${escapeHtml(m.name)}</span>`; }).join("");
   const trackTabs=TRACKS.map(tr=>`<span class="trtab ${trackFilter===tr?'on':''}" data-track="${tr}"><i class="trdot" style="background:${TRACK_COLORS[tr]||'#888'}"></i>${escapeHtml(tr)}</span>`).join("");
   const kfchips=KICKOFFS.map(k=>{ const on=kfFilter.has(k.k);
@@ -3086,6 +3107,59 @@ function renderBody(){
   attachBarHandlers();
 }
 
+/* ===== 마일스톤 다중 선택 팝업 (2026-10-29) ===================================
+   사용자 요청: **"드랍 다운을 체크 박스를 추가로 지원해서 다중으로 선택할 수 있도록"**.
+   `msFilter` 는 **원래부터 Set** 이라 passFilter·공유 링크(`ms`)·보기 저장·매트릭스·간트가
+   이미 여러 개를 받아들인다. 바꾼 건 UI 뿐이다 — `<select>` 는 하나밖에 못 고른다.
+   고르는 동안 팝업을 **닫지 않는다**. 여러 개를 연달아 체크하는 것이 이 기능의 목적이다. */
+const msPickList = () => msFor(headTrack());
+function msFilterLabel(){
+  const names=[...msFilter].map(id=>(findMs(id)||{}).name).filter(Boolean);
+  if(!names.length) return "전체 마일스톤";
+  return names.length===1 ? names[0] : names[0]+" 외 "+(names.length-1);
+}
+function msPopEl(){
+  let p=document.getElementById("msPop");
+  if(!p){
+    p=document.createElement("div"); p.id="msPop"; p.className="kf-pop ms-pop"; document.body.appendChild(p);
+    p.addEventListener("click", ev=>{
+      const b=ev.target.closest("[data-mspick]"); if(!b) return;
+      ev.stopPropagation();
+      const k=b.dataset.mspick;
+      if(k==="__all") msFilter.clear();
+      else msFilter.has(k) ? msFilter.delete(k) : msFilter.add(k);
+      render();                                  // renderContext 끝에서 팝업도 다시 그린다
+    });
+  }
+  return p;
+}
+function renderMsPop(){
+  const p=document.getElementById("msPop"); if(!p || !p.classList.contains("show")) return;
+  const cnt=id=>state.tasks.filter(t=>t && t.milestoneId===id).length;
+  const row=(key,on,dot,name,n)=>
+    `<button type="button" class="ms-opt ${on?'on':''}" data-mspick="${escapeHtml(key)}">`+
+    `<span class="ms-box">${on?'✓':''}</span>`+
+    (dot?`<i class="ms-dot" style="background:${dot}"></i>`:`<i class="ms-dot none"></i>`)+
+    `<span class="ms-nm">${escapeHtml(name)}</span>`+
+    (n===null?'':`<span class="ms-n">${n}</span>`)+`</button>`;
+  p.innerHTML = `<div class="kf-hd">마일스톤 — 체크한 것만 봅니다 (여러 개 가능)</div>`+
+    row("__all", msFilter.size===0, "", "전체 마일스톤", null)+
+    msPickList().map(m=>row(m.id, msFilter.has(m.id), m.color, m.name, cnt(m.id))).join("");
+}
+function openMsPop(anchor){
+  const p=msPopEl();
+  if(p.classList.contains("show")){ closeMsPop(); return; }     // 같은 버튼 재클릭 = 닫기
+  p.classList.add("show"); renderMsPop();
+  const r=anchor.getBoundingClientRect(), pw=p.offsetWidth, ph=p.offsetHeight;
+  let left=Math.min(r.left, window.innerWidth-pw-8); if(left<8) left=8;
+  let top=r.bottom+6; if(top+ph>window.innerHeight-8) top=Math.max(8, r.top-ph-6);
+  p.style.left=left+"px"; p.style.top=top+"px";
+}
+function closeMsPop(){ const p=document.getElementById("msPop"); if(p) p.classList.remove("show"); }
+document.addEventListener("click", e=>{ if(!e.target.closest("#msPop") && !e.target.closest("#ctxMs")) closeMsPop(); });
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeMsPop(); });
+window.addEventListener("resize", closeMsPop);
+
 /* ===== 킥오프 선택 팝업 ===== */
 let kfPopFor=null;
 function kfPopEl(){ let p=document.getElementById("kfPop");
@@ -3201,7 +3275,7 @@ document.querySelector(".topbar").addEventListener("click", e=>{
 
 /* ===== 컨텍스트 바 / 파이프라인 상호작용 ===== */
 const contextBar=document.getElementById("contextBar"), pipelineEl=document.getElementById("pipeline");
-contextBar.addEventListener("change", e=>{ const s=e.target.closest("#ctxMs"); if(s){ msFilter.clear(); if(s.value!=="__all") msFilter.add(s.value); render(); } });
+contextBar.addEventListener("click", e=>{ const b=e.target.closest("#ctxMs"); if(b){ e.stopPropagation(); openMsPop(b); } });
 contextBar.addEventListener("click", e=>{ const trk=e.target.closest("[data-track]"); if(trk){ trackFilter=trk.dataset.track; deptFilter.clear(); assigneeFilter.clear(); statusFilter.clear(); kfFilter.clear(); groupCollapsed.clear(); render();
   if(isMemberView()) scrollToMemberStart(); } });
 pipelineEl.addEventListener("click", e=>{ const st=e.target.closest("[data-pstep]"); if(st){ const k=st.dataset.pstep; statusFilter.has(k)?statusFilter.delete(k):statusFilter.add(k); render(); } });
