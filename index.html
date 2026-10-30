@@ -737,21 +737,23 @@
   .msc-note{ font-size:10.5px; color:#fbbf24; font-weight:700; margin:-2px 0 6px; }
   .msc-grid{ display:grid; grid-template-columns:1fr 1fr; gap:5px; }
   .msc-mon{ background:var(--bg); border:1px solid var(--line); border-radius:9px; padding:4px; min-width:0; }
-  .msc-mon h4{ margin:0 0 2px; font-size:10px; font-weight:800; color:#cbd5e1; text-align:center; }
+  .msc-mon h4{ margin:0 0 2px; font-size:var(--mscmh,10px); font-weight:800; color:#cbd5e1; text-align:center; }
   .msc-dow, .msc-days{ display:grid; grid-template-columns:repeat(7,1fr); gap:1px; }
-  .msc-dow span{ font-size:9px; color:var(--muted); text-align:center; padding:0; }
+  .msc-dow span{ font-size:var(--mscdw,9px); color:var(--muted); text-align:center; padding:0; }
   .msc-dow span.s{ color:#f87171; } .msc-dow span.a{ color:#60a5fa; }
-  /* 26px — **3개월(2열 2줄)까지 좌측 패널에 스크롤 없이 들어가는 한계값.** 더 키우지 말 것.
-     색 범례를 따로 두지 않는 이유도 같다(위 칩이 색·이름을 이미 보여 준다 — 한 줄 32px 절약). */
-  .msc-d{ height:25px; border-radius:5px; display:flex; flex-direction:column; align-items:center;
-     justify-content:center; font-size:10px; color:#cbd5e1; position:relative; cursor:pointer; line-height:1; }
+  /* 칸 크기는 **고정이 아니라 남는 높이에 맞춘다**(`mscFitCells()`, 2026-10-30 "달력이 작습니다").
+     최소 25px(3개월이 스크롤 없이 들어가는 값) ~ 최대 46px. 글자·동그라미도 같이 커진다.
+     색 범례를 따로 두지 않는 이유: 위 칩이 색·이름을 이미 보여 준다(한 줄 32px 절약). */
+  .msc-d{ height:var(--msch,25px); border-radius:5px; display:flex; flex-direction:column; align-items:center;
+     justify-content:center; font-size:var(--mscfs,10px); color:#cbd5e1; position:relative; cursor:pointer; line-height:1; }
   .msc-d.pad{ cursor:default; }
   .msc-d:not(.pad):hover{ background:#222a3a; }
   .msc-d.sat{ color:#60a5fa; } .msc-d.sun, .msc-d.hol{ color:#f87171; }
   .msc-d.in{ background:rgba(99,102,241,.13); }
-  .msc-d .n{ display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px;
-     border-radius:50%; font-size:9.5px; font-weight:800; color:#fff; }
-  .msc-d .nm{ font-size:7px; font-weight:800; letter-spacing:-.3px; margin-top:1px; }
+  .msc-d .n{ display:inline-flex; align-items:center; justify-content:center;
+     width:var(--mscn,16px); height:var(--mscn,16px);
+     border-radius:50%; font-size:var(--mscnf,9.5px); font-weight:800; color:#fff; }
+  .msc-d .nm{ font-size:var(--mscnm,7px); font-weight:800; letter-spacing:-.3px; margin-top:1px; }
   .msc-nav{ grid-column:1/-1; display:flex; align-items:center; gap:8px; font-size:10px; color:var(--muted); }
   .msc-nav span{ flex:1 1 auto; text-align:center; min-width:0; }
   .msc-nav b{ color:#a5b4fc; cursor:pointer; }
@@ -5605,6 +5607,36 @@ function mscNavHtml(show, skipped){
     `<span>${mid}</span>`+
     `<button type="button" data-mscpad="r" title="${nx}">${lab(nx)} ›</button></div>`;
 }
+/* 남는 세로 공간을 칸 크기로 돌려준다. 2개월짜리 마일스톤이면 달력 아래가 200px 가까이 비는데,
+   그걸 그냥 두면 "달력이 작다"가 된다(2026-10-30 제보).
+   ⚠ 모달이 숨겨져 있으면(clientHeight 0) 재지 말 것 — openMsModal 은 show 를 **나중에** 붙인다. */
+const MSC_H_MIN = 25, MSC_H_MAX = 56;
+function mscFitCells(){
+  const box=document.getElementById("msCal"), left=document.getElementById("msLeft");
+  if(!box || !left || left.clientHeight < 120) return;
+  const mons=box.querySelectorAll(".msc-mon").length; if(!mons) return;
+  const rows=Math.ceil(mons/2);
+  box.style.setProperty("--msch", MSC_H_MIN+"px");            // 최소로 두고 남는 높이를 잰다
+  /* ⚠ scrollHeight 로 재면 안 된다 — .ms-left 는 overflow:auto 라 내용이 모자라도
+     scrollHeight === clientHeight 여서 남는 높이가 **항상 0** 으로 나온다(실측).
+     마지막 요소(#msCal)의 바닥과 패널 바닥의 차이를 직접 잰다. */
+  const spare = Math.floor(left.getBoundingClientRect().bottom - box.getBoundingClientRect().bottom - 6);
+  let h = MSC_H_MIN + Math.floor(Math.max(0, spare) / (rows*6));
+  /* 가로보다 너무 길쭉해지지 않게 — 칸 폭의 1.6배까지만(칸 폭은 패널 520px 에서 약 34px) */
+  const w = (box.querySelector(".msc-d")||{}).getBoundingClientRect
+          ? Math.round(box.querySelector(".msc-d").getBoundingClientRect().width) : 35;
+  h = Math.max(MSC_H_MIN, Math.min(MSC_H_MAX, Math.min(h, Math.round(w*1.6))));
+  const t = (h-MSC_H_MIN) / (MSC_H_MAX-MSC_H_MIN);            // 0~1
+  const mix=(a,b)=>Math.round((a+(b-a)*t)*10)/10;
+  box.style.setProperty("--msch", h+"px");
+  box.style.setProperty("--mscfs", mix(10,13)+"px");          // 날짜 숫자
+  box.style.setProperty("--mscn",  mix(16,24)+"px");          // 마커 동그라미
+  box.style.setProperty("--mscnf", mix(9.5,12)+"px");
+  box.style.setProperty("--mscnm", mix(7,9.5)+"px");          // 마커 이름
+  box.style.setProperty("--mscmh", mix(10,12.5)+"px");        // 월 머리글
+  box.style.setProperty("--mscdw", mix(9,11)+"px");           // 요일
+}
+window.addEventListener("resize", ()=>{ if(document.getElementById("msModal").classList.contains("show")) mscFitCells(); });
 function mscCloseInputs(){ document.querySelectorAll("#msEditGrid > div").forEach(d=>d.classList.remove("show")); }
 function renderMsCal(){
   const box=document.getElementById("msCal"); if(!box) return;
@@ -5619,6 +5651,7 @@ function renderMsCal(){
     }).join("")+`<span class="msc-tip">옅은 보라 = 마일스톤 기간</span></div>`+
     (mscArm?`<div class="msc-note">「${escapeHtml(msMk(mscArm).label)}」를 고른 상태 — 달력에서 날짜를 누르면 그 날로 지정됩니다.</div>`:"")+
     `<div class="msc-grid">`+show.map(mscMonthHtml).join("")+ mscNavHtml(show, skipped) +`</div>`;
+  mscFitCells();
 }
 function mscShowInput(k){
   document.querySelectorAll("#msEditGrid > div").forEach(d=>d.classList.toggle("show", d.dataset.mscell===k));
@@ -5827,7 +5860,8 @@ document.getElementById("mtBody").addEventListener("click", e=>{
 });
 
 function openMsModal(){ msSelId=(state.milestones.find(m=>!m.free)||state.milestones[0]).id;
-  mtQuery=""; applyMsRole(); renderMsList(); loadMsEditor(msSelId); msModal.classList.add("show"); }
+  mtQuery=""; applyMsRole(); renderMsList(); loadMsEditor(msSelId); msModal.classList.add("show");
+  mscFitCells(); }        // show 를 붙인 뒤라야 높이를 잴 수 있다
 document.getElementById("msBtn").onclick=openMsModal;
 document.getElementById("msList").addEventListener("click", e=>{ const it=e.target.closest("[data-msitem]"); if(!it) return;
   msSelId=it.dataset.msitem; renderMsList(); loadMsEditor(msSelId); });
