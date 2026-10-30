@@ -5,11 +5,14 @@
  *  로컬 파일(file://)에서는 index.html이 이 파일을 로드하지 않습니다(= 모두 편집 가능).
  * ===================================================================== */
 (function(){
-  let ROLE = "viewer";
+  let ROLE = "viewer", ACCESS_ME = "viewer";
   let ME = null;            // /api/me 가 돌려준 사용자 — Task 메모 작성자 표기에 쓴다
   let ACCESS_USERS = [], accessQuery = "", viewersOpen = false;
   const esc = s => (s||"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-  const canEdit = () => ROLE==="editor" || ROLE==="admin";
+  /* 권한 4단계 — master(마스터 관리자) / admin(부관리자) / editor / viewer. 서버 effectiveRole 과 같은 뜻. */
+  const isMasterRole = () => ROLE==="master";
+  const isAdminRole  = () => ROLE==="admin" || ROLE==="master";
+  const canEdit = () => ROLE==="editor" || isAdminRole();
   /* 저장 실패를 조용히 삼키지 않는다 (2026-10-12). 예전엔 403/5xx 가 와도 dirty=false 로 끝나서,
      화면에는 Task 가 보이는데 서버에는 없고 새로고침하면 사라졌다 → "생성이 안 된다"로 제보됨.
      index.html 의 flashNote 를 쓰되, 로딩 순서에 기대지 않도록 존재 확인 후 호출한다. */
@@ -210,7 +213,7 @@
 
   /* 접속자 표시 — /api/state 응답에 함께 실려 온 값을 그리기만 한다(별도 요청 없음) */
   function showPresence(pr){
-    const roleTxt = ROLE==="admin" ? "관리자" : (ROLE==="editor" ? "편집 가능" : "읽기 전용");
+    const roleTxt = ROLE==="master" ? "마스터 관리자" : (ROLE==="admin" ? "부관리자" : (ROLE==="editor" ? "편집 가능" : "읽기 전용"));
     setStatus(`${roleTxt} · ☁ ${pr.count}명`, (pr.users||[]).map(u=>u.name || u.email));
   }
 
@@ -219,12 +222,15 @@
     window.APP_ROLE = ROLE;   // index.html 이 읽는 역할값 (마일스톤 설정 읽기전용 판단 등)
     /* Task 메모의 '누가 썼는지'에 쓴다. 로컬 단독 실행이면 null 이라 index.html 이 '나'로 적는다. */
     window.APP_USER = ME ? { name: ME.name || "", email: ME.email || "" } : null;
-    document.body.classList.toggle("role-admin", ROLE==="admin");
+    document.body.classList.toggle("role-admin", isAdminRole());
+    document.body.classList.toggle("role-master", isMasterRole());
     if(!canEdit()){ document.body.classList.add("readonly"); injectReadonlyStyle(); injectRequestButton(); }
-    if(ROLE==="admin"){ injectAccessButton(); const fr=document.getElementById("forceReloadBtn"); if(fr) fr.style.display="";
-      const tb=document.getElementById("trelloBtn"); if(tb) tb.style.display="";   // 트렐로 동기화는 관리자 전용
-    }
-    else { const hb=document.getElementById("historyBtn"); if(hb) hb.style.display="none"; const fr=document.getElementById("forceReloadBtn"); if(fr) fr.style.display="none"; }   // 히스토리·강제새로고침은 관리자 전용
+    /* 부관리자 이상: 권한 관리 · 히스토리 열람 */
+    if(isAdminRole()) injectAccessButton();
+    else { const hb=document.getElementById("historyBtn"); if(hb) hb.style.display="none"; }
+    /* 마스터 전용: 트렐로 관리 · 강제 새로고침 (서버도 같이 막는다 — 숨김만으로는 의미가 없다) */
+    const fr=document.getElementById("forceReloadBtn"); if(fr) fr.style.display = isMasterRole() ? "" : "none";
+    const tb=document.getElementById("trelloBtn");      if(tb) tb.style.display = isMasterRole() ? "" : "none";
     // 마일스톤 설정(#msBtn)은 전원 열람 가능 — 편집 컨트롤만 index.html 쪽에서 관리자에게만 열어 준다
   }
   function injectReadonlyStyle(){
@@ -256,7 +262,7 @@
     let m = document.getElementById("accessModal"); if(m) return m;
     m = document.createElement("div"); m.id="accessModal"; m.className="modal-bg";
     m.innerHTML = `<div class="modal" style="width:500px"><h3>권한 관리 👥</h3>
-      <div class="msub">‘승인 대기🔔’를 ‘편집 승인’하면 편집 가능(editor)이 됩니다. 관리자(admin)는 환경변수 ADMIN_EMAILS로 지정됩니다.</div>
+      <div class="msub" id="accessSub">불러오는 중…</div>
       <input id="accessSearch" placeholder="이름·이메일 검색" style="width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 11px;font-size:13px;margin-bottom:8px">
       <div id="accessResults" class="ms-list-wrap" style="max-height:360px"></div>
       <div class="modal-actions"><span></span><div class="right"><button class="btn" id="accessClose">닫기</button></div></div></div>`;
@@ -277,7 +283,7 @@
     try{
       const r = await fetch("/api/access", { credentials:"same-origin" });
       if(!r.ok){ el.innerHTML = '<div class="dm-empty">권한이 없습니다.</div>'; return; }
-      const j = await r.json(); ACCESS_USERS = j.users || []; drawAccess();
+      const j = await r.json(); ACCESS_USERS = j.users || []; ACCESS_ME = j.me || ROLE; drawAccess();
     }catch(_){ el.innerHTML = '<div class="dm-empty">불러오기 실패</div>'; }
   }
   function drawAccess(){
@@ -285,19 +291,29 @@
     const q = accessQuery.trim().toLowerCase();
     const match = u => !q || (u.name||"").toLowerCase().includes(q) || (u.email||"").toLowerCase().includes(q);
     const us = ACCESS_USERS.filter(match);
-    const pending = us.filter(u=>u.requested && u.role!=="editor" && u.role!=="admin");
+    const iAmMaster = ACCESS_ME === "master";
+    const sub = document.getElementById("accessSub");
+    if(sub) sub.textContent = iAmMaster
+      ? "마스터 관리자입니다. 부관리자 임명·해임과 편집 권한 승인을 할 수 있습니다."
+      : "부관리자입니다. 편집 권한 승인까지 할 수 있고, 부관리자 임명·해임은 마스터만 할 수 있습니다.";
+    const masters = us.filter(u=>u.role==="master");
+    const pending = us.filter(u=>u.requested && u.role!=="editor" && u.role!=="admin" && u.role!=="master");
     const admins  = us.filter(u=>u.role==="admin");
     const editors = us.filter(u=>u.role==="editor");
     const viewers = us.filter(u=>u.role==="viewer" && !u.requested);
     const row = (u,btn) => `<div class="ms-item" style="cursor:default"><span class="ms-name">${esc(u.name||u.email)}</span><span class="ms-range">${esc(u.email)}</span>${btn||""}</div>`;
     const approve = u => `<button class="meta-btn set" data-grant="editor" data-email="${esc(u.email)}">편집 승인</button>`;
     const revoke  = u => `<button class="meta-btn" data-grant="viewer" data-email="${esc(u.email)}">읽기 전용으로</button>`;
+    /* 부관리자 임명·해임 버튼은 **마스터에게만** 그린다. 서버도 같은 규칙으로 막는다. */
+    const promote = u => iAmMaster ? `<button class="meta-btn set" data-grant="admin" data-email="${esc(u.email)}">부관리자로</button>` : "";
+    const demote  = u => iAmMaster ? `<button class="meta-btn" data-grant="editor" data-email="${esc(u.email)}">편집 가능으로</button>` : "";
     const head = t => `<div style="font-size:12px;font-weight:800;color:var(--muted);margin:12px 0 6px">${t}</div>`;
     const empty = `<div class="dm-empty">없음</div>`;
     let h = "";
     h += head(`🔔 승인 대기 (${pending.length})`) + (pending.map(u=>row(u,approve(u))).join("") || empty);
-    h += head(`관리자 (${admins.length})`) + (admins.map(u=>row(u,"")).join("") || empty);
-    h += head(`편집 가능 (${editors.length})`) + (editors.map(u=>row(u,revoke(u))).join("") || empty);
+    h += head(`👑 마스터 관리자 (${masters.length})`) + (masters.map(u=>row(u,"")).join("") || empty);
+    h += head(`부관리자 (${admins.length})`) + (admins.map(u=>row(u,demote(u))).join("") || empty);
+    h += head(`편집 가능 (${editors.length})`) + (editors.map(u=>row(u, revoke(u)+promote(u))).join("") || empty);
     h += `<div id="viewersToggle" style="font-size:12px;font-weight:800;color:var(--muted);margin:12px 0 6px;cursor:pointer">읽기 전용 (${viewers.length}) ${viewersOpen?"▾":"▸"}</div>`;
     if(viewersOpen) h += (viewers.map(u=>row(u,approve(u))).join("") || empty);
     el.innerHTML = h;

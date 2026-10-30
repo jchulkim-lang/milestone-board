@@ -15,7 +15,7 @@ const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 �
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026102901;
+const APP_BUILD = 2026103001;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -48,9 +48,24 @@ async function withDb(env, fn){
     DB_READY=false; await ensureDb(env); return await fn();
   }
 }
-function isAdminEmail(env, email){ const list=(env.ADMIN_EMAILS||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean); return list.includes((email||"").toLowerCase()); }
-async function effectiveRole(env, email){ if(isAdminEmail(env, email)) return "admin"; const r=await env.DB.prepare("SELECT role FROM users WHERE email=?").bind(email).first(); return (r && r.role) || "viewer"; }
-function canEdit(role){ return role==="editor" || role==="admin"; }
+/* ===== 권한 4단계 (2026-10-30) =========================================
+ *   master  마스터 관리자 — ADMIN_EMAILS 환경변수. **1명**. 부관리자 임명/해임, 되돌리기,
+ *                           트렐로 관리, 강제 새로고침은 여기만.
+ *   admin   부관리자 — 마스터가 임명(users.role='admin'). 편집 권한 승인 · 마일스톤 설정 ·
+ *                      히스토리 열람까지. 부관리자를 임명하거나 강등하지는 못한다.
+ *   editor  보드 편집
+ *   viewer  열람만 (로그인 기본값)
+ * 역할을 더 보탤 때는 isMaster/isAdmin/canEdit 세 함수만 고치면 된다. */
+function isMasterEmail(env, email){ const list=(env.ADMIN_EMAILS||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean); return list.includes((email||"").toLowerCase()); }
+async function effectiveRole(env, email){
+  if(isMasterEmail(env, email)) return "master";
+  const r=await env.DB.prepare("SELECT role FROM users WHERE email=?").bind(email).first();
+  const role=(r && r.role) || "viewer";
+  return role==="master" ? "admin" : role;        // DB 로는 master 를 줄 수 없다(환경변수 전용)
+}
+const isMaster = role => role==="master";
+const isAdmin  = role => role==="admin" || role==="master";          // 부관리자 이상
+function canEdit(role){ return role==="editor" || isAdmin(role); }
 
 /* ===== 카카오워크 알림 =====
  *  KAKAO_BOT_KEY(봇 App Key)가 있으면 등록된 멤버(state.notifyEmails)에게 개인 DM.
@@ -507,7 +522,7 @@ async function handleApi(request, env, url, ctx){
       const b = await request.json(); const idt = b.credential || b.id_token; if(!idt) return json({ error:"missing credential" }, 400);
       const user = await verifyGoogleIdToken(idt, env);
       try{
-        if(isAdminEmail(env, user.email)) await env.DB.prepare("INSERT INTO users (email,name,last_seen,role) VALUES (?,?,datetime('now'),'admin') ON CONFLICT(email) DO UPDATE SET name=excluded.name, last_seen=datetime('now'), role='admin'").bind(user.email, user.name||"").run();
+        if(isMasterEmail(env, user.email)) await env.DB.prepare("INSERT INTO users (email,name,last_seen,role) VALUES (?,?,datetime('now'),'admin') ON CONFLICT(email) DO UPDATE SET name=excluded.name, last_seen=datetime('now'), role='admin'").bind(user.email, user.name||"").run();
         else await env.DB.prepare("INSERT INTO users (email,name,last_seen) VALUES (?,?,datetime('now')) ON CONFLICT(email) DO UPDATE SET name=excluded.name, last_seen=datetime('now')").bind(user.email, user.name||"").run();
       }catch(_){}
       const tok = await createSessionToken(user, env);
@@ -528,15 +543,28 @@ async function handleApi(request, env, url, ctx){
     return json({ ok:true });
   }
   if(p === "/api/access" && request.method === "GET"){
-    if((await effectiveRole(env, user.email)) !== "admin") return json({ error:"forbidden" }, 403);
+    const me = await effectiveRole(env, user.email);
+    if(!isAdmin(me)) return json({ error:"forbidden" }, 403);
     const { results } = await env.DB.prepare("SELECT email,name,role,requested FROM users ORDER BY requested DESC, role DESC, name").all();
-    const list = (results||[]).map(u=>({ email:u.email, name:u.name, requested:u.requested, role: isAdminEmail(env, u.email) ? "admin" : (u.role||"viewer") }));
-    return json({ users: list, adminEmails: env.ADMIN_EMAILS || "" });
+    const list = (results||[]).map(u=>({ email:u.email, name:u.name, requested:u.requested,
+      role: isMasterEmail(env, u.email) ? "master" : ((u.role||"viewer")==="master" ? "admin" : (u.role||"viewer")) }));
+    return json({ users: list, me, adminEmails: env.ADMIN_EMAILS || "" });
   }
   if(p === "/api/grant" && request.method === "POST"){
-    if((await effectiveRole(env, user.email)) !== "admin") return json({ error:"forbidden" }, 403);
-    const b = await request.json(); const role = (b.role === "editor") ? "editor" : "viewer";
-    await env.DB.prepare("INSERT INTO users (email,role,requested) VALUES (?,?,0) ON CONFLICT(email) DO UPDATE SET role=?, requested=0").bind(b.email, role, role).run();
+    const me = await effectiveRole(env, user.email);
+    if(!isAdmin(me)) return json({ error:"forbidden" }, 403);
+    const b = await request.json();
+    const target = String(b.email||"").trim();
+    if(!target) return json({ error:"bad request", reason:"no-email" }, 400);
+    const role = ["admin","editor","viewer"].includes(b.role) ? b.role : "viewer";
+    /* 마스터는 환경변수로 정해지므로 DB 로 손댈 수 없다 — 자기 자신을 포함해 거절한다. */
+    if(isMasterEmail(env, target)) return json({ error:"forbidden", reason:"master-immutable" }, 403);
+    if(!isMaster(me)){
+      /* 부관리자는 **부관리자를 만들지도 내리지도 못한다.** 그건 마스터만. */
+      if(role === "admin") return json({ error:"forbidden", reason:"master-only" }, 403);
+      if((await effectiveRole(env, target)) === "admin") return json({ error:"forbidden", reason:"master-only" }, 403);
+    }
+    await env.DB.prepare("INSERT INTO users (email,role,requested) VALUES (?,?,0) ON CONFLICT(email) DO UPDATE SET role=?, requested=0").bind(target, role, role).run();
     return json({ ok:true });
   }
 
@@ -575,9 +603,14 @@ async function handleApi(request, env, url, ctx){
     const baseVersion = (b.baseVersion===undefined || b.baseVersion===null) ? null : Number(b.baseVersion);
     const cur = await env.DB.prepare("SELECT data, version FROM app_state WHERE id='main'").first();
     let incoming = b.data ?? {};
-    // 마일스톤 설정은 관리자 전용: 비관리자 저장 시 마일스톤 목록은 서버 저장본을 유지(변경 무시)
-    if(role !== "admin" && cur && cur.data){
-      try{ const prev = JSON.parse(cur.data); if(prev && Array.isArray(prev.milestones)) incoming = { ...incoming, milestones: prev.milestones }; }catch(_){}
+    /* 마일스톤 설정은 **부관리자 이상**, 강제 새로고침 신호는 **마스터만**.
+       거부가 아니라 **서버 저장본으로 덮어쓴다** — 거부하면 구버전 클라이언트가 저장 불가로 갇힌다. */
+    if(cur && cur.data && (!isAdmin(role) || !isMaster(role))){
+      try{
+        const prev = JSON.parse(cur.data);
+        if(!isAdmin(role) && prev && Array.isArray(prev.milestones)) incoming = { ...incoming, milestones: prev.milestones };
+        if(!isMaster(role) && prev) incoming = { ...incoming, forceReloadAt: prev.forceReloadAt };
+      }catch(_){}
     }
     const payload = JSON.stringify(incoming);
     // 낙관적 잠금(CAS): 기준 버전이 서버 최신과 같을 때만 저장. 어긋나면 409+현재상태 반환 → 클라이언트가 재병합·재시도(동시 저장 롤백 방지).
@@ -770,10 +803,10 @@ async function trelloAudit(env){
     return json({ ok:true, audit:res });
   }
 
-  /* ===== 트렐로 관리(관리자 전용) ===== */
+  /* ===== 트렐로 관리(마스터 전용) — 일괄 가져오기·웹훅은 되돌리기 어려워 부관리자에게 주지 않는다 ===== */
   if(p.startsWith("/api/trello/")){
     const role = await effectiveRole(env, user.email);
-    if(role !== "admin") return json({ error:"forbidden" }, 403);
+    if(!isMaster(role)) return json({ error:"forbidden", reason:"master-only" }, 403);
     const cb = trelloCallbackUrl(env, url);
     if(p === "/api/trello/status" && request.method === "GET"){
       const out = { configured: trelloReady(env), secret: !!env.TRELLO_SECRET, board: trelloBoardId(env), callback: cb };
@@ -838,12 +871,12 @@ async function trelloAudit(env){
 
   // 히스토리 / 롤백
   if(p === "/api/history" && request.method === "GET"){
-    if((await effectiveRole(env, user.email)) !== "admin") return json({ error:"forbidden", reason:"admin-only" }, 403);   // 히스토리는 관리자 전용
+    if(!isAdmin(await effectiveRole(env, user.email))) return json({ error:"forbidden", reason:"admin-only" }, 403);   // 히스토리 열람: 부관리자 이상
     const { results } = await env.DB.prepare("SELECT id,version,saved_by,saved_at FROM history ORDER BY id DESC LIMIT 30").all();
     return json({ items: results || [] });
   }
   if(p === "/api/restore" && request.method === "POST"){
-    if((await effectiveRole(env, user.email)) !== "admin") return json({ error:"forbidden", reason:"admin-only" }, 403);   // 되돌리기는 관리자 전용
+    if(!isMaster(await effectiveRole(env, user.email))) return json({ error:"forbidden", reason:"master-only" }, 403);   // 되돌리기는 **마스터 전용**(보드 전체가 과거로 돌아간다)
     const b = await request.json();
     const snap = await env.DB.prepare("SELECT data FROM history WHERE id=?").bind(b.id).first();
     if(!snap) return json({ error:"snapshot not found" }, 404);

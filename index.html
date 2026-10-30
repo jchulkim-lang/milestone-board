@@ -5656,7 +5656,7 @@ document.getElementById("msEditGrid").addEventListener("change", e=>{
 
 /* 마일스톤 설정: 열람은 전원, 편집은 관리자만.
    window.APP_ROLE 은 cloud.js 가 로그인 후 채운다. 값이 없으면 = 클라우드 미사용(로컬 단독) → 제한 없음 */
-const msCanEdit = () => !window.APP_ROLE || window.APP_ROLE === "admin";
+const msCanEdit = () => !window.APP_ROLE || window.APP_ROLE === "admin" || window.APP_ROLE === "master";
 function applyMsRole(){
   const ro = !msCanEdit();
   msModal.querySelector(".modal").classList.toggle("ms-readonly", ro);
@@ -5917,6 +5917,8 @@ const RELOAD_KEY="milestone_reload_seen_v1";
 let reloadSeen=0, reloadPending=false;
 try{ reloadSeen=Number(localStorage.getItem(RELOAD_KEY))||0; }catch(_){}
 function triggerForceReload(){
+  /* 마스터 전용 — 서버도 PUT /api/state 에서 forceReloadAt 을 저장본으로 덮어쓴다 */
+  if(window.APP_ROLE && window.APP_ROLE !== "master"){ flashNote("강제 새로고침은 마스터 관리자만 할 수 있습니다."); return; }
   if(!confirm("모든 사용자의 화면을 최신 버전으로 강제 새로고침합니다.\n(진행 중 편집 내용은 자동 저장되어 있습니다.)\n계속할까요?")) return;
   state.forceReloadAt = Date.now();
   save();
