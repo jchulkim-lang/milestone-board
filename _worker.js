@@ -15,7 +15,7 @@ const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 �
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026103003;
+const APP_BUILD = 2026103005;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -48,14 +48,16 @@ async function withDb(env, fn){
     DB_READY=false; await ensureDb(env); return await fn();
   }
 }
-/* ===== 권한 4단계 (2026-10-30) =========================================
- *   master  마스터 관리자 — ADMIN_EMAILS 환경변수. **1명**. 부관리자 임명/해임, 되돌리기,
- *                           트렐로 관리, 강제 새로고침은 여기만.
- *   admin   부관리자 — 마스터가 임명(users.role='admin'). 편집 권한 승인 · 마일스톤 설정 ·
- *                      히스토리 열람까지. 부관리자를 임명하거나 강등하지는 못한다.
- *   editor  보드 편집
- *   viewer  열람만 (로그인 기본값)
- * 역할을 더 보탤 때는 isMaster/isAdmin/canEdit 세 함수만 고치면 된다. */
+/* ===== 권한 5단계 (2026-10-30) =========================================
+ *   master   마스터 관리자 — ADMIN_EMAILS 환경변수. **1명**. 부관리자 임명/해임, 되돌리기,
+ *                            트렐로 관리, 강제 새로고침은 여기만.
+ *   admin    부관리자 — 마스터가 임명. 편집 권한·매니저 승인 · 마일스톤 설정 · 히스토리 열람.
+ *                       부관리자를 임명하거나 강등하지는 못한다.
+ *   manager  매니저 — **담당자 배정과 부서 일정(t.depts)을 고칠 수 있는 유일한 등급**.
+ *                     마스터·부관리자가 임명. (2026-10-30 "누군가 일정을 변경해버리네요")
+ *   editor   보드 편집 — Task 생성·상태·메모·라벨은 되지만 담당자/일정은 못 건드린다.
+ *   viewer   열람만 (로그인 기본값)
+ * 역할을 더 보탤 때는 isMaster/isAdmin/isManager/canEdit 네 함수만 고치면 된다. */
 function isMasterEmail(env, email){ const list=(env.ADMIN_EMAILS||"").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean); return list.includes((email||"").toLowerCase()); }
 async function effectiveRole(env, email){
   if(isMasterEmail(env, email)) return "master";
@@ -63,9 +65,10 @@ async function effectiveRole(env, email){
   const role=(r && r.role) || "viewer";
   return role==="master" ? "admin" : role;        // DB 로는 master 를 줄 수 없다(환경변수 전용)
 }
-const isMaster = role => role==="master";
-const isAdmin  = role => role==="admin" || role==="master";          // 부관리자 이상
-function canEdit(role){ return role==="editor" || isAdmin(role); }
+const isMaster  = role => role==="master";
+const isAdmin   = role => role==="admin" || role==="master";            // 부관리자 이상
+const isManager = role => role==="manager" || isAdmin(role);            // 매니저 이상 = 담당자·일정 가능
+function canEdit(role){ return role === "editor" || isManager(role); }
 
 /* ===== 카카오워크 알림 =====
  *  KAKAO_BOT_KEY(봇 App Key)가 있으면 등록된 멤버(state.notifyEmails)에게 개인 DM.
@@ -556,7 +559,7 @@ async function handleApi(request, env, url, ctx){
     const b = await request.json();
     const target = String(b.email||"").trim();
     if(!target) return json({ error:"bad request", reason:"no-email" }, 400);
-    const role = ["admin","editor","viewer"].includes(b.role) ? b.role : "viewer";
+    const role = ["admin","manager","editor","viewer"].includes(b.role) ? b.role : "viewer";
     /* 마스터는 환경변수로 정해지므로 DB 로 손댈 수 없다 — 자기 자신을 포함해 거절한다. */
     if(isMasterEmail(env, target)) return json({ error:"forbidden", reason:"master-immutable" }, 403);
     if(!isMaster(me)){
@@ -605,11 +608,22 @@ async function handleApi(request, env, url, ctx){
     let incoming = b.data ?? {};
     /* 마일스톤 설정은 **부관리자 이상**, 강제 새로고침 신호는 **마스터만**.
        거부가 아니라 **서버 저장본으로 덮어쓴다** — 거부하면 구버전 클라이언트가 저장 불가로 갇힌다. */
-    if(cur && cur.data && (!isAdmin(role) || !isMaster(role))){
+    if(cur && cur.data && !isMaster(role)){
       try{
         const prev = JSON.parse(cur.data);
         if(!isAdmin(role) && prev && Array.isArray(prev.milestones)) incoming = { ...incoming, milestones: prev.milestones };
-        if(!isMaster(role) && prev) incoming = { ...incoming, forceReloadAt: prev.forceReloadAt };
+        if(prev) incoming = { ...incoming, forceReloadAt: prev.forceReloadAt };
+        /* 담당자·부서 일정(t.depts)은 **매니저 이상만**. 통째로 저장본으로 되돌린다.
+           (사용자 선택: 담당자 배정·시작/종료일·부서 켜기끄기·완료 체크 **전부** 잠금 = depts 전체)
+           **새로 만든 Task 는 그대로 둔다** — 저장본에 없으니 되돌릴 것도 없고,
+           editor 가 Task 를 못 만드는 상태가 되면 안 된다. */
+        if(!isManager(role) && prev && Array.isArray(prev.tasks) && Array.isArray(incoming.tasks)){
+          const pm = new Map(prev.tasks.filter(t=>t&&t.id).map(t=>[t.id,t]));
+          incoming = { ...incoming, tasks: incoming.tasks.map(t=>{
+            const p = t && t.id ? pm.get(t.id) : null;
+            return p ? { ...t, depts: p.depts } : t;
+          }) };
+        }
       }catch(_){}
     }
     const payload = JSON.stringify(incoming);

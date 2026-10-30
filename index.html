@@ -861,6 +861,14 @@
   .sp-sec .sp-lab{ gap:6px; }
   .sp-sec .sp-lab .nm{ margin-right:auto; }
   .sp-bar .dt{ font-size:9px; font-weight:700; opacity:.6; margin-left:auto; padding-left:4px; }
+  /* 빌드 버전 · 납품 (→ NC) 은 일정의 기준선이라 **글자를 눈에 띄게** 한다(2026-10-30 요청).
+     두 트랙 다 트랙 색이 회색(#64748b)이라 막대만으로는 묻힌다. 막대 배경·테두리는 그대로 두고
+     글자색만 바꾼다 — 트랙 색은 사용자가 ✎ 로 직접 고르는 값이라 건드리지 않는다.
+     판별은 트랙 이름(`b-build` = 빌드 버전 / `b-nc` = 이름에 '납품'). */
+  .sp-bar.b-build{ color:#ffffff; font-weight:800; letter-spacing:.2px; }
+  .sp-bar.b-build .dt{ color:#cbd5e1; opacity:.85; }
+  .sp-bar.b-nc{ color:#fcd34d; font-weight:800; }
+  .sp-bar.b-nc .dt{ color:#fcd34d; opacity:.6; }
   .sp-track{ flex:1 1 0; min-width:0; position:relative; display:flex; }
   .sp-wk{ flex:1 0 62px; min-width:62px; border-right:1px solid var(--grid); }
   .sp-wk:last-child{ border-right:0; }
@@ -1187,6 +1195,15 @@
 
   /* 컨텍스트 바 */
   .ctxbar{ flex:0 0 auto; display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:9px 16px; background:var(--panel); border-bottom:1px solid var(--line); }
+  /* 매니저 미만 — 담당자·일정 칸은 **보이되 못 고친다**(숨기지 않는다: [[roles]] 방침).
+     cloud.js 의 applyRoleUI() 가 body.noassign 을 붙인다. JS 가드가 본체고 이건 눈으로 알려 주는 쪽. */
+  body.noassign #schedStart, body.noassign #schedEnd,
+  body.noassign #schedAssignees, body.noassign #schedDoneRow,
+  body.noassign #deptPickGrid, body.noassign #deptAssignArea{ pointer-events:none; opacity:.55; }
+  body.noassign #schedSaveOk, body.noassign #schedUnset, body.noassign #schedRemove{ display:none; }
+  body.noassign .dnb{ opacity:.28; cursor:default; }
+  body.noassign .bar[data-bar], body.noassign .mbar[data-mbar]{ cursor:pointer; }
+  body.noassign .bar[data-bar] .handle, body.noassign .mbar[data-mbar] .handle{ display:none; }
   .ctx-ms{ background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:9px;
      padding:7px 10px; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit;
      display:inline-flex; align-items:center; gap:6px; flex:0 0 auto; max-width:230px; }
@@ -3315,7 +3332,8 @@ leftBody.addEventListener("click", e=>{
     if(confirm(_msg)){ ignoreTrelloCard(_t); state.tasks=state.tasks.filter(t=>t.id!==id); save(); render(); } return; }
   const pick=e.target.closest("[data-openpicker]"); if(pick){ e.stopPropagation(); openDeptModal(pick.dataset.openpicker); return; }
   const dnt=e.target.closest("[data-dntoggle]");   // 배지가 [data-setsched] 안에 있으므로 반드시 먼저
-  if(dnt){ e.stopPropagation(); const [tid,dep]=splitIdKey(dnt.dataset.dntoggle,"|");
+  if(dnt){ e.stopPropagation(); if(!asgCanEdit()){ noticeAsgLock(); return; }
+    const [tid,dep]=splitIdKey(dnt.dataset.dntoggle,"|");
     const t=findTask(tid), sg=t&&t.depts[dep];
     if(sg && (sg.assignees||[]).length){ sg.done=!sg.done; save(); render(); } return; }
   const ss=e.target.closest("[data-setsched]"); if(ss){ e.stopPropagation(); const [tid,dep]=splitIdKey(ss.dataset.setsched,"|"); openSchedModal(tid,dep,false); return; }
@@ -3365,7 +3383,8 @@ function moveTask(id, beforeId, newStatus){
 function defaultSegment(){ let start=Math.min(Math.max(0,nearestIndex()),Math.max(0,N-5)); return { start, end:Math.min(start+4,N-1) }; }
 /* 부서를 켤 때 기본 5일 일정을 자동으로 잡지 않는다 → '일정 미정'(sched:false) 상태로 추가.
    반환값 true = 이번 호출로 새로 켜짐(호출부에서 일정 입력창을 띄우는 데 사용) */
-function toggleTaskDept(t,k){ if(!t.depts[k]) t.depts[k]={on:false,start:0,end:0,assignees:[]}; const seg=t.depts[k];
+function toggleTaskDept(t,k){ if(!asgCanEdit()){ noticeAsgLock(); return false; }
+  if(!t.depts[k]) t.depts[k]={on:false,start:0,end:0,assignees:[]}; const seg=t.depts[k];
   if(seg.on){ seg.on=false; return false; }
   seg.on=true; seg.sched=false; if(!Array.isArray(seg.assignees)) seg.assignees=[];
   const b=defaultSegment(); seg.start=b.start; seg.end=b.end;   // 입력창 기본값용(확정 전까지 화면엔 안 그려짐)
@@ -3375,6 +3394,9 @@ function toggleTaskDept(t,k){ if(!t.depts[k]) t.depts[k]={on:false,start:0,end:0
 function attachBarHandlers(){
 
   document.querySelectorAll(".bar[data-bar]").forEach(bar=>{
+    /* 매니저 미만: 드래그를 아예 달지 않는다. 클릭하면 일정 창은 열리되 읽기 전용이다. */
+    if(!asgCanEdit()){ bar.addEventListener("click", ()=>{ const [tid,dep]=splitIdKey(bar.dataset.bar,":");
+      if(findTask(tid)) openSchedModal(tid,dep); }); return; }
     bar.addEventListener("pointerdown", e=>{
       if(e.button&&e.button!==0) return; e.preventDefault();
       const [tid,dep]=splitIdKey(bar.dataset.bar,":"); const t=findTask(tid); const seg=t.depts[dep];
@@ -3390,6 +3412,7 @@ function attachBarHandlers(){
     });
   });
   document.querySelectorAll(".mbar[data-mbar]").forEach(mb=>{
+    if(!asgCanEdit()){ mb.addEventListener("click", ()=>{ setOpen(mb.dataset.mbar,true); render(); }); return; }
     mb.addEventListener("pointerdown", e=>{
       if(e.button&&e.button!==0) return; e.preventDefault();
       const tid=mb.dataset.mbar, dep=mb.dataset.mdep; const t=findTask(tid); const seg=t&&t.depts[dep]; if(!seg) return;
@@ -3730,7 +3753,8 @@ function syncAsgCount(key){
   const shown=roster.filter(n=>nameHit(n,asgQuery)).length;
   el.textContent = roster.length ? (asgQuery ? `· ${shown} / ${roster.length}명` : `· ${roster.length}명`) : "";
 }
-function toggleDeptAssignee(t, key, name){ const seg=t.depts[key]; if(!seg) return; if(!Array.isArray(seg.assignees)) seg.assignees=[]; const i=seg.assignees.indexOf(name); if(i>=0) seg.assignees.splice(i,1); else seg.assignees.push(name); }
+function toggleDeptAssignee(t, key, name){ if(!asgCanEdit()){ noticeAsgLock(); return; }
+  const seg=t.depts[key]; if(!seg) return; if(!Array.isArray(seg.assignees)) seg.assignees=[]; const i=seg.assignees.indexOf(name); if(i>=0) seg.assignees.splice(i,1); else seg.assignees.push(name); }
 
 function fillTaskMs(track, keep){ const cur=keep||taskMs.value; taskMs.innerHTML=msFor(track).map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join(""); if(cur && msFor(track).some(m=>m.id===cur)) taskMs.value=cur; }
 function openTaskModal(){ taskInput.value=""; { const _p=document.getElementById("taskPlan"),_t=document.getElementById("taskTrello"); if(_p)_p.value=""; if(_t)_t.value=""; } const tt=document.getElementById("taskTrack"); let trk=TRACKS.includes(trackFilter)?trackFilter:"개발";
@@ -4198,7 +4222,9 @@ document.getElementById("lbMgrList").addEventListener("click", e=>{
 
 function openSchedModal(tid,dep,justOn){ editing={tid,dep,justOn:!!justOn}; const t=findTask(tid); const seg=t.depts[dep];
   document.getElementById("schedTitle").textContent=`${dep} 일정·담당자`;
-  document.getElementById("schedSub").textContent = hasSched(seg) ? t.name : t.name+" — 아직 일정이 없습니다. 날짜를 정해 저장하거나, 나중에 정하려면 ‘일정 미정’을 누르세요.";
+  document.getElementById("schedSub").textContent = !asgCanEdit()
+    ? "🔒 " + t.name + " — 담당자·일정은 「매니저」 이상만 고칠 수 있습니다. 내용은 그대로 보실 수 있습니다."
+    : (hasSched(seg) ? t.name : t.name+" — 아직 일정이 없습니다. 날짜를 정해 저장하거나, 나중에 정하려면 ‘일정 미정’을 누르세요.");
   const sIn=document.getElementById("schedStart"), eIn=document.getElementById("schedEnd");
   /* max 를 타임라인 마지막 날로 박아 두면 그 뒤 날짜를 못 넣는다(2026-10-12 제보).
      타임라인은 저장할 때 알아서 늘어나므로, 여기서는 오타 방어용으로만 넉넉히 둔다. */
@@ -4222,6 +4248,7 @@ function syncSchedDone(){
 }
 document.getElementById("schedDone").addEventListener("change", e=>{
   const t=findTask(editing.tid), seg=t&&t.depts[editing.dep]; if(!seg) return;
+  if(!asgCanEdit()){ e.target.checked=!!seg.done; noticeAsgLock(); return; }
   seg.done=e.target.checked; save(); render(); });
 document.getElementById("schedAsgSearch").addEventListener("input", e=>{
   asgQuery=(e.target.value||"").trim();
@@ -4243,7 +4270,8 @@ function updateSchedDur(){ const si=nearestWorkdayIndex(document.getElementById(
     (hn?`<span class="hol-note">· 공휴일 ${hn}일 포함 → 실제 ${ei-si+1-hn}일</span>`:``); }
 document.getElementById("schedStart").addEventListener("change",updateSchedDur);
 document.getElementById("schedEnd").addEventListener("change",updateSchedDur);
-document.getElementById("schedSaveOk").onclick=()=>{ const t=findTask(editing.tid); const seg=t.depts[editing.dep];
+document.getElementById("schedSaveOk").onclick=()=>{ if(!asgCanEdit()){ noticeAsgLock(); return; }
+  const t=findTask(editing.tid); const seg=t.depts[editing.dep];
   const sv=document.getElementById("schedStart").value, ev=document.getElementById("schedEnd").value;
   if(!sv || !ev){ alert("시작일과 종료일을 모두 입력해 주세요.\n\n날짜를 비워 두려면 ‘일정 미정’을 누르세요."); return; }
   let si=indexForDate(sv), ei=indexForDate(ev);
@@ -4259,9 +4287,11 @@ document.getElementById("schedSaveOk").onclick=()=>{ const t=findTask(editing.ti
   const g0=ymd(dateOf(si)), g1=ymd(dateOf(ei));
   if(g0!==sv || g1!==ev) flashNote(`영업일 기준으로 ${g0} ~ ${g1} 로 저장했습니다.`);
 };
-document.getElementById("schedRemove").onclick=()=>{ const t=findTask(editing.tid); const sg=t.depts[editing.dep]; sg.on=false; sg.sched=false; sg.done=false; editing.justOn=false; closeModals(); save(); render(); };
+document.getElementById("schedRemove").onclick=()=>{ if(!asgCanEdit()){ noticeAsgLock(); return; }
+  const t=findTask(editing.tid); const sg=t.depts[editing.dep]; sg.on=false; sg.sched=false; sg.done=false; editing.justOn=false; closeModals(); save(); render(); };
 /* 부서만 켜 두고 일정은 비워 두기 */
-document.getElementById("schedUnset").onclick=()=>{ const t=findTask(editing.tid); const sg=t.depts[editing.dep]; sg.on=true; sg.sched=false; editing.justOn=false; closeModals(); save(); render(); };
+document.getElementById("schedUnset").onclick=()=>{ if(!asgCanEdit()){ noticeAsgLock(); return; }
+  const t=findTask(editing.tid); const sg=t.depts[editing.dep]; sg.on=true; sg.sched=false; editing.justOn=false; closeModals(); save(); render(); };
 
 
 /* ===== 트렐로 동기화(관리자) ===== */
@@ -4990,6 +5020,7 @@ function spLanes(items){
 function spRowHtml(row, ed){
   const W=spWeeks(), {placed,n}=spLanes(row.items), showD=!!planState().showDates;
   const isNc=spIsNcRow(row);                 // 납품 트랙이면 글자를 계산해서 쓴다
+  const isBuild=/빌드\s*버전/.test(row.name||"");   // 빌드 버전 — 일정의 기준선이라 글자를 밝게
   const H=Math.max(30, n*SP_LANE_H+8);
   const bars=placed.map(({it,li})=>{
     const st=Math.max(0,Math.min(W-1,it.s)), wd=Math.max(1,Math.min(W-st,it.w));
@@ -4997,7 +5028,7 @@ function spRowHtml(row, ed){
     const rg=spRange({s:st,w:wd});
     const manual=isNc && spNcManual(it);
     const lb=isNc ? (manual?"✎ ":"")+spNcText(it) : it.text;
-    return `<div class="sp-bar ${it.kind==='cont'?'cont':''} ${it.kind==='tbd'?'tbd':''}" data-spitem="${row.id}|${it.id}"`+
+    return `<div class="sp-bar ${it.kind==='cont'?'cont':''} ${it.kind==='tbd'?'tbd':''} ${isBuild?'b-build':''} ${isNc?'b-nc':''}" data-spitem="${row.id}|${it.id}"`+
       ` style="left:calc(${l}% + 3px);width:calc(${ww}% - 6px);top:${4+li*SP_LANE_H}px;background:${row.color}2e;border-color:${row.color}"`+
       ` title="${escapeHtml(lb)}${it.note?' · '+it.note:''}${isNc?(manual?`\n납품일 직접 입력 (${it.ncDate})`:`\n빌드 시작일 −${spNcDays()}일로 자동 계산`):''}\n${rg.full} (런칭 +${st}주부터 ${wd}주)${ed?'\n클릭: 편집 · 드래그: 이동/기간':''}">`+
       `${ed?'<span class="h l"></span>':''}${escapeHtml(lb)}${it.note?`<em>${escapeHtml(it.note)}</em>`:''}`+
@@ -5702,6 +5733,20 @@ document.getElementById("msEditGrid").addEventListener("change", e=>{
 /* 마일스톤 설정: 열람은 전원, 편집은 관리자만.
    window.APP_ROLE 은 cloud.js 가 로그인 후 채운다. 값이 없으면 = 클라우드 미사용(로컬 단독) → 제한 없음 */
 const msCanEdit = () => !window.APP_ROLE || window.APP_ROLE === "admin" || window.APP_ROLE === "master";
+/* ===== 담당자 배정 · 부서 일정은 매니저 이상만 (2026-10-30) ====================
+   사용자 제보: **"누군가 일정을 변경해버리네요."** 잠그는 범위는 Task 행 부서 칸의 **전부** —
+   담당자 배정 · 부서별 시작/종료일 · 부서 켜기/끄기 · 부서 완료 체크(네 가지 모두 사용자가 선택).
+   즉 `t.depts` 통째다. 서버도 `PUT /api/state` 에서 권한이 모자라면 depts 를 저장본으로 되돌린다
+   — 버튼만 잠그면 devtools 로 뚫린다. [[roles]]
+   APP_ROLE 이 없으면 = 클라우드 미사용(file:// 로컬 단독) → 제한 없음. */
+const ASG_ROLES = ["manager","admin","master"];
+const asgCanEdit = () => !window.APP_ROLE || ASG_ROLES.includes(window.APP_ROLE);
+let _asgNoted = 0;
+function noticeAsgLock(){
+  if(Date.now()-_asgNoted < 2500) return;     // 연타로 안내가 도배되지 않게
+  _asgNoted = Date.now();
+  flashNote("담당자 배정과 일정 변경은 「매니저」 이상만 할 수 있습니다. 관리자에게 매니저 권한을 요청하세요.");
+}
 function applyMsRole(){
   const ro = !msCanEdit();
   msModal.querySelector(".modal").classList.toggle("ms-readonly", ro);

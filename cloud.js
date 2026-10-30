@@ -10,9 +10,10 @@
   let ACCESS_USERS = [], accessQuery = "", viewersOpen = false;
   const esc = s => (s||"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
   /* 권한 4단계 — master(마스터 관리자) / admin(부관리자) / editor / viewer. 서버 effectiveRole 과 같은 뜻. */
-  const isMasterRole = () => ROLE==="master";
-  const isAdminRole  = () => ROLE==="admin" || ROLE==="master";
-  const canEdit = () => ROLE==="editor" || isAdminRole();
+  const isMasterRole  = () => ROLE==="master";
+  const isAdminRole   = () => ROLE==="admin" || ROLE==="master";
+  const isManagerRole = () => ROLE==="manager" || isAdminRole();   // 담당자·일정을 고칠 수 있는 등급
+  const canEdit = () => ROLE==="editor" || isManagerRole();
   /* 저장 실패를 조용히 삼키지 않는다 (2026-10-12). 예전엔 403/5xx 가 와도 dirty=false 로 끝나서,
      화면에는 Task 가 보이는데 서버에는 없고 새로고침하면 사라졌다 → "생성이 안 된다"로 제보됨.
      index.html 의 flashNote 를 쓰되, 로딩 순서에 기대지 않도록 존재 확인 후 호출한다. */
@@ -213,7 +214,8 @@
 
   /* 접속자 표시 — /api/state 응답에 함께 실려 온 값을 그리기만 한다(별도 요청 없음) */
   function showPresence(pr){
-    const roleTxt = ROLE==="master" ? "마스터 관리자" : (ROLE==="admin" ? "부관리자" : (ROLE==="editor" ? "편집 가능" : "읽기 전용"));
+    const roleTxt = ROLE==="master" ? "마스터 관리자" : (ROLE==="admin" ? "부관리자"
+                  : (ROLE==="manager" ? "매니저" : (ROLE==="editor" ? "편집 가능" : "읽기 전용")));
     setStatus(`${roleTxt} · ☁ ${pr.count}명`, (pr.users||[]).map(u=>u.name || u.email));
   }
 
@@ -224,6 +226,8 @@
     window.APP_USER = ME ? { name: ME.name || "", email: ME.email || "" } : null;
     document.body.classList.toggle("role-admin", isAdminRole());
     document.body.classList.toggle("role-master", isMasterRole());
+    /* 매니저 미만이면 담당자·일정 칸을 잠근다 — index.html 의 asgCanEdit() 와 같은 기준 */
+    document.body.classList.toggle("noassign", !isManagerRole());
     if(!canEdit()){ document.body.classList.add("readonly"); injectReadonlyStyle(); injectRequestButton(); }
     /* 부관리자 이상: 권한 관리 · 히스토리 열람 */
     if(isAdminRole()) injectAccessButton();
@@ -294,26 +298,32 @@
     const iAmMaster = ACCESS_ME === "master";
     const sub = document.getElementById("accessSub");
     if(sub) sub.textContent = iAmMaster
-      ? "마스터 관리자입니다. 부관리자 임명·해임과 편집 권한 승인을 할 수 있습니다."
-      : "부관리자입니다. 편집 권한 승인까지 할 수 있고, 부관리자 임명·해임은 마스터만 할 수 있습니다.";
-    const masters = us.filter(u=>u.role==="master");
-    const pending = us.filter(u=>u.requested && u.role!=="editor" && u.role!=="admin" && u.role!=="master");
-    const admins  = us.filter(u=>u.role==="admin");
-    const editors = us.filter(u=>u.role==="editor");
+      ? "마스터 관리자입니다. 부관리자·매니저 임명과 편집 권한 승인을 할 수 있습니다. 담당자 배정과 일정 변경은 매니저 이상만 됩니다."
+      : "부관리자입니다. 매니저 임명과 편집 권한 승인을 할 수 있고, 부관리자 임명·해임은 마스터만 할 수 있습니다.";
+    const masters  = us.filter(u=>u.role==="master");
+    const pending  = us.filter(u=>!["editor","manager","admin","master"].includes(u.role) && u.requested);
+    const admins   = us.filter(u=>u.role==="admin");
+    const managers = us.filter(u=>u.role==="manager");
+    const editors  = us.filter(u=>u.role==="editor");
     const viewers = us.filter(u=>u.role==="viewer" && !u.requested);
     const row = (u,btn) => `<div class="ms-item" style="cursor:default"><span class="ms-name">${esc(u.name||u.email)}</span><span class="ms-range">${esc(u.email)}</span>${btn||""}</div>`;
     const approve = u => `<button class="meta-btn set" data-grant="editor" data-email="${esc(u.email)}">편집 승인</button>`;
     const revoke  = u => `<button class="meta-btn" data-grant="viewer" data-email="${esc(u.email)}">읽기 전용으로</button>`;
     /* 부관리자 임명·해임 버튼은 **마스터에게만** 그린다. 서버도 같은 규칙으로 막는다. */
     const promote = u => iAmMaster ? `<button class="meta-btn set" data-grant="admin" data-email="${esc(u.email)}">부관리자로</button>` : "";
-    const demote  = u => iAmMaster ? `<button class="meta-btn" data-grant="editor" data-email="${esc(u.email)}">편집 가능으로</button>` : "";
+    const demote  = u => iAmMaster ? `<button class="meta-btn" data-grant="manager" data-email="${esc(u.email)}">매니저로</button>` : "";
+    /* 매니저 임명·해임은 **마스터와 부관리자** 둘 다 (2026-10-30 사용자 선택) */
+    const toMgr   = u => `<button class="meta-btn set" data-grant="manager" data-email="${esc(u.email)}">매니저로</button>`;
+    const unMgr   = u => `<button class="meta-btn" data-grant="editor" data-email="${esc(u.email)}">편집 가능으로</button>`;
     const head = t => `<div style="font-size:12px;font-weight:800;color:var(--muted);margin:12px 0 6px">${t}</div>`;
     const empty = `<div class="dm-empty">없음</div>`;
     let h = "";
     h += head(`🔔 승인 대기 (${pending.length})`) + (pending.map(u=>row(u,approve(u))).join("") || empty);
     h += head(`👑 마스터 관리자 (${masters.length})`) + (masters.map(u=>row(u,"")).join("") || empty);
     h += head(`부관리자 (${admins.length})`) + (admins.map(u=>row(u,demote(u))).join("") || empty);
-    h += head(`편집 가능 (${editors.length})`) + (editors.map(u=>row(u, revoke(u)+promote(u))).join("") || empty);
+    h += head(`🗂 매니저 (${managers.length}) — 담당자 배정·일정 변경 가능`)
+       + (managers.map(u=>row(u, unMgr(u)+promote(u))).join("") || empty);
+    h += head(`편집 가능 (${editors.length})`) + (editors.map(u=>row(u, revoke(u)+toMgr(u)+promote(u))).join("") || empty);
     h += `<div id="viewersToggle" style="font-size:12px;font-weight:800;color:var(--muted);margin:12px 0 6px;cursor:pointer">읽기 전용 (${viewers.length}) ${viewersOpen?"▾":"▸"}</div>`;
     if(viewersOpen) h += (viewers.map(u=>row(u,approve(u))).join("") || empty);
     el.innerHTML = h;
