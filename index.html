@@ -4940,7 +4940,12 @@ function spNcBase(it){
     if(b) return b.s; }
   return it.s;
 }
+/* `it.ncDate` 가 있으면 그 날짜를 그대로 쓴다 — 런칭 빌드처럼 **날짜가 따로 정해진 건**용.
+   (2026-10-30 사용자: "첫번째 런칭 빌드의 납품 일자만 내가 직접 입력")
+   비워 두면 종전대로 빌드 시작일 −N일. 막대 클릭 → 팝오버에서 넣고 뺀다. */
+const spNcManual = it => !!(it && it.ncDate);
 function spNcText(it){
+  if(spNcManual(it)){ const p=String(it.ncDate).split("-"); return Number(p[1])+"/"+Number(p[2])+" 납품"; }
   const d=spWeekDate(spNcBase(it)); d.setDate(d.getDate()-spNcDays());
   return (d.getMonth()+1)+"/"+d.getDate()+" 납품";
 }
@@ -4990,10 +4995,11 @@ function spRowHtml(row, ed){
     const st=Math.max(0,Math.min(W-1,it.s)), wd=Math.max(1,Math.min(W-st,it.w));
     const l=(st/W)*100, ww=(wd/W)*100;
     const rg=spRange({s:st,w:wd});
-    const lb=isNc ? spNcText(it) : it.text;
+    const manual=isNc && spNcManual(it);
+    const lb=isNc ? (manual?"✎ ":"")+spNcText(it) : it.text;
     return `<div class="sp-bar ${it.kind==='cont'?'cont':''} ${it.kind==='tbd'?'tbd':''}" data-spitem="${row.id}|${it.id}"`+
       ` style="left:calc(${l}% + 3px);width:calc(${ww}% - 6px);top:${4+li*SP_LANE_H}px;background:${row.color}2e;border-color:${row.color}"`+
-      ` title="${escapeHtml(lb)}${it.note?' · '+it.note:''}${isNc?`\n빌드 시작일 −${spNcDays()}일로 자동 계산`:''}\n${rg.full} (런칭 +${st}주부터 ${wd}주)${ed?'\n클릭: 편집 · 드래그: 이동/기간':''}">`+
+      ` title="${escapeHtml(lb)}${it.note?' · '+it.note:''}${isNc?(manual?`\n납품일 직접 입력 (${it.ncDate})`:`\n빌드 시작일 −${spNcDays()}일로 자동 계산`):''}\n${rg.full} (런칭 +${st}주부터 ${wd}주)${ed?'\n클릭: 편집 · 드래그: 이동/기간':''}">`+
       `${ed?'<span class="h l"></span>':''}${escapeHtml(lb)}${it.note?`<em>${escapeHtml(it.note)}</em>`:''}`+
       `${showD?`<em class="dt">${escapeHtml(rg.label)}</em>`:''}${ed?'<span class="h r"></span>':''}</div>`;
   }).join("");
@@ -5097,10 +5103,10 @@ function openSpItemPop(anchor, rid, iid, startWeek){
     (sec.rows||[]).map(r=>`<option value="${r.id}" ${r.id===rid?"selected":""}>${escapeHtml(r.name)}</option>`).join("")+`</optgroup>`).join("");
   spPopEl().innerHTML =
     (spIsNcRow(row)
-      ? `<label>내용</label><input id="sppText" value="${escapeHtml(it?it.text:"")}" disabled `+
-        `title="납품 트랙은 글자를 자동으로 계산합니다" placeholder="자동">`+
-        `<div class="rmp-hint" style="margin-top:4px">막대 글자는 <b>빌드 시작일 −${spNcDays()}일</b>로 자동 계산됩니다`+
-        `(아래 푸터의 「납품 D−」에서 바꿉니다). 시작 주차·지속은 여기서 그대로 고칠 수 있습니다.</div>`
+      ? `<label>납품일 — 직접 입력</label><input type="date" id="sppNcDate" value="${escapeHtml(it&&it.ncDate?it.ncDate:"")}">`+
+        `<div class="rmp-hint" style="margin-top:4px"><b>비워 두면</b> 빌드 시작일 −${spNcDays()}일로 자동 계산됩니다`+
+        `(푸터의 「납품 D−」). 런칭 빌드처럼 날짜가 따로 정해진 건만 채우세요.</div>`+
+        `<input type="hidden" id="sppText" value="${escapeHtml(it?it.text:"납품")}">`
       : `<label>내용</label><input id="sppText" value="${escapeHtml(it?it.text:"")}" placeholder="예: 「엘디스 픽업」">`)+
     `<label>트랙</label><select id="sppRow">${rowOpts}</select>`+
     `<div style="display:flex;gap:6px"><div style="flex:1"><label>시작 주차</label><select id="sppS">${spWeekOptions(cs)}</select></div>`+
@@ -5180,14 +5186,20 @@ function spPopSave(){
     if(spPopRef.isNew) pl.guide.push(Object.assign({id:uid()},obj));
     else { const g=pl.guide.find(x=>x.id===spPopRef.gid); if(g) Object.assign(g,obj); }
   } else {
-    const text=V("sppText").trim(); if(!text) return closeSpPop();
     const st=Number(V("sppS"))||0, w=Math.max(1,Number(V("sppW"))||1);
     const kind=V("sppKind"), note=V("sppNote").trim(), destRid=V("sppRow")||spPopRef.rid;
+    /* 납품 트랙은 글자가 자동이라 내용칸이 비어 있을 수 있다 — 빈 글자로 저장을 접지 않는다. */
+    const ncRow = spIsNcRow(spFindRow(destRid).row);
+    const ncDate = ncRow ? V("sppNcDate") : "";
+    const text=V("sppText").trim() || (ncRow ? "납품" : "");
+    if(!text) return closeSpPop();
     if(spPopRef.isNew){ const {row}=spFindRow(destRid);
-      if(row){ if(!Array.isArray(row.items)) row.items=[]; row.items.push({id:uid(),text,s:st,w,note,kind}); } }
+      if(row){ if(!Array.isArray(row.items)) row.items=[];
+        const o={id:uid(),text,s:st,w,note,kind}; if(ncDate) o.ncDate=ncDate; row.items.push(o); } }
     else {
       const {row,it}=spFindItem(spPopRef.rid, spPopRef.iid); if(!row||!it) return closeSpPop();
       Object.assign(it,{text,s:st,w,note,kind});
+      if(ncRow){ if(ncDate) it.ncDate=ncDate; else delete it.ncDate; } else delete it.ncDate;
       if(destRid!==spPopRef.rid){ const {row:dst}=spFindRow(destRid);
         if(dst){ row.items=row.items.filter(x=>x.id!==it.id); if(!Array.isArray(dst.items)) dst.items=[]; dst.items.push(it); } }
     }
