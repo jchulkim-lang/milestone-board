@@ -2588,12 +2588,12 @@ function renderPipeline(){
   const box=document.getElementById("pipeline"); if(!box) return;
   if(isMemberView()){ box.classList.remove("hide"); const s=memberSummary();
     const SORTS=[["count","일감 많은 순"],["overlap","겹침 많은 순"],["load","부하 높은 순"],["name","이름순"]];
-    box.innerHTML=`<div class="pipe-mem"><span>멤버 <b>${s.mem}</b>명${s.idle?`<i class="pm-idle">일감 0 · ${s.idle}</i>`:""}</span><span>담당 일감 <b>${s.n}</b>건</span>`+
-      `<span>완료 <b>${s.done}</b>/${s.n}</span>`+
+    box.innerHTML=`<div class="pipe-mem"><span>멤버 <b>${s.mem}</b>명${s.idle?`<i class="pm-idle">일감 0 · ${s.idle}</i>`:""}</span><span>남은 일감 <b>${s.n}</b>건</span>`+
+      `<span title="완료된 일감은 목록에서 제외됩니다">완료 <b>${s.done}</b>건 제외</span>`+
       `<span class="warn">일정 미정 <b>${s.un}</b></span><span class="bad">겹치는 날 <b>${s.ov}</b></span>`+
       `<span class="pm-ctl"><select id="memSort" title="멤버 정렬">${SORTS.map(([k,l])=>`<option value="${k}" ${memSort===k?"selected":""}>${l}</option>`).join("")}</select>`+
       `<button class="pm-tgl ${memOvOnly?"on":""}" id="memOvOnly" title="같은 날 2건 이상 맡은 사람만 봅니다">⚠ 겹침만</button>`+
-      `<button class="pm-tgl neu ${memHideEmpty?"on":""}" id="memHideEmpty" title="부서 명단에는 있지만 배정된 일감이 없는 사람을 숨깁니다">일감 0 숨기기</button></span>`+
+      `<button class="pm-tgl neu ${memHideEmpty?"on":""}" id="memHideEmpty" title="남은 일감이 0인 사람을 목록에서 숨깁니다 (명단에만 있는 사람 · 다 끝낸 사람 모두)">남은 일감 0 숨기기</button></span>`+
       `<span style="color:var(--dim);font-weight:700">· <b style="color:var(--muted)">${MEM_TRACK}</b> 분류만 집계</span></div>`;
     return; }
   /* 상태 칩은 좌측 헤더 1행으로 옮겼다 → 전체 폭 바는 숨긴다(세로 22px 회수).
@@ -2861,7 +2861,11 @@ const isMemberView = () => trackFilter===VIEW_MEMBER;
 let memCollapsed=new Set();                     // 접힌 멤버·부서 (개인 화면, 저장 안 함)
 let memSort="count";                            // count | overlap | load | name  (뷰 상태)
 let memOvOnly=false;                            // 겹침 있는 사람만
-let memHideEmpty=false;                         // 부서 명단에만 있고 배정 일감이 0인 사람 숨기기
+/* 남은 일감이 0인 사람은 **기본으로 숨긴다** (2026-11-03 사용자: "할당 task가 없는 멤버는 노출시키지 말아줘").
+   부서 명단에만 있는 사람뿐 아니라 **일감을 다 끝낸 사람**도 여기 해당한다 — 둘 다 줄이 비기 때문이다.
+   숨긴 인원 수는 상단 요약의 「일감 0 · N」 에 그대로 남으니 정보가 사라지지는 않는다.
+   푸터 「일감 0 숨기기」 를 끄면 다시 보인다. */
+let memHideEmpty=true;
 const AV_COLORS=["#6366f1","#0ea5e9","#10b981","#f59e0b","#ec4899","#8b5cf6","#ef4444","#14b8a6"];
 function avColor(n){ let h=0; for(let i=0;i<n.length;i++) h=(h*31+n.charCodeAt(i))>>>0; return AV_COLORS[h%AV_COLORS.length]; }
 /* data-* 합성 값에서 「Task id + 부서명」을 가른다.
@@ -2877,6 +2881,11 @@ const memKey = m => "m:"+m.dept+"|"+m.name;
 const memOpen = m => !memCollapsed.has(memKey(m));
 
 const MEM_TRACK="개발";                          // 멤버 뷰가 세는 업무 볼륨은 '개발' 분류만 (2026-09-05 사용자 지시)
+/* 멤버 목록에서 **빼는** '완료' 기준 (2026-11-03 사용자: "완료된 항목은 제외시켜줘").
+   ① Task 전체가 완료 상태이거나 ② **그 사람 부서 칸의 완료 체크**가 켜졌으면 끝난 일이다.
+   목록에서만 빼고 **건수는 센다**(m.doneN) — 안 그러면 "내 일감이 통째로 사라졌다"가 된다.
+   겹침·부하 계산도 자동으로 남은 일만 보게 된다. 끝난 일로 과부하 경고가 뜨면 안 된다. */
+const memItemDone = (t, seg) => isDone(t) || !!(seg && seg.done);
 function memberScopeTasks(){
   const q=searchQuery.trim().toLowerCase();
   return state.tasks.filter(t=>{
@@ -2892,21 +2901,25 @@ function memberGroups(){
   const wantU = assigneeFilter.size===0 || assigneeFilter.has("__unassigned");
   memberScopeTasks().forEach(t=>{
     const ad=activeDepts(t).filter(d=> (focusDept==="__all"||d.key===focusDept) && (deptFilter.size===0||deptFilter.has(d.key)) );
-    if(!ad.length){ if(wantU && focusDept==="__all" && deptFilter.size===0) unassigned.push({t,dept:"",color:"#5c6474",seg:null}); return; }
+    if(!ad.length){ if(wantU && focusDept==="__all" && deptFilter.size===0 && !memItemDone(t,null))
+        unassigned.push({t,dept:"",color:"#5c6474",seg:null}); return; }
     ad.forEach(d=>{
       const seg=t.depts[d.key], all=((seg&&seg.assignees)||[]);
-      if(!all.length){ if(wantU) unassigned.push({t,dept:d.key,color:d.color,seg}); return; }
+      if(!all.length){ if(wantU && !memItemDone(t,seg)) unassigned.push({t,dept:d.key,color:d.color,seg}); return; }
       all.filter(n=>assigneeFilter.size===0||assigneeFilter.has(n)).forEach(n=>{
         if(!byDept.has(d.key)) byDept.set(d.key,new Map());
         const mm=byDept.get(d.key);
-        if(!mm.has(n)) mm.set(n,{name:n,dept:d.key,color:d.color,items:[]});
-        mm.get(n).items.push({t,dept:d.key,color:d.color,seg});
+        if(!mm.has(n)) mm.set(n,{name:n,dept:d.key,color:d.color,items:[],doneN:0});
+        const M=mm.get(n);
+        if(memItemDone(t,seg)) M.doneN++;                        // 완료는 목록에서 빼고 숫자만 센다
+        else M.items.push({t,dept:d.key,color:d.color,seg});
       });
     });
   });
   /* 부서 명단(owners)에 새로 추가됐지만 아직 배정된 일감이 없는 사람도 목록에 세운다.
      (이전에는 일감에서만 멤버를 만들어서, 부서에 추가해도 배정 전에는 안 보였다 — 2026-09-14) */
-  if(!memHideEmpty){
+  {
+    /* 명단에만 있는 사람도 **일단 만든다** — 숨기더라도 "몇 명이 비어 있는지"는 세야 한다. */
     const q2=searchQuery.trim().toLowerCase();
     depsFor(MEM_TRACK).forEach(d=>{
       if(focusDept!=="__all" && d.key!==focusDept) return;
@@ -2916,13 +2929,16 @@ function memberGroups(){
         if(q2 && !n.toLowerCase().includes(q2)) return;
         if(!byDept.has(d.key)) byDept.set(d.key,new Map());
         const mm=byDept.get(d.key);
-        if(!mm.has(n)) mm.set(n,{name:n,dept:d.key,color:d.color,items:[],empty:true});
+        if(!mm.has(n)) mm.set(n,{name:n,dept:d.key,color:d.color,items:[],doneN:0,empty:true});
       });
     });
   }
-  const out=[];
+  const out=[]; let hiddenN=0, hiddenDone=0;
   state.departments.forEach(dep=>{ const mm=byDept.get(dep.key); if(!mm) return;
     let ms=[...mm.values()];
+    if(memHideEmpty){ const b=ms.length, keep=ms.filter(m=>m.items.length>0);
+      ms.filter(m=>!m.items.length).forEach(m=>{ hiddenDone += m.doneN||0; });   // 숨긴 사람의 완료 건수도 센다
+      hiddenN += b-keep.length; ms=keep; }
     if(memOvOnly) ms=ms.filter(m=>memStats(m).ovDays>0);
     ms.sort((a,b)=>{
       if(memSort==="name") return a.name.localeCompare(b.name);
@@ -2933,19 +2949,21 @@ function memberGroups(){
     });
     if(ms.length) out.push({ dept:dep.key, color:dep.color, members:ms }); });
   if(unassigned.length && !memOvOnly) out.push({ dept:"미배정", color:"#5c6474",
-    members:[{ name:"미배정", dept:"미배정", color:"#5c6474", items:unassigned, none:true }] });
+    members:[{ name:"미배정", dept:"미배정", color:"#5c6474", items:unassigned, doneN:0, none:true }] });
+  out.hiddenN = hiddenN; out.hiddenDone = hiddenDone;   // 상단 요약이 「멤버 N명」·「일감 0 · N」·「완료 N건 제외」 에 더해 쓴다
   return out;
 }
 /* 일감 수 · 일정 미정 수 · 배정 영업일 · 겹치는 날(같은 사람이 같은 날 2건 이상) */
+/* `n` 은 **남은 일감** 수다(완료는 items 에 아예 안 들어온다). `done` 은 빼낸 건수. */
 function memStats(m){
-  const day={}; let un=0, done=0;
-  m.items.forEach(it=>{ if(isDone(it.t)) done++;
+  const day={}; let un=0;
+  m.items.forEach(it=>{
     if(!hasSched(it.seg)){ un++; return; }
     for(let i=it.seg.start;i<=it.seg.end;i++) day[i]=(day[i]||0)+1; });
   const ds=Object.keys(day).map(Number).sort((a,b)=>a-b);
   const ov=ds.filter(d=>day[d]>1), spans=[];
   ov.forEach(d=>{ const l=spans[spans.length-1]; if(l && l[1]===d-1) l[1]=d; else spans.push([d,d]); });
-  return { n:m.items.length, un, done, load:ds.length, ovDays:ov.length, spans };
+  return { n:m.items.length, un, done:m.doneN||0, load:ds.length, ovDays:ov.length, spans };
 }
 /* 부하 막대의 분모 = 지금 보고 있는 마일스톤의 영업일 수 (전체 타임라인 N 을 쓰면 막대가 늘 바닥에 붙는다) */
 function memLoadDenom(){
@@ -2957,9 +2975,12 @@ function memLoadDenom(){
   return Math.max(1, b-a+1);
 }
 function memStatChips(st){
-  if(!st.n) return `<span class="mem-st none">일감 없음</span>`;
-  let h=`<span class="mem-st">일감 <b>${st.n}</b></span>`;
-  h+=`<span class="mem-st ${st.done===st.n&&st.n?'ok':''}" title="완료된 일감">완료 <b>${st.done}/${st.n}</b></span>`;
+  const doneChip = st.done
+    ? `<span class="mem-st ok" title="완료된 일감은 목록에서 빼고 건수만 셉니다">완료 <b>${st.done}</b></span>` : "";
+  if(!st.n) return st.done
+    ? `<span class="mem-st none">남은 일감 없음</span>`+doneChip
+    : `<span class="mem-st none">일감 없음</span>`;
+  let h=`<span class="mem-st">남은 일감 <b>${st.n}</b></span>`+doneChip;
   if(st.un) h+=`<span class="mem-st warn">미정 <b>${st.un}</b></span>`;
   if(st.ovDays) h+=`<span class="mem-st bad">겹침 <b>${st.ovDays}일</b></span>`;
   const den=memLoadDenom(), p=Math.min(100,Math.round(st.load/den*100));
@@ -3052,7 +3073,9 @@ function scrollToMemberStart(){
 function memberSummary(){
   const gs=memberGroups(); let mem=0, n=0, un=0, ov=0, done=0, idle=0;
   gs.forEach(g=>g.members.forEach(m=>{ const st=memStats(m); if(!m.none){ mem++; if(!st.n) idle++; } n+=st.n; un+=st.un; ov+=st.ovDays; done+=st.done; }));
-  return {mem,n,un,ov,done,idle};
+  /* 숨긴 사람도 **인원 수와 '일감 0' 집계에는 넣는다** — 화면에서 사라졌다고 조직에서 사라진 건 아니다. */
+  const h = gs.hiddenN || 0;
+  return { mem: mem+h, n, un, ov, done: done + (gs.hiddenDone||0), idle: idle+h };
 }
 function renderLeft(){
   if(isMemberView()) return renderMemberLeft();
