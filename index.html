@@ -1209,6 +1209,8 @@
      display:inline-flex; align-items:center; gap:6px; flex:0 0 auto; max-width:230px; }
   .ctx-ms:hover{ border-color:var(--accent); }
   .ctx-msn{ font-size:10px; font-weight:800; background:var(--accent); color:#fff; border-radius:999px; padding:1px 6px; }
+  .ctx-prio{ max-width:170px; }
+  .ctx-prio.on{ border-color:var(--accent); color:#fff; }
   .ctx-car{ font-style:normal; font-size:9px; color:var(--muted); margin-left:auto; }
   /* 마일스톤 다중 선택 팝업 — 고르는 동안 닫히지 않는다 */
   .ms-pop{ min-width:232px; max-height:66vh; overflow:auto; }
@@ -1967,6 +1969,8 @@ function indexForDate(ymdStr){
 const uid=()=>Math.random().toString(36).slice(2,9);
 let state = { milestones:[{ id:"m1", name:"마일스톤 1", color:MS_PALETTE[0], start:"2026-06-01", end:"", plan:"", resource:"", dev:"", qa:"" }], tasks:[] };
 let deptFilter=new Set(), statusFilter=new Set(), msFilter=new Set(), assigneeFilter=new Set(), kfFilter=new Set(), labelFilter=new Set();
+/* 우선순위 다중 선택 (2026-11-03). 값은 "S"·"1"~"4", 비어 있는 Task 는 "__none". */
+let prioFilter=new Set();
 let lateOnly=false;        // 지연된 일감만 보기 (뷰 상태, 저장 안 함)
 let noteOnly=false;        // 메모가 달린 일감만 보기 (2026-10-26)
 let auditOnly=false;       // 체크리스트 문제 있는 일감만 (뷰 상태)
@@ -2270,6 +2274,10 @@ const visibleDepts = t => activeDepts(t).filter(d => focusDept==="__all" || d.ke
 /* 우선순위 정렬 순위: S(0) → 1~4 → 없음(99).
    priority 는 S 일 때 문자열이라 그냥 빼면 NaN 이 된다. 비교는 반드시 이 함수를 거칠 것. */
 function prioRank(t){ const p=t&&t.priority; if(p==="S") return 0; const n=Number(p); return (n>=1&&n<=4)?n:99; }
+/* 우선순위 칩 색 — Task 행의 `.prio-sel.pS/p1…` 과 같은 계열로 맞춘다 */
+const PRIOS = [{k:"S",color:"#a855f7"},{k:"1",color:"#ef4444"},{k:"2",color:"#f59e0b"},
+               {k:"3",color:"#3b82f6"},{k:"4",color:"#14b8a6"}];
+const prioKey = t => String((t&&t.priority)||"") || "__none";
 /* 보드에서 지운 Task 의 트렐로 카드 id 를 기억해 둔다.
  * 카드는 트렐로에 그대로 남으므로, 안 그러면 다음 '가져오기' 때 다시 살아난다(2026-09-12). */
 function ignoreTrelloCard(t){
@@ -2295,6 +2303,7 @@ function passFilter(t){
     if(!hay.includes(q)) return false; }
   if(deptFilter.size && !activeDepts(t).some(d=>deptFilter.has(d.key))) return false;
   if(msFilter.size && !msFilter.has(t.milestoneId)) return false;
+  if(prioFilter.size && !prioFilter.has(prioKey(t))) return false;
   if(trackFilter!=="__all" && t.track!==trackFilter) return false;
   if(statusFilter.size && !statusFilter.has(t.status)) return false;
   if(kfFilter.size && !kfFilter.has(t.kickoff)) return false;
@@ -2341,7 +2350,8 @@ const VIEW_KEY="ms_view_v1";
 let _viewSaved="";
 function viewSnapshot(){
   return JSON.stringify({ ms:[...msFilter], tr:trackFilter, dp:[...deptFilter], st:[...statusFilter],
-    ag:[...assigneeFilter], kf:[...kfFilter], lb:[...labelFilter], q:searchQuery, lt:lateOnly, nt:noteOnly, au:auditOnly });
+    ag:[...assigneeFilter], kf:[...kfFilter], lb:[...labelFilter], pr:[...prioFilter],
+    q:searchQuery, lt:lateOnly, nt:noteOnly, au:auditOnly });
 }
 function saveView(){ if(_viewShared) return; try{ const v=viewSnapshot(); if(v===_viewSaved) return; _viewSaved=v; localStorage.setItem(VIEW_KEY,v); }catch(_){} }
 function loadView(){
@@ -2350,7 +2360,7 @@ function loadView(){
     const v=JSON.parse(raw)||{};
     const fill=(set,arr)=>{ set.clear(); if(Array.isArray(arr)) arr.forEach(x=>{ if(typeof x==="string") set.add(x); }); };
     fill(msFilter,v.ms); fill(deptFilter,v.dp); fill(statusFilter,v.st);
-    fill(assigneeFilter,v.ag); fill(kfFilter,v.kf); fill(labelFilter,v.lb);
+    fill(assigneeFilter,v.ag); fill(kfFilter,v.kf); fill(labelFilter,v.lb); fill(prioFilter,v.pr);
     if(typeof v.tr==="string" && (TRACKS.includes(v.tr) || v.tr===VIEW_MEMBER)) trackFilter=v.tr;
     if(typeof v.q==="string") searchQuery=v.q;
     lateOnly=!!v.lt; noteOnly=!!v.nt;
@@ -2368,13 +2378,13 @@ function loadView(){
    · 공유 범위: 마일스톤·분류·부서·상태·담당자·킥오프·라벨·검색어·지연 + **부서 포커스·정렬**.
      테마·분할폭·간트 접힘·슬롯 모드·펼친 Task 는 **넣지 않는다** — 남의 취향을 밀어넣는 쪽이다.
    · `?task=` 가 함께 오면 **task 가 이긴다**(focusTaskFromUrl 이 필터를 전부 비우므로 섞으면 뒤죽박죽). */
-const SHARE_KEYS=["ms","dp","st","ag","kf","lb","tr","q","lt","nt","fd","so","sl","gc"];
+const SHARE_KEYS=["ms","dp","st","ag","kf","lb","pr","tr","q","lt","nt","fd","so","sl","gc"];
 const SORT_MODES=["manual","name-asc","name-desc","prio"];
 function shareQuery(){
   const p=new URLSearchParams();
   const put=(k,set)=>{ [...set].forEach(v=>p.append(k,v)); };
   put("ms",msFilter); put("dp",deptFilter); put("st",statusFilter);
-  put("ag",assigneeFilter); put("kf",kfFilter); put("lb",labelFilter);
+  put("ag",assigneeFilter); put("kf",kfFilter); put("lb",labelFilter); put("pr",prioFilter);
   p.set("tr", trackFilter);                       // 항상 넣는다 — 안 넣으면 받는 사람이 자기 탭에 그대로 남는다
   if(searchQuery.trim()) p.set("q", searchQuery.trim());
   if(lateOnly) p.set("lt","1");
@@ -2402,12 +2412,14 @@ function applySharedView(q){
   const agOk = v => v==="__unassigned" || (state.departments||[]).some(d=>(d.owners||[]).includes(v));
   const kfOk = v => KICKOFFS.some(x=>x.k===v);
   const lbOk = v => (state.labels||[]).some(l=>l&&l.id===v);
+  const prOk = v => v==="__none" || PRIOS.some(x=>x.k===v);
   const take=(set,key,ok,label)=>{ set.clear();
     q.getAll(key).forEach(v=>{ v=String(v||""); if(!v) return;
       if(ok(v)) set.add(v); else dropped.push(label+" 「"+v+"」"); }); };
   take(msFilter,"ms",msOk,"마일스톤"); take(deptFilter,"dp",dpOk,"부서");
   take(statusFilter,"st",stOk,"상태");  take(assigneeFilter,"ag",agOk,"담당자");
   take(kfFilter,"kf",kfOk,"킥오프");    take(labelFilter,"lb",lbOk,"라벨");
+  take(prioFilter,"pr",prOk,"우선순위");
   const tr=q.get("tr")||"";
   if(tr){ if(TRACKS.includes(tr)||tr===VIEW_MEMBER) trackFilter=tr; else dropped.push("분류 「"+tr+"」"); }
   searchQuery = q.get("q")||"";
@@ -2481,7 +2493,7 @@ function undoSharedView(){
   slotMode  = SLOT_MODES.some(m=>m.k===bk.sl) ? bk.sl : "dept";
   groupCollapsed.clear();
   msFilter.clear(); deptFilter.clear(); statusFilter.clear();
-  assigneeFilter.clear(); kfFilter.clear(); labelFilter.clear();
+  assigneeFilter.clear(); kfFilter.clear(); labelFilter.clear(); prioFilter.clear();
   searchQuery=""; lateOnly=false; noteOnly=false; auditOnly=false; trackFilter="개발";
   try{ if(bk.v!=null) localStorage.setItem(VIEW_KEY,bk.v); }catch(_){}
   loadView(); normalizeFocusDept(); applySlotClass(); hideShareBar(); stripShareParams(); render();
@@ -2502,7 +2514,7 @@ function copyViewLink(btn){
 /* 필터가 걸린 채로 복원되면 "일감이 왜 이것밖에 없지"가 된다 → 복원 직후 한 번 알려 준다. */
 function noticeRestoredView(){
   /* 개수는 '필터 (N)' 버튼과 **같은 기준**으로 센다(마일스톤 선택은 상단 탭이라 거기 안 들어간다). */
-  const n=deptFilter.size+statusFilter.size+assigneeFilter.size+kfFilter.size+labelFilter.size
+  const n=deptFilter.size+statusFilter.size+assigneeFilter.size+kfFilter.size+labelFilter.size+prioFilter.size
         + (searchQuery.trim()?1:0) + (lateOnly?1:0) + (noteOnly?1:0) + (auditOnly?1:0);
   if(!n && !msFilter.size) return;
   const ms = msFilter.size===1 ? (findMs([...msFilter][0])||{}).name : (msFilter.size?`마일스톤 ${msFilter.size}개`:null);
@@ -2510,7 +2522,7 @@ function noticeRestoredView(){
 }
 function clearAllFilters(){
   deptFilter.clear(); statusFilter.clear(); msFilter.clear(); assigneeFilter.clear();
-  kfFilter.clear(); labelFilter.clear(); searchQuery=""; lateOnly=false; noteOnly=false; auditOnly=false;
+  kfFilter.clear(); labelFilter.clear(); prioFilter.clear(); searchQuery=""; lateOnly=false; noteOnly=false; auditOnly=false;
   setFocusDept("__all"); render();
 }
 function render(){ normalizeFocusDept(); renderTitle(); renderDeptFocus(); renderContext(); renderPipeline(); renderLegend(); renderFilter(); renderHead(); renderLeft(); renderBody(); refreshRoadmapIfOpen(); saveView(); if(slotActive()) renderSlot(); }
@@ -2577,10 +2589,13 @@ function renderContext(){
     `<span class="lh-label">마일스톤</span>`+
     `<button type="button" class="ctx-ms" id="ctxMs" title="체크로 여러 개를 함께 볼 수 있습니다">`+
       `${escapeHtml(msFilterLabel())}<i class="ctx-car">▾</i></button>`+
+    `<span class="lh-label" style="margin-left:6px">우선</span>`+
+    `<button type="button" class="ctx-ms ctx-prio ${prioFilter.size?'on':''}" id="ctxPrio" title="우선순위 S~4 를 체크로 여러 개 고를 수 있습니다">`+
+      `${escapeHtml(prioFilterLabel())}<i class="ctx-car">▾</i></button>`+
     `<span class="lh-label" style="margin-left:6px">분류</span><div class="seg-group">${trackTabs}</div>`+
     `<div class="ctx-dday">${deadlineBarHtml()}</div>`+
     `<div class="ctx-prog" title="${escapeHtml(qaTip)}"><span class="lh-label">진행</span><span class="ctx-track ${showQa?'hasqa':''}"><span class="ctx-fill" style="width:${pct}%"></span>${qaSeg}</span>${qaChip}<span class="ctx-num">${pct}% <span>(${done}/${tot})</span></span></div>`;
-  renderMsPop();            // 팝업이 열려 있으면 건수·체크 상태를 같이 갱신한다(닫혀 있으면 아무것도 안 한다)
+  renderMsPop(); renderPrPop();   // 팝업이 열려 있으면 건수·체크 상태를 같이 갱신한다(닫혀 있으면 아무것도 안 한다)
 }
 
 // 상태 파이프라인 스테퍼 (클릭 시 해당 상태만 필터)
@@ -2636,7 +2651,7 @@ function renderFilter(){
       const n=state.tasks.filter(t=>taskLabelIds(t).includes(l.id)).length;
       return `<span class="fchip ${on?'on':''}" style="${on?'background:'+l.color:''}" data-flb="${escapeHtml(l.id)}"><span class="dot" style="background:${on?'#fff':l.color}"></span>${escapeHtml(l.name)} <b>${n}</b></span>`; }).join("")
     + `<span class="fchip ${labelFilter.has("__none")?'on':''}" data-flb="__none"><span class="dot" style="background:var(--line)"></span>라벨 없음 <b>${state.tasks.filter(t=>!taskLabelIds(t).length).length}</b></span>`;
-  const cnt=deptFilter.size+statusFilter.size+assigneeFilter.size+kfFilter.size+labelFilter.size+(lateOnly?1:0)+(noteOnly?1:0)+(auditOnly?1:0)+(searchQuery.trim()?1:0);
+  const cnt=deptFilter.size+statusFilter.size+assigneeFilter.size+kfFilter.size+labelFilter.size+prioFilter.size+(lateOnly?1:0)+(noteOnly?1:0)+(auditOnly?1:0)+(searchQuery.trim()?1:0);
   const allA=assigneeFilter.size===0;
   const aSec=`<div class="fsec"><span class="lh-label">담당자</span>
        <div class="fchips"><span class="fchip all ${allA?'on':''}" data-fa="__all">${allA?'✓ ':''}전체</span><span class="fchip ${assigneeFilter.has('__unassigned')?'on':''}" data-fa="__unassigned">${assigneeFilter.has('__unassigned')?'✓ ':''}미정</span></div>
@@ -2891,6 +2906,7 @@ function memberScopeTasks(){
   return state.tasks.filter(t=>{
     if((t.track||"개발")!==MEM_TRACK) return false;
     if(msFilter.size && !msFilter.has(t.milestoneId)) return false;
+    if(prioFilter.size && !prioFilter.has(prioKey(t))) return false;
     if(q && !(String(t.name||"").toLowerCase().includes(q) || taskAssignees(t).some(n=>n.toLowerCase().includes(q)))) return false;
     return true;
   });
@@ -3202,6 +3218,64 @@ document.addEventListener("click", e=>{ if(!e.target.closest("#msPop") && !e.tar
 document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeMsPop(); });
 window.addEventListener("resize", closeMsPop);
 
+/* ===== 우선순위 다중 선택 팝업 (2026-11-03) ==================================
+   사용자: **"일감 우선 순위 S ~ 4 그것도 다중 선택할 수 있었으면"**.
+   마일스톤 드롭다운(#msPop)과 **완전히 같은 패턴**이다 — 위치 계산·바깥클릭·ESC·resize·
+   "고르는 동안 닫지 않는다"까지 그대로. 둘 중 하나를 고치면 다른 쪽도 보고 맞출 것. */
+function prioFilterLabel(){
+  if(!prioFilter.size) return "전체 우선순위";
+  const names=[...prioFilter].map(k=> k==="__none" ? "없음" : k);
+  return names.length<=3 ? names.join("·") : names.slice(0,2).join("·")+" 외 "+(names.length-2);
+}
+/* 칩 옆 건수 — 지금 보고 있는 분류·마일스톤 안에서만 센다(전체를 세면 숫자가 안 맞는다) */
+function prioScope(){
+  const trk = isMemberView() ? MEM_TRACK : headTrack();
+  return (state.tasks||[]).filter(t=> t && (t.track||"개발")===trk && (msFilter.size===0 || msFilter.has(t.milestoneId)));
+}
+function prPopEl(){
+  let p=document.getElementById("prPop");
+  if(!p){
+    p=document.createElement("div"); p.id="prPop"; p.className="kf-pop ms-pop"; document.body.appendChild(p);
+    p.addEventListener("click", ev=>{
+      const b=ev.target.closest("[data-prpick]"); if(!b) return;
+      ev.stopPropagation();
+      const k=b.dataset.prpick;
+      if(k==="__all") prioFilter.clear();
+      else prioFilter.has(k) ? prioFilter.delete(k) : prioFilter.add(k);
+      render();                                  // renderContext 끝에서 팝업도 다시 그린다
+    });
+  }
+  return p;
+}
+function renderPrPop(){
+  const p=document.getElementById("prPop"); if(!p || !p.classList.contains("show")) return;
+  const sc=prioScope();
+  const cnt=k=>sc.filter(t=>prioKey(t)===k).length;
+  const row=(key,on,dot,name,n)=>
+    `<button type="button" class="ms-opt ${on?'on':''}" data-prpick="${escapeHtml(key)}">`+
+    `<span class="ms-box">${on?'✓':''}</span>`+
+    (dot?`<i class="ms-dot" style="background:${dot}"></i>`:`<i class="ms-dot none"></i>`)+
+    `<span class="ms-nm">${escapeHtml(name)}</span>`+
+    (n===null?'':`<span class="ms-n">${n}</span>`)+`</button>`;
+  p.innerHTML = `<div class="kf-hd">우선순위 — 체크한 것만 봅니다 (여러 개 가능)</div>`+
+    row("__all", prioFilter.size===0, "", "전체 우선순위", null)+
+    PRIOS.map(x=>row(x.k, prioFilter.has(x.k), x.color, x.k, cnt(x.k))).join("")+
+    row("__none", prioFilter.has("__none"), "", "없음", cnt("__none"));
+}
+function openPrPop(anchor){
+  const p=prPopEl();
+  if(p.classList.contains("show")){ closePrPop(); return; }     // 같은 버튼 재클릭 = 닫기
+  p.classList.add("show"); renderPrPop();
+  const r=anchor.getBoundingClientRect(), pw=p.offsetWidth, ph=p.offsetHeight;
+  let left=Math.min(r.left, window.innerWidth-pw-8); if(left<8) left=8;
+  let top=r.bottom+6; if(top+ph>window.innerHeight-8) top=Math.max(8, r.top-ph-6);
+  p.style.left=left+"px"; p.style.top=top+"px";
+}
+function closePrPop(){ const p=document.getElementById("prPop"); if(p) p.classList.remove("show"); }
+document.addEventListener("click", e=>{ if(!e.target.closest("#prPop") && !e.target.closest("#ctxPrio")) closePrPop(); });
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") closePrPop(); });
+window.addEventListener("resize", closePrPop);
+
 /* ===== 킥오프 선택 팝업 ===== */
 let kfPopFor=null;
 function kfPopEl(){ let p=document.getElementById("kfPop");
@@ -3317,7 +3391,9 @@ document.querySelector(".topbar").addEventListener("click", e=>{
 
 /* ===== 컨텍스트 바 / 파이프라인 상호작용 ===== */
 const contextBar=document.getElementById("contextBar"), pipelineEl=document.getElementById("pipeline");
-contextBar.addEventListener("click", e=>{ const b=e.target.closest("#ctxMs"); if(b){ e.stopPropagation(); openMsPop(b); } });
+contextBar.addEventListener("click", e=>{
+  const b=e.target.closest("#ctxMs"); if(b){ e.stopPropagation(); closePrPop(); openMsPop(b); return; }
+  const pb=e.target.closest("#ctxPrio"); if(pb){ e.stopPropagation(); closeMsPop(); openPrPop(pb); } });
 contextBar.addEventListener("click", e=>{ const trk=e.target.closest("[data-track]"); if(trk){ trackFilter=trk.dataset.track; deptFilter.clear(); assigneeFilter.clear(); statusFilter.clear(); kfFilter.clear(); groupCollapsed.clear(); render();
   if(isMemberView()) scrollToMemberStart(); } });
 pipelineEl.addEventListener("click", e=>{ const st=e.target.closest("[data-pstep]"); if(st){ const k=st.dataset.pstep; statusFilter.has(k)?statusFilter.delete(k):statusFilter.add(k); render(); } });
