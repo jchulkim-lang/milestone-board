@@ -5068,6 +5068,8 @@ const NC_DAYS_DEFAULT = 20;
 const spNcDaysBuild = () => { const v=Number(planState().ncDays); return Number.isFinite(v)?v:NC_DAYS_DEFAULT; };
 /* CDN 기준. **값을 넣기 전까지는 빌드 값을 그대로 쓴다** — 그래서 기능을 켜도 화면이 안 바뀐다. */
 const spNcDaysCdn = () => { const v=Number(planState().ncDaysCdn); return Number.isFinite(v)?v:spNcDaysBuild(); };
+/* 런칭(첫 빌드) 기준 — 심의·스토어 때문에 보통 리드타임이 훨씬 길다. 미설정이면 빌드 값. */
+const spNcDaysLaunch = () => { const v=Number(planState().ncDaysLaunch); return Number.isFinite(v)?v:spNcDaysBuild(); };
 const spIsNcRow = row => !!row && /납품/.test(row.name||"");
 function spBuildRow(){
   for(const sec of planState().sections||[])
@@ -5100,7 +5102,12 @@ function spUpdRow(){
     for(const r of sec.rows||[]) if(/업데이트\s*유형/.test(r.name||"")) return r;
   return null;
 }
+/* "launch" | "cdn" | "build".
+   ⚠ **런칭 주차(기준일 = 런칭일)는 `launch`** — 첫 빌드도 빌드지만 리드타임이 따로 논다
+   (2026-11-04 사용자: "첫번째 런칭 빌드도 빌드로 포함됩니다 ... d- 입력하는 란을 제공해주세요").
+   **색·뱃지는 빌드와 같이 보여 준다** — 사용자가 '빌드로 노출'을 요구했다. 값만 따로 쓴다. */
 function spNcKind(it){
+  if(it && spNcBase(it)===0) return "launch";
   const ur=spUpdRow();
   if(ur && it){
     const u=(ur.items||[]).find(x=>x.s===it.s) || (ur.items||[]).find(x=>it.s>=x.s && it.s<x.s+x.w);
@@ -5108,9 +5115,13 @@ function spNcKind(it){
   }
   return "build";
 }
+/* 화면에 쓰는 표기 — launch 는 빌드로 묶인다 */
+const spNcCls = k => k==="cdn" ? "cdn" : "build";
+const spNcLabel = k => k==="cdn" ? "CDN" : "빌드";
 /* ⚠ **인자 없이 부르면 빌드 값**이다 — 푸터·안내문 같은 '항목이 없는 자리'가 그 경로를 쓴다.
    항목별 계산은 반드시 `spNcDays(it)` 로 부를 것. */
-const spNcDays = it => (it && spNcKind(it)==="cdn") ? spNcDaysCdn() : spNcDaysBuild();
+const spNcDays = it => { const k = it ? spNcKind(it) : "build";
+  return k==="cdn" ? spNcDaysCdn() : k==="launch" ? spNcDaysLaunch() : spNcDaysBuild(); };
 /* `it.ncDate` 가 있으면 그 날짜를 그대로 쓴다 — 런칭 빌드처럼 **날짜가 따로 정해진 건**용.
    (2026-10-30 사용자: "첫번째 런칭 빌드의 납품 일자만 내가 직접 입력")
    비워 두면 종전대로 빌드 시작일 −N일. 막대 클릭 → 팝오버에서 넣고 뺀다. */
@@ -5170,13 +5181,14 @@ function spRowHtml(row, ed){
     const rg=spRange({s:st,w:wd});
     const manual=isNc && spNcManual(it);
     const lb=isNc ? (manual?"✎ ":"")+spNcText(it) : it.text;
-    /* 직접 입력(✎) 건은 두 값과 무관하므로 색도 뱃지도 붙이지 않는다 — ✎ 가 이미 표식이다. */
-    const nck = isNc ? (manual ? "" : spNcKind(it))
+    /* 직접 입력(✎) 건에도 색·뱃지를 붙인다 — 2026-11-04 사용자: "수기로 변경하다보니 빌드로 노출이
+       안되네요". ✎ 는 '날짜를 손으로 넣었다'는 표식이지 유형이 없다는 뜻이 아니다. */
+    const nck = isNc ? spNcKind(it)
               : isUpd ? (/CDN/i.test(it.text||"") ? "cdn" : "build") : "";
-    return `<div class="sp-bar ${it.kind==='cont'?'cont':''} ${it.kind==='tbd'?'tbd':''} ${isBuild?'b-build':''} ${isNc?'b-nc':''} ${nck?'nc-'+nck:''}" data-spitem="${row.id}|${it.id}"`+
+    return `<div class="sp-bar ${it.kind==='cont'?'cont':''} ${it.kind==='tbd'?'tbd':''} ${isBuild?'b-build':''} ${isNc?'b-nc':''} ${nck?'nc-'+spNcCls(nck):''}" data-spitem="${row.id}|${it.id}"`+
       ` style="left:calc(${l}% + 3px);width:calc(${ww}% - 6px);top:${4+li*SP_LANE_H}px;background:${row.color}2e;border-color:${row.color}"`+
-      ` title="${escapeHtml(lb)}${it.note?' · '+it.note:''}${isNc?(manual?`\n납품일 직접 입력 (${it.ncDate})`:`\n${spNcKind(it)==="cdn"?"CDN":"빌드"} 기준 · 업데이트 시작일(${spDLabel(spNcBase(it))}) −${spNcDays(it)}일로 자동 계산`):''}\n${rg.full} (런칭 +${st}주부터 ${wd}주)${ed?'\n클릭: 편집 · 드래그: 이동/기간':''}">`+
-      `${ed?'<span class="h l"></span>':''}${isNc&&nck?`<span class="nck">${nck==="cdn"?"CDN":"빌드"}</span>`:''}${escapeHtml(lb)}${it.note?`<em>${escapeHtml(it.note)}</em>`:''}`+
+      ` title="${escapeHtml(lb)}${it.note?' · '+it.note:''}${isNc?(manual?`\n${spNcKind(it)==="launch"?"런칭 빌드":spNcLabel(spNcKind(it))} · 납품일 직접 입력 (${it.ncDate})`:`\n${spNcKind(it)==="launch"?"런칭 빌드":spNcLabel(spNcKind(it))} 기준 · 업데이트 시작일(${spDLabel(spNcBase(it))}) −${spNcDays(it)}일로 자동 계산`):''}\n${rg.full} (런칭 +${st}주부터 ${wd}주)${ed?'\n클릭: 편집 · 드래그: 이동/기간':''}">`+
+      `${ed?'<span class="h l"></span>':''}${isNc&&nck?`<span class="nck">${spNcLabel(nck)}</span>`:''}${escapeHtml(lb)}${it.note?`<em>${escapeHtml(it.note)}</em>`:''}`+
       `${showD?`<em class="dt">${escapeHtml(rg.label)}</em>`:''}${ed?'<span class="h r"></span>':''}</div>`;
   }).join("");
   let cells=""; for(let i=0;i<W;i++) cells+=`<div class="sp-wk ${Math.floor(i/3)%2?'alt':''}"></div>`;
@@ -5227,7 +5239,10 @@ function renderPlan(){
       `<span>표시</span><select id="spWeeks">${[13,19,26,32,39,52].map(n=>`<option value="${n}" ${Number(pl.weeks)===n?"selected":""}>${n}주</option>`).join("")}</select>`+
       `<span>버전 단위</span><select id="spVerW">${[3,4,6,8,12].map(n=>`<option value="${n}" ${Number(pl.verWeeks||6)===n?"selected":""}>${n}주</option>`).join("")}</select>`+
       `<button class="tgl ${pl.showDates?"on":""}" id="spDates" title="헤더와 막대에 런칭일 기준 실제 날짜를 표시">📅 실제 날짜</button>`+
-      `<span title="납품 트랙의 글자를 「업데이트 유형」 항목 시작일 − N일 로 계산합니다. 그 항목 이름에 CDN 이 있으면 CDN 값, 없으면 빌드 값을 씁니다">납품 D−</span>`+
+      `<span title="납품 트랙의 글자를 「업데이트 유형」 항목 시작일 − N일 로 계산합니다. 런칭 주차는 「런칭」 값, 그 항목 이름에 CDN 이 있으면 CDN 값, 나머지는 빌드 값을 씁니다">납품 D−</span>`+
+      `<b style="color:#ffffff;font-weight:800">런칭</b>`+
+      `<input type="number" id="spNcDaysLaunch" min="0" max="365" step="1" value="${spNcDaysLaunch()}" `+
+      `style="width:58px" title="첫 런칭 빌드 — 런칭일에서 며칠 전으로 적을지(심의·스토어 리드타임)">`+
       `<b style="color:#fcd34d;font-weight:800">빌드</b>`+
       `<input type="number" id="spNcDays" min="0" max="120" step="1" value="${spNcDaysBuild()}" `+
       `style="width:58px" title="빌드 주차 — 그 업데이트 시작일에서 며칠 전으로 적을지">`+
@@ -5285,9 +5300,9 @@ function openSpItemPop(anchor, rid, iid, startWeek){
     (spIsNcRow(row)
       ? `<label>납품일 — 직접 입력</label><input type="date" id="sppNcDate" value="${escapeHtml(it&&it.ncDate?it.ncDate:"")}">`+
         `<div class="rmp-hint" style="margin-top:4px"><b>비워 두면</b> 이 주차는 `+
-        `<b>${spNcKind(it||{s:cs,w:cw})==="cdn"?"CDN 업데이트":"빌드 업데이트"}</b> 기준이라 `+
+        `<b>${({launch:"런칭 빌드",cdn:"CDN 업데이트",build:"빌드 업데이트"})[spNcKind(it||{s:cs,w:cw})]}</b> 기준이라 `+
         `업데이트 시작일 −${spNcDays(it||{s:cs,w:cw})}일로 자동 계산됩니다`+
-        `(푸터의 「납품 D−」). 런칭 빌드처럼 날짜가 따로 정해진 건만 채우세요.</div>`+
+        `(푸터의 「납품 D−」). 날짜가 그 규칙과 다른 건만 채우세요.</div>`+
         `<input type="hidden" id="sppText" value="${escapeHtml(it?it.text:"납품")}">`
       : `<label>내용</label><input id="sppText" value="${escapeHtml(it?it.text:"")}" placeholder="예: 「엘디스 픽업」">`)+
     `<label>트랙</label><select id="sppRow">${rowOpts}</select>`+
@@ -5425,7 +5440,11 @@ document.getElementById("spFoot").addEventListener("change", e=>{
   const ncd=e.target.closest("#spNcDaysCdn");
   if(ncd){ const n=Math.max(0,Math.min(120,Math.round(Number(ncd.value))));
     pl.ncDaysCdn = Number.isFinite(n) ? n : spNcDaysBuild(); save(); renderPlan();
-    const el=document.getElementById("spNcDaysCdn"); if(el) el.focus(); }
+    const el=document.getElementById("spNcDaysCdn"); if(el) el.focus(); return; }
+  const nlc=e.target.closest("#spNcDaysLaunch");
+  if(nlc){ const n=Math.max(0,Math.min(365,Math.round(Number(nlc.value))));
+    pl.ncDaysLaunch = Number.isFinite(n) ? n : spNcDaysBuild(); save(); renderPlan();
+    const el=document.getElementById("spNcDaysLaunch"); if(el) el.focus(); }
 });
 document.getElementById("spFoot").addEventListener("click", e=>{
   if(!spCanEdit()) return;
