@@ -3592,7 +3592,21 @@ function moveTask(id, beforeId, newStatus){
   save(); render();
 }
 
-function defaultSegment(){ let start=Math.min(Math.max(0,nearestIndex()),Math.max(0,N-5)); return { start, end:Math.min(start+4,N-1) }; }
+/* 기본 일정 = **오늘부터 5영업일**. (2026-11-05 사용자 제보: "일정이 왜 8월 25일이지? 매일 기준으로 그날로")
+   ⚠ 예전 코드는 `Math.min(nearestIndex(), N-5)` 였다 — 오늘이 타임라인 끝 가까이면 **뒤에서 5칸 앞으로 끌려갔고**,
+     오늘이 타임라인을 아예 넘어가면 `nearestIndex()` 가 0 을 돌려줘 **ORIGIN(= 가장 이른 마일스톤 시작일)** 이 됐다.
+     이제는 끝을 넘으면 타임라인을 늘려서라도 오늘을 잡고, 끝 clamp 는 end 에만 건다. */
+function defaultSegment(){
+  let i = indexOfToday();
+  if(i < 0){
+    const today = stripTime(new Date());
+    /* 오늘까지만 늘리면 오늘이 마지막 칸이 되어 +4영업일이 안 잡힌다 → 2주치 여유를 둔다 */
+    if(N && today > stripTime(WORKDAYS[N-1])){ const pad=new Date(today); pad.setDate(pad.getDate()+14); extendWorkdaysTo(pad); }
+    i = nearestIndex();
+  }
+  const start = Math.max(0, Math.min(i, Math.max(0, N-1)));
+  return { start, end: Math.min(start+4, N-1) };
+}
 /* 부서를 켤 때 기본 5일 일정을 자동으로 잡지 않는다 → '일정 미정'(sched:false) 상태로 추가.
    반환값 true = 이번 호출로 새로 켜짐(호출부에서 일정 입력창을 띄우는 데 사용) */
 function toggleTaskDept(t,k){ if(!asgCanEdit()){ noticeAsgLock(); return false; }
@@ -4442,7 +4456,12 @@ function openSchedModal(tid,dep,justOn){ editing={tid,dep,justOn:!!justOn}; cons
      타임라인은 저장할 때 알아서 늘어나므로, 여기서는 오타 방어용으로만 넉넉히 둔다. */
   sIn.min=eIn.min=ymd(WORKDAYS[0]);
   { const _mx=new Date(WORKDAYS[N-1]); _mx.setDate(_mx.getDate()+TL_MAX_EXTRA_DAYS); sIn.max=eIn.max=ymd(_mx); }
-  sIn.value=ymd(dateOf(seg.start)); eIn.value=ymd(dateOf(seg.end));
+  /* ⚠ **「일정 미정」이면 저장된 인덱스를 믿지 않는다.** seg.start/end 는 날짜가 아니라 WORKDAYS 의
+     **인덱스**라서, 부서를 켜 둔 채 며칠 지나거나 ORIGIN(가장 이른 마일스톤 시작일)이 바뀌면
+     엉뚱한 옛날 날짜가 입력칸에 뜬다 — 사용자가 본 "8월 25일"이 바로 그 경우(= 인덱스 0 = ORIGIN).
+     일정을 아직 안 정한 부서는 **언제 열어도 오늘**이 기본값이어야 한다. */
+  { const base = hasSched(seg) ? seg : defaultSegment();
+    sIn.value=ymd(dateOf(base.start)); eIn.value=ymd(dateOf(base.end)); }
   asgQuery=""; { const q=document.getElementById("schedAsgSearch"); if(q) q.value=""; }
   document.getElementById("schedAssignees").innerHTML=deptAssigneeChips(t,dep);
   syncAsgCount(dep);
