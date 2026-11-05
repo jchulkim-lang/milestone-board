@@ -755,6 +755,21 @@
      white-space:pre-wrap; word-break:break-word; line-height:1.6; }
   .ask-cm .c:last-child{ border-bottom:0; }
   .ask-cm .cw{ color:var(--muted); font-size:10.5px; font-weight:700; margin-bottom:2px; }
+  /* 등록 폼 맨 위 — 「카드 주소만 넣으면 끝」 자리. 눈이 먼저 가야 해서 색을 준다. */
+  .ask-first{ border:1px solid rgba(99,102,241,.5); background:rgba(99,102,241,.08);
+     border-radius:10px; padding:11px 13px; margin:4px 2px 12px; }
+  .ask-first label{ display:block; font-size:11.5px; font-weight:800; color:#c7d2fe; margin-bottom:6px; }
+  .ask-first input{ width:100%; box-sizing:border-box; background:var(--panel);
+     border:1px solid var(--line); color:var(--text); border-radius:7px;
+     padding:9px 11px; font:inherit; font-size:13px; }
+  .ask-hint{ margin-top:6px; font-size:11.5px; color:var(--muted); line-height:1.65; }
+  .ask-hint b{ color:var(--text); }
+  .ask-pre{ display:flex; gap:5px; flex-wrap:wrap; align-items:center; margin:0 0 6px; }
+  .ask-pre .lb{ font-size:10.5px; color:var(--muted); font-weight:700; margin-right:2px; }
+  .ask-pre button{ background:var(--panel2); border:1px solid var(--line); color:var(--muted);
+     border-radius:99px; padding:3px 10px; font:inherit; font-size:11px; font-weight:700; cursor:pointer; }
+  .ask-pre button:hover{ color:var(--text); border-color:var(--accent); background:rgba(99,102,241,.12); }
+  .ask-or{ font-size:11px; color:var(--muted); font-weight:700; margin:2px 2px 6px; }
   .ask-empty{ padding:36px 12px; text-align:center; color:var(--muted); font-size:12.5px; line-height:1.8; }
   .ask-foot{ display:flex; align-items:center; gap:8px; margin-top:9px; font-size:11.5px; color:var(--muted); }
   #askBtn .ask-n{ display:inline-block; margin-left:5px; min-width:15px; padding:0 4px; border-radius:99px;
@@ -1866,11 +1881,12 @@
     <div class="modal ask-modal">
       <div class="hub-head"><span class="hub-tabs"><b style="font-size:14px">💬 기획 문의</b></span>
         <button type="button" class="hub-x" data-close>✕ 닫기</button></div>
-      <div class="msub" style="margin-bottom:6px">클라팀이 기획서가 필요하거나 확인이 필요한 건을 올립니다. 확인 후 <b>기획서 완료일</b>을 넣으면 자동으로 「검토 중」이 됩니다.</div>
+      <div class="msub" style="margin-bottom:6px">클라팀이 기획서가 필요하거나 확인이 필요한 건을 올립니다. <b>＋ 문의 등록에서 트렐로 카드 주소를 붙여넣으면 문의가 자동으로 등록됩니다.</b> 확인 후 <b>기획서 완료일</b>을 넣으면 자동으로 「검토 중」이 됩니다.</div>
       <div class="ask-bar">
         <span class="ask-seg" id="askSeg"></span>
         <input type="search" id="askQ" placeholder="제목·내용 검색">
         <span class="ask-sp"></span>
+        <button class="btn ghost sm" id="askLinkBtn" title="이 화면이 바로 열리는 주소를 복사합니다 — 클라팀에 전달하세요">🔗 링크 복사</button>
         <button class="btn sm" id="askAddBtn">＋ 문의 등록</button>
       </div>
       <div class="ask-scroll scrollbar"><table class="ask-tb"><thead><tr>
@@ -6285,7 +6301,20 @@ function askWhen(ms){ const t=Number(ms)||0; if(!t) return "-"; const d=new Date
 const ASK_FILT_KEY = "ask_filter_v1";
 let askFilt="open", askQ="", askSel="", askAdding=false;
 const askCm = {};                       // id -> {loading}|{list}|{err}  트렐로 코멘트(누를 때만)
+/* 문의 내용 프리셋 (2026-11-05 사용자 요청). 자주 쓰는 문구를 한 번에 넣는다.
+   **여기 배열만 늘리면 버튼이 늘어난다** — [버튼 글자, 넣을 문장]. */
+const ASK_PRESETS = [
+  ["기획 일정 확인", "기획 일정 확인 요청 드립니다."],
+  ["기획 의도 확인", "기획 의도 확인 요청 드립니다."],
+];
+function askPreChips(target){
+  return `<div class="ask-pre"><span class="lb">자주 쓰는 문구</span>`+
+    ASK_PRESETS.map(([lb],i)=>`<button type="button" data-askpre="${i}" data-asktgt="${escapeHtml(target)}">＋ ${escapeHtml(lb)}</button>`).join("")+
+    `</div>`;
+}
 let askNewTr = { url:"", name:"" };     // 등록 폼에서 조회해 둔 카드
+let askNewDept = "";                    // 등록 폼의 부서 선택(다시 그려도 유지)
+let askTrBusy = false;                  // 카드 조회 중 — 같은 주소로 두 번 등록되는 것을 막는다
 try{ askFilt = localStorage.getItem(ASK_FILT_KEY) || "open"; }catch(_){}
 
 function askVisible(){
@@ -6345,7 +6374,11 @@ function askDetHtml(a){
   return `<tr class="ask-det"><td colspan="7"><div class="ask-in">
     <div>
       <div class="ask-h4">문의 내용 — ${escapeHtml((a.by&&(a.by.name||a.by.email))||"-")} · ${askWhen(a.at)}</div>
-      <div class="ask-txt">${escapeHtml(a.body||"")}</div>
+      ${canTr?`<input data-asktitle="${escapeHtml(a.id)}" maxlength="${ASK_TITLE_MAX}" value="${escapeHtml(a.title||"")}"
+          style="width:100%;box-sizing:border-box;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:7px;padding:7px 9px;font:inherit;font-size:13px;font-weight:700;margin-bottom:7px">`:""}
+      ${canTr?askPreChips(a.id):""}
+      ${canTr?`<textarea class="ask-txt" data-askbody="${escapeHtml(a.id)}" rows="5">${escapeHtml(a.body||"")}</textarea>`
+             :`<div class="ask-txt">${escapeHtml(a.body||"")}</div>`}
       ${a.trelloUrl?`<div class="ask-act">
         <button type="button" class="btn ghost sm" data-askcm="${escapeHtml(a.id)}">💬 트렐로 코멘트 보기</button>
         <a class="ask-lnk" style="max-width:none" href="${escapeHtml(a.trelloUrl)}" target="_blank" rel="noopener">카드 열기 ↗</a></div>`:""}
@@ -6365,25 +6398,34 @@ function askDetHtml(a){
       <div class="fl"><label>트렐로 카드</label>
         <input data-asktr="${escapeHtml(a.id)}" value="${escapeHtml(a.trelloUrl||"")}" placeholder="카드 주소 붙여넣기" ${canTr?"":"disabled"}>
         ${a.trelloName?`<div class="ask-who" style="margin-top:3px;white-space:normal">🔗 ${escapeHtml(a.trelloName)}</div>`:""}</div>
-      <div class="ask-act"><span class="ask-sp"></span>
+      <div class="ask-act">
+        <button type="button" class="btn ghost sm" data-asklink="${escapeHtml(a.id)}" title="이 문의가 펼쳐진 채로 열리는 주소를 복사합니다">🔗 링크</button>
+        <span class="ask-sp"></span>
         ${askCanDel(a)?`<button type="button" class="btn ghost sm" data-askdel="${escapeHtml(a.id)}">삭제</button>`:""}</div>
-      <div class="ask-who" style="margin-top:6px;white-space:normal">바꾸면 바로 저장됩니다.</div>
+      <div class="ask-who" style="margin-top:6px;white-space:normal">바꾸면 바로 저장됩니다.${canTr?" 제목·내용은 작성자와 매니저가 고칠 수 있습니다.":""}</div>
     </div></div></td></tr>`;
 }
 function askFormHtml(){
   const ds=(state.departments||[]).map(d=>d.key);
   const mine=(window.APP_USER && window.APP_USER.name)||"";
-  return `<tr class="ask-det"><td colspan="7"><div class="ask-form">
+  return `<tr class="ask-det"><td colspan="7">
+    <div class="ask-first">
+      <label>① 트렐로 카드 주소 — 붙여넣으면 끝입니다</label>
+      <input id="askNTr" placeholder="https://trello.com/c/..." value="${escapeHtml(askNewTr.url||"")}">
+      <div class="ask-hint" id="askNTrN">주소를 붙여넣으면 <b>문의가 바로 등록됩니다.</b>
+        제목은 카드 이름, 내용은 <b>카드의 가장 최근 코멘트</b>를 가져옵니다 — 등록한 뒤 행을 눌러 고칠 수 있습니다.</div>
+    </div>
+    <div class="ask-or">② 카드 없이 직접 올리기</div>
+    <div class="ask-form">
     <div><div class="ask-h4">새 문의 — ${escapeHtml(mine||"나")}</div>
       <input id="askNTitle" maxlength="${ASK_TITLE_MAX}" placeholder="제목 — 예: 기믹, 시련 출력 규칙">
-      <textarea id="askNBody" rows="7" style="margin-top:7px" placeholder="무엇이 필요한지, 무엇을 확인해야 하는지 적습니다. 트렐로 카드 코멘트가 근거면 아래에 카드 주소를 넣어 주세요."></textarea>
+      <div style="margin-top:7px">${askPreChips("new")}</div>
+      <textarea id="askNBody" rows="6" placeholder="무엇이 필요한지, 무엇을 확인해야 하는지 적습니다."></textarea>
       <div class="ask-who" id="askNLen" style="margin-top:4px">0 / ${ASK_BODY_MAX}자</div></div>
     <div class="ask-side">
       <div class="fl"><label>요청 부서</label><select id="askNDept">
-        ${ds.map(k=>`<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join("")}</select></div>
-      <div class="fl"><label>트렐로 카드 (선택)</label>
-        <input id="askNTr" placeholder="https://trello.com/c/..." value="${escapeHtml(askNewTr.url||"")}">
-        <div class="ask-who" id="askNTrN" style="margin-top:3px;white-space:normal">${askNewTr.name?"🔗 "+escapeHtml(askNewTr.name):"주소를 넣으면 카드 제목을 한 번 읽어 옵니다."}</div></div>
+        ${ds.map(k=>`<option value="${escapeHtml(k)}" ${k===askNewDept?"selected":""}>${escapeHtml(k)}</option>`).join("")}</select>
+        <div class="ask-who" style="margin-top:3px;white-space:normal">카드로 등록할 때도 이 부서로 들어갑니다.</div></div>
       <div class="ask-act"><button type="button" class="btn sm" id="askNSave">등록</button>
         <button type="button" class="btn ghost sm" id="askNCancel">취소</button></div>
     </div></div></td></tr>`;
@@ -6399,7 +6441,7 @@ function renderAsk(){
        `${askCanWrite()?"위의 <b>＋ 문의 등록</b> 으로 올릴 수 있습니다.":"읽기 전용 계정입니다."}</div></td></tr>`;
   tb.innerHTML=h;
   const ft=document.getElementById("askFoot");
-  if(ft) ft.innerHTML = `<span>행을 누르면 아래로 펼쳐집니다.</span><span class="ask-sp"></span>`+
+  if(ft) ft.innerHTML = `<span>행을 누르면 아래로 펼쳐집니다. <b>🔗 링크 복사</b> 로 받은 주소를 열면 이 화면이 바로 뜹니다.</span><span class="ask-sp"></span>`+
     `<span>${askAll().length} / ${ASK_MAX}건 · 본문 ${ASK_BODY_MAX}자 · 완료 건은 「열린 건」에서 빠집니다</span>`;
   paintAskBtn();
 }
@@ -6413,6 +6455,17 @@ function refreshAskIfOpen(){
   renderAsk();
 }
 function openAsk(){ closeModals(); askAdding=false; renderAsk(); askModal.classList.add("show"); }
+/* 전달용 주소. `?ask=open` = 이 화면만 열기, `?ask=<id>` = 그 건을 펼쳐서 열기.
+   클라팀에 한 번 뿌려 두면 눌렀을 때 바로 「기획 문의」가 뜬다(2026-11-05 사용자 요청). */
+const askShareUrl = id => location.origin + location.pathname + "?ask=" + encodeURIComponent(id || "open");
+function askCopyLink(btn, id){
+  const url=askShareUrl(id);
+  const done=()=>{ if(!btn) return; const o=btn.textContent;
+    btn.textContent="✓ 복사됨"; setTimeout(()=>{ try{ btn.textContent=o; }catch(_){} }, 1500); };
+  if(navigator.clipboard && navigator.clipboard.writeText)
+    navigator.clipboard.writeText(url).then(done).catch(()=>fallbackCopyText(url, done));
+  else fallbackCopyText(url, done);
+}
 const _askBtn=document.getElementById("askBtn"); if(_askBtn) _askBtn.onclick=openAsk;
 
 /* 카드 주소 → 제목 (호출 1회, 서버가 60초 캐시). 코멘트는 안 읽는다. */
@@ -6435,22 +6488,63 @@ async function askLoadComments(id){
   }catch(e){ askCm[id]={ err:"카드를 읽지 못했습니다." }; }
   renderAsk();
 }
-function askSaveNew(){
-  if(!askCanWrite()) return;
-  const T=(document.getElementById("askNTitle")||{}).value||"";
-  const B=(document.getElementById("askNBody")||{}).value||"";
-  const D=(document.getElementById("askNDept")||{}).value||"";
-  const title=T.trim(), body=B.trim();
-  if(!title){ flashNote("제목을 적어 주세요."); return; }
-  if(body.length>ASK_BODY_MAX){ flashNote(`내용은 ${ASK_BODY_MAX}자까지입니다. (${body.length}자)`); return; }
-  if(askAll().length>=ASK_MAX){ flashNote(`문의가 상한(${ASK_MAX}건)에 찼습니다. 완료된 건을 정리한 뒤 올려 주세요.`); return; }
-  const u=window.APP_USER||null;
-  askAll().unshift({ id:"ask"+uid(), title, body, dept:D, status:"new",
-    trelloUrl:askNewTr.url||"", trelloName:askNewTr.name||"",
+/* `pre` 가 있으면 그 값으로 바로 등록한다(트렐로 주소 붙여넣기 경로).
+   없으면 폼의 제목·내용을 읽는다(직접 올리기 경로). */
+function askSaveNew(pre){
+  if(!askCanWrite()) return false;
+  const D = (pre && pre.dept) || (document.getElementById("askNDept")||{}).value || askNewDept || "";
+  const title = String((pre ? pre.title : (document.getElementById("askNTitle")||{}).value) || "").trim();
+  const body  = String((pre ? pre.body  : (document.getElementById("askNBody") ||{}).value) || "").trim();
+  if(!title){ flashNote("제목을 적어 주세요."); return false; }
+  if(body.length>ASK_BODY_MAX){ flashNote(`내용은 ${ASK_BODY_MAX}자까지입니다. (${body.length}자)`); return false; }
+  if(askAll().length>=ASK_MAX){ flashNote(`문의가 상한(${ASK_MAX}건)에 찼습니다. 완료된 건을 정리한 뒤 올려 주세요.`); return false; }
+  const u=window.APP_USER||null, id="ask"+uid();
+  askAll().unshift({ id, title, body, dept:D, status:"new",
+    trelloUrl:(pre?pre.trelloUrl:askNewTr.url)||"", trelloName:(pre?pre.trelloName:askNewTr.name)||"",
     by:{ name:(u&&u.name)||"", email:(u&&u.email)||"" }, at:Date.now(),
     due:"", assignee:"", reply:"", replyAt:0, replyBy:"" });
-  askNewTr={ url:"", name:"" }; askAdding=false;
-  save(); renderAsk(); flashNote("문의를 등록했습니다. 부관리자에게 알림이 갑니다.");
+  askNewTr={ url:"", name:"" }; askAdding=false; askSel=id; askFilt="open";
+  save(); renderAsk();
+  flashNote("문의를 등록했습니다. 부관리자에게 알림이 갑니다.");
+  return true;
+}
+/* 카드 주소 붙여넣기 → 제목(카드 이름) + 내용(최근 코멘트 1개) 으로 **바로 등록**.
+   사용자 지시(2026-11-05): "트렐로 카드 주소를 입력하면 문의가 자동으로 등록된다고 알려주십쇼".
+   ⚠ 코멘트는 **그 시점의 초안**이다 — 카드에 코멘트가 더 달려도 본문은 안 따라간다.
+      최신 내용은 상세의 「트렐로 코멘트 보기」가 그때그때 읽는다. */
+async function askAutoFromCard(url){
+  const u=String(url||"").trim();
+  if(!u || askTrBusy) return;
+  const box=document.getElementById("askNTrN");
+  if(!/trello\.com\/c\//i.test(u) && !/^[A-Za-z0-9]{8,24}$/.test(u)){
+    if(box) box.innerHTML = "트렐로 카드 주소가 아닙니다. <b>https://trello.com/c/…</b> 형태로 넣어 주세요.";
+    return;
+  }
+  askTrBusy=true;
+  if(box) box.textContent="카드를 읽는 중…";
+  try{
+    const r=await fetch("/api/trello/cardinfo?comments=1&url="+encodeURIComponent(u), { credentials:"same-origin" });
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok || !j.card){
+      const b2=document.getElementById("askNTrN");
+      if(b2) b2.innerHTML = `카드를 읽지 못했습니다${j&&j.error?` — ${escapeHtml(String(j.error))}`:""}.<br>`+
+        `아래 <b>② 카드 없이 직접 올리기</b> 로 등록해 주세요. 주소는 그대로 쓰입니다.`;
+      askNewTr={ url:u, name:"" };
+      return;
+    }
+    const c=j.card;
+    const cm=(c.comments||[])[0];
+    const body = cm ? `${cm.text||""}\n\n— 트렐로 코멘트 (${cm.by||""}${cm.at?" · "+String(cm.at).slice(0,10):""})`
+                    : "(카드에 코멘트가 없어 내용은 비어 있습니다. 행을 눌러 적어 주세요.)";
+    askSaveNew({ title:(c.name||"(제목 없음)").slice(0, ASK_TITLE_MAX),
+                 body: body.slice(0, ASK_BODY_MAX),
+                 dept:(document.getElementById("askNDept")||{}).value || askNewDept || "",
+                 trelloUrl:c.url||u, trelloName:c.name||"" });
+  }catch(e){
+    const b3=document.getElementById("askNTrN");
+    if(b3) b3.textContent="카드를 읽지 못했습니다. 아래에서 직접 등록해 주세요.";
+    askNewTr={ url:u, name:"" };
+  }finally{ askTrBusy=false; }
 }
 /* 완료일을 넣으면 접수 → 검토 중 (사용자 지시: 체크를 따로 누를 일이 없게) */
 function askSetDue(a, v){
@@ -6468,8 +6562,30 @@ document.getElementById("askModal").addEventListener("click", e=>{
   if(e.target.closest("#askAddBtn")){ if(!askCanWrite()) return;
     askAdding=true; askSel=""; renderAsk();
     const t=document.getElementById("askNTitle"); if(t) t.focus(); return; }
+  const lk=e.target.closest("#askLinkBtn,[data-asklink]");
+  if(lk){ askCopyLink(lk, lk.dataset ? lk.dataset.asklink : ""); return; }
   if(e.target.closest("#askNCancel")){ askAdding=false; askNewTr={url:"",name:""}; renderAsk(); return; }
   if(e.target.closest("#askNSave")){ askSaveNew(); return; }
+  const pre=e.target.closest("[data-askpre]");
+  if(pre){
+    const txt=(ASK_PRESETS[Number(pre.dataset.askpre)]||[])[1]; if(!txt) return;
+    const tgt=pre.dataset.asktgt;
+    if(tgt==="new"){
+      const ta=document.getElementById("askNBody"); if(!ta) return;
+      ta.value = (ta.value.trim() ? ta.value.replace(/\s+$/,"")+"\n" : "") + txt;
+      const ti=document.getElementById("askNTitle");
+      if(ti && !ti.value.trim()) ti.value=(ASK_PRESETS[Number(pre.dataset.askpre)]||[])[0]||"";
+      const el=document.getElementById("askNLen");
+      if(el) el.textContent=`${ta.value.length} / ${ASK_BODY_MAX}자`;
+      ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+      return;
+    }
+    const a=askOf(tgt); if(!a) return;
+    if(!(askCanManage() || askIsMine(a))) return;
+    const cur=String(a.body||"");
+    a.body = ((cur.trim() ? cur.replace(/\s+$/,"")+"\n" : "") + txt).slice(0, ASK_BODY_MAX);
+    save(); renderAsk(); return;
+  }
   const cm=e.target.closest("[data-askcm]"); if(cm){ askLoadComments(cm.dataset.askcm); return; }
   const dl=e.target.closest("[data-askdel]");
   if(dl){ const a=askOf(dl.dataset.askdel); if(!a || !askCanDel(a)) return;
@@ -6495,6 +6611,18 @@ document.getElementById("askModal").addEventListener("change", e=>{
   const as=e.target.closest("[data-askas]");
   if(as){ if(!mg) return; const a=askOf(as.dataset.askas); if(!a) return;
     a.assignee=String(as.value||"").trim(); save(); renderAsk(); return; }
+  const ti=e.target.closest("[data-asktitle]");
+  if(ti){ const a=askOf(ti.dataset.asktitle); if(!a) return;
+    if(!(mg || askIsMine(a))) return;
+    const v=String(ti.value||"").trim().slice(0, ASK_TITLE_MAX);
+    if(!v || v===(a.title||"")) return;
+    a.title=v; save(); renderAsk(); return; }
+  const bd=e.target.closest("[data-askbody]");
+  if(bd){ const a=askOf(bd.dataset.askbody); if(!a) return;
+    if(!(mg || askIsMine(a))) return;
+    const v=String(bd.value||"").slice(0, ASK_BODY_MAX);
+    if(v===(a.body||"")) return;
+    a.body=v; save(); renderAsk(); return; }
   const rp=e.target.closest("[data-askreply]");
   if(rp){ if(!mg) return; const a=askOf(rp.dataset.askreply); if(!a) return;
     const v=String(rp.value||"").slice(0, ASK_BODY_MAX);
@@ -6509,18 +6637,20 @@ document.getElementById("askModal").addEventListener("change", e=>{
       if(c.err) flashNote("카드 제목을 읽지 못했습니다 — 주소는 그대로 저장했습니다.");
       save(); renderAsk(); });
     return; }
+  if(e.target.closest("#askNDept")){ askNewDept=e.target.value||""; return; }
   const nt=e.target.closest("#askNTr");
   if(nt){ const v=String(nt.value||"").trim();
-    const box=document.getElementById("askNTrN");
-    if(!v){ askNewTr={url:"",name:""}; if(box) box.textContent="주소를 넣으면 카드 제목을 한 번 읽어 옵니다."; return; }
-    if(box) box.textContent="카드를 읽는 중…";
-    askLookupCard(v).then(c=>{ askNewTr={ url:c.url, name:c.name };
-      const b2=document.getElementById("askNTrN"); if(!b2) return;
-      b2.textContent = c.name ? "🔗 "+c.name : (c.err||"카드 제목을 읽지 못했습니다 — 주소는 그대로 저장됩니다.");
-      const ti=document.getElementById("askNTitle");
-      if(ti && !ti.value.trim() && c.name) ti.value=c.name.slice(0, ASK_TITLE_MAX);
-    });
-    return; }
+    if(!v){ askNewTr={url:"",name:""};
+      const b0=document.getElementById("askNTrN");
+      if(b0) b0.innerHTML='주소를 붙여넣으면 <b>문의가 바로 등록됩니다.</b> 제목은 카드 이름, 내용은 <b>카드의 가장 최근 코멘트</b>를 가져옵니다.';
+      return; }
+    askAutoFromCard(v); return; }
+});
+document.getElementById("askModal").addEventListener("paste", e=>{
+  if(!e.target || e.target.id!=="askNTr") return;
+  const t=(e.clipboardData||window.clipboardData);
+  const v=t ? String(t.getData("text")||"").trim() : "";
+  if(v) setTimeout(()=>askAutoFromCard(v), 0);     // 붙여넣기 값이 입력칸에 들어간 뒤에
 });
 document.getElementById("askModal").addEventListener("input", e=>{
   if(e.target.id==="askQ"){ askQ=e.target.value||""; renderAsk(); return; }
@@ -6534,6 +6664,7 @@ paintAskBtn();
 (function(){
   let id=""; try{ id=new URLSearchParams(location.search).get("ask")||""; }catch(_){ return; }
   if(!id) return;
+  if(id==="open" || id==="1"){ setTimeout(openAsk, 300); return; }   // 화면만 열기
   let n=0;
   const tick=()=>{
     const a=askOf(id);
