@@ -2026,6 +2026,12 @@ function holidaysIn(si, ei){ let n=0; for(let i=si;i<=ei;i++) if(holidayAt(i)) n
 function buildTimeline(){
   const starts = state.milestones.filter(m=>!m.free && m.start).map(m=>parseYmd(m.start));
   if(!starts.length) starts.push(parseYmd("2026-06-01"));
+  /* 이미 잡혀 있는 **부서 일정보다 늦게** 타임라인이 시작하면 그 일정이 화면 밖으로 밀려
+     맨 앞에 달라붙는다. 마일스톤을 뒤로 옮겼다고 일정이 사라져 보이면 안 되므로,
+     저장된 일정 날짜 중 가장 이른 것도 같이 본다(2026-11-05). */
+  (state.tasks||[]).forEach(t=>{ const D=t&&t.depts; if(!D) return;
+    Object.keys(D).forEach(k=>{ const g=D[k]; if(!g||!g.on||g.sched===false||!g.sd) return;
+      const dt=parseYmd(g.sd); if(!isNaN(dt)) starts.push(dt); }); });
   let minStart = new Date(Math.min(...starts.map(d=>d.getTime())));
   while(minStart.getDay()===0||minStart.getDay()===6) minStart.setDate(minStart.getDate()+1);
   ORIGIN = minStart;
@@ -2038,7 +2044,45 @@ function buildTimeline(){
   WORKDAYS=[]; let d=new Date(ORIGIN);
   while(WORKDAYS.length<len){ const w=d.getDay(); if(w!==0&&w!==6) WORKDAYS.push(new Date(d)); d.setDate(d.getDate()+1); }
   N=WORKDAYS.length;
+  /* ===== 부서 일정의 진짜 값은 **날짜**다 (2026-11-05, build 2026110504) =================
+     사용자 제보: **"일정이 맘대로 변경되는데 건드리지 않았으면 좋겠어. 일정은 내가 직접 넣을거야."**
+     → 증상 확인: **여러 Task 일정이 한꺼번에 통째로 밀림.**
+     원인: `seg.start/end` 가 날짜가 아니라 **WORKDAYS 의 인덱스**였다. ORIGIN(= 가장 이른
+     마일스톤 시작일)이 바뀌면 저장된 인덱스는 그대로인데 **가리키는 날짜가 전부 밀린다.**
+     이제 `seg.sd`/`seg.ed`(YYYY-MM-DD)가 저장값이고, `start/end` 는 **그릴 때마다 여기서 다시
+     계산하는 파생값**이다. 마일스톤을 어떻게 바꿔도 일정은 제자리에 있는다.
+     ⚠ `start/end` 에 직접 대입하는 코드를 새로 쓰면 **반드시 `segStamp(seg)` 로 날짜도 같이** 남길 것. */
+  segBackfillDates();                 // 옛 데이터: 인덱스 → 날짜 (한 번만, sd 가 없을 때만)
+  { let last=null;                    // 날짜가 타임라인 끝을 넘으면 늘린다
+    (state.tasks||[]).forEach(t=>{ const D=t&&t.depts; if(!D) return;
+      Object.keys(D).forEach(k=>{ const g=D[k]; if(!g||!g.on||g.sched===false) return;
+        const e=g.ed||g.sd; if(!e) return; const dt=parseYmd(e);
+        if(!isNaN(dt) && (!last || dt>last)) last=dt; }); });
+    if(last && N && last>stripTime(WORKDAYS[N-1])){ const pad=new Date(last); pad.setDate(pad.getDate()+10); extendWorkdaysTo(pad); } }
+  segSyncIndexes();                   // 날짜 → 인덱스 (매번)
 }
+/* 옛 데이터 구제: 날짜가 없는 세그먼트만 **지금 화면에 보이는 날짜**로 굳힌다.
+   ⚠ 이미 밀려 있던 건은 '밀린 그 날짜'로 굳는다 — 과거를 복원할 방법은 없다(사용자에게 고지함). */
+function segBackfillDates(){
+  if(!N) return;
+  (state.tasks||[]).forEach(t=>{ const D=t&&t.depts; if(!D) return;
+    Object.keys(D).forEach(k=>{ const g=D[k]; if(!g) return;
+      if(!g.sd && Number.isFinite(g.start)) g.sd=ymd(dateOf(g.start));
+      if(!g.ed && Number.isFinite(g.end))   g.ed=ymd(dateOf(g.end)); }); });
+}
+/* 날짜 → 인덱스. 간트·막대·정렬이 전부 인덱스를 쓰므로 그릴 수 있게 맞춰 준다. */
+function segSyncIndexes(){
+  if(!N) return;
+  (state.tasks||[]).forEach(t=>{ const D=t&&t.depts; if(!D) return;
+    Object.keys(D).forEach(k=>{ const g=D[k]; if(!g) return;
+      if(g.sd){ const i=nearestWorkdayIndex(g.sd); if(i>=0) g.start=i; }
+      if(g.ed){ const i=nearestWorkdayIndex(g.ed); if(i>=0) g.end=i; }
+      if(!Number.isFinite(g.start)) g.start=0;
+      if(!Number.isFinite(g.end) || g.end<g.start) g.end=g.start; }); });
+}
+/* 인덱스를 바꿨으면 날짜도 같이 남긴다 — 저장되는 값은 날짜 쪽이다. */
+function segStamp(seg){ if(!seg||!N) return;
+  seg.sd=ymd(dateOf(seg.start)); seg.ed=ymd(dateOf(seg.end)); }
 const dateOf = i => WORKDAYS[Math.max(0,Math.min(N-1,i))];
 const fmt = d => (d.getMonth()+1)+"/"+d.getDate();
 const ymd = d => d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
@@ -3613,7 +3657,7 @@ function toggleTaskDept(t,k){ if(!asgCanEdit()){ noticeAsgLock(); return false; 
   if(!t.depts[k]) t.depts[k]={on:false,start:0,end:0,assignees:[]}; const seg=t.depts[k];
   if(seg.on){ seg.on=false; return false; }
   seg.on=true; seg.sched=false; if(!Array.isArray(seg.assignees)) seg.assignees=[];
-  const b=defaultSegment(); seg.start=b.start; seg.end=b.end;   // 입력창 기본값용(확정 전까지 화면엔 안 그려짐)
+  const b=defaultSegment(); seg.start=b.start; seg.end=b.end; segStamp(seg);   // 입력창 기본값용(확정 전까지 화면엔 안 그려짐)
   return true; }
 
 /* ===== 막대 드래그/리사이즈 + 클릭 편집 / 접힘 막대 클릭 펼침 ===== */
@@ -3633,7 +3677,8 @@ function attachBarHandlers(){
         if(mode==="move"){ let ns=s0+dd,len=e0-s0; ns=Math.min(Math.max(0,ns),N-1-len); seg.start=ns; seg.end=ns+len; }
         else if(mode==="l"){ seg.start=Math.min(Math.max(0,s0+dd),e0); } else { seg.end=Math.max(s0,Math.min(N-1,e0+dd)); }
         bar.style.left=(seg.start*DAY_W)+"px"; bar.style.width=((seg.end-seg.start+1)*DAY_W)+"px"; bar.querySelector(".lbl").textContent=`${dep} · ${seg.end-seg.start+1}일`; }
-      function onUp(){ bar.removeEventListener("pointermove",onMove); bar.removeEventListener("pointerup",onUp); if(!moved){ openSchedModal(tid,dep); } else { save(); render(); } }
+      function onUp(){ bar.removeEventListener("pointermove",onMove); bar.removeEventListener("pointerup",onUp);
+        if(moved) segStamp(seg); if(!moved){ openSchedModal(tid,dep); } else { save(); render(); } }
       bar.addEventListener("pointermove",onMove); bar.addEventListener("pointerup",onUp);
     });
   });
@@ -3652,6 +3697,7 @@ function attachBarHandlers(){
         else { seg.end=Math.max(s0,Math.min(N-1,e0+dd)); }
         mb.style.left=(seg.start*DAY_W)+"px"; mb.style.width=((seg.end-seg.start+1)*DAY_W)+"px"; }
       function onUp(){ mb.removeEventListener("pointermove",onMove); mb.removeEventListener("pointerup",onUp);
+        if(moved) segStamp(seg);
         if(!moved){ setOpen(t.id,true); render(); } else { save(); render(); } }
       mb.addEventListener("pointermove",onMove); mb.addEventListener("pointerup",onUp);
     });
@@ -4512,7 +4558,7 @@ document.getElementById("schedSaveOk").onclick=()=>{ if(!asgCanEdit()){ noticeAs
     return;
   }
   if(ei<si){ const tmp=si; si=ei; ei=tmp; }
-  seg.start=si; seg.end=ei; seg.sched=true; editing.justOn=false;
+  seg.start=si; seg.end=ei; segStamp(seg); seg.sched=true; editing.justOn=false;
   closeModals(); buildTimeline(); save(); render();
   /* 주말·범위 보정으로 입력한 날짜와 달라졌으면 조용히 넘기지 말고 알려 준다 */
   const g0=ymd(dateOf(si)), g1=ymd(dateOf(ei));
