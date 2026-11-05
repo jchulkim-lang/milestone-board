@@ -15,7 +15,7 @@ const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 �
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026110402;
+const APP_BUILD = 2026110501;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -74,11 +74,16 @@ function canEdit(role){ return role === "editor" || isManager(role); }
  *  KAKAO_BOT_KEY(봇 App Key)가 있으면 등록된 멤버(state.notifyEmails)에게 개인 DM.
  *  없으면 KAKAO_WEBHOOK_URL(단톡방)으로 폴백. */
 async function dmKakao(env, st, text, blocks){
+  return dmKakaoList(env, (st && st.notifyEmails) || [], text, blocks);
+}
+/* 받는 사람을 직접 지정하는 판. 「기획 문의」 알림은 알림 멤버가 아니라 **부관리자 이상**에게 간다.
+   ⚠ KAKAO_BOT_KEY 가 없으면 DM 자체가 불가능해서 단톡방 웹훅으로 떨어진다 — 그 경우 수신 범위가
+   넓어진다는 점을 사용자에게 알렸다(2026-11-05). */
+async function dmKakaoList(env, emails, text, blocks){
   const blk = blocks || [{ type:"text", text, markdown:true }];
   const key = env.KAKAO_BOT_KEY;
   if(key){
-    const emails = (st && st.notifyEmails) || [];
-    for(const email of emails){
+    for(const email of (emails||[])){
       try{
         const ur = await fetch("https://api.kakaowork.com/v1/users.find_by_email?email=" + encodeURIComponent(email), { headers:{ Authorization:"Bearer " + key } });
         const uj = await ur.json(); const uid = uj && uj.user && uj.user.id; if(!uid) continue;
@@ -90,6 +95,16 @@ async function dmKakao(env, st, text, blocks){
     return;
   }
   if(env.KAKAO_WEBHOOK_URL){ try{ await fetch(env.KAKAO_WEBHOOK_URL, { method:"POST", headers:{ "content-type":"application/json" }, body: JSON.stringify({ text, blocks: blk }) }); }catch(_){} }
+}
+/* 부관리자 이상(= 마스터 + admin) 이메일. ADMIN_EMAILS(마스터) + users 테이블의 admin/master.
+   effectiveRole 이 DB 의 master 를 admin 으로 낮춰 보므로 두 값을 다 긁는다. */
+async function adminEmailsOf(env){
+  const out = new Set((env.ADMIN_EMAILS||"").split(",").map(x=>x.trim().toLowerCase()).filter(Boolean));
+  try{
+    const r = await env.DB.prepare("SELECT email FROM users WHERE role IN ('admin','master')").all();
+    (r && r.results || []).forEach(x=>{ if(x && x.email) out.add(String(x.email).toLowerCase()); });
+  }catch(_){}
+  return [...out];
 }
 /* 세그먼트 배열 → 카카오워크 Text Block(inlines). url 있으면 link(짧은 라벨), 없으면 styled */
 function textBlock(segs){
@@ -133,6 +148,30 @@ async function notifyStatusChanges(env, oldStr, newStr, who, origin){
     if(blocks[blocks.length-1].type==="divider") blocks.pop(); // 마지막 구분선 제거
     await dmKakao(env, n, preview.join("\n"), blocks);
   }
+}
+
+/* 「기획 문의」가 새로 올라오면 **부관리자 이상**에게 알린다 (2026-11-05 사용자 지시).
+   상태 변경·완료일 기입은 알리지 않는다 — 그건 올린 사람이 보드에서 보면 된다. */
+async function notifyNewAsks(env, oldStr, newStr, who, origin){
+  if(!env.KAKAO_BOT_KEY && !env.KAKAO_WEBHOOK_URL) return;
+  let o, n; try{ o=JSON.parse(oldStr||"{}"); n=JSON.parse(newStr||"{}"); }catch(_){ return; }
+  const had = new Set((o.asks||[]).map(a=>a&&a.id).filter(Boolean));
+  const fresh = (n.asks||[]).filter(a=> a && a.id && !had.has(a.id));
+  if(!fresh.length) return;
+  const blocks=[{ type:"text", text:`💬 기획 문의 ${fresh.length}건 (${who})` }];
+  const preview=[`💬 기획 문의 ${fresh.length}건 (${who})`];
+  fresh.slice(0,10).forEach(a=>{
+    const segs=[{ text:`🟡 [${a.dept||"-"}] ${a.title||"(제목 없음)"}\n` }];
+    const body=String(a.body||"").replace(/\s+/g," ").slice(0,120);
+    if(body) segs.push({ text:`${body}\n` });
+    segs.push({ text:`📋 Trello ` });
+    segs.push(a.trelloUrl ? { text:"[LINK]", url:a.trelloUrl } : { text:"링크 없음" });
+    if(origin){ segs.push({ text:`\n🔗 ` }); segs.push({ text:"[바로가기]", url:`${origin}/?ask=${encodeURIComponent(a.id)}` }); }
+    blocks.push(textBlock(segs)); blocks.push({ type:"divider" });
+    preview.push(segs.map(x=>x.text).join(""));
+  });
+  if(blocks[blocks.length-1].type==="divider") blocks.pop();
+  await dmKakaoList(env, await adminEmailsOf(env), preview.join("\n"), blocks);
 }
 
 async function createSessionToken(user, env){
@@ -617,6 +656,34 @@ async function handleApi(request, env, url, ctx){
            (사용자 선택: 담당자 배정·시작/종료일·부서 켜기끄기·완료 체크 **전부** 잠금 = depts 전체)
            **새로 만든 Task 는 그대로 둔다** — 저장본에 없으니 되돌릴 것도 없고,
            editor 가 Task 를 못 만드는 상태가 되면 안 된다. */
+        /* 「기획 문의」(state.asks)
+           · 등록은 편집 권한이면 누구나. **작성자·작성시각은 서버가 찍는다**(위조 방지).
+           · 상태/완료일/담당/답변은 **매니저 이상만** → 저장본 값으로 되돌린다.
+           · 삭제는 **본인 글만**. 남의 글을 지웠으면 되살린다. (마스터는 이 블록 자체를 안 탄다) */
+        if(prev && Array.isArray(prev.asks) && Array.isArray(incoming.asks)){
+          const me = String(user.email||"").toLowerCase();
+          const pm = new Map(prev.asks.filter(a=>a&&a.id).map(a=>[a.id,a]));
+          const im = new Map(incoming.asks.filter(a=>a&&a.id).map(a=>[a.id,a]));
+          const out=[];
+          for(const pa of prev.asks){
+            if(!pa || !pa.id) continue;
+            const mine = im.get(pa.id);
+            if(!mine){
+              const owner = String((pa.by && pa.by.email)||"").toLowerCase();
+              if(isManager(role) || owner===me) continue;         // 지움 허용
+              out.push(pa); continue;                              // 남의 글 → 되살림
+            }
+            out.push(isManager(role)
+              ? { ...mine, by: pa.by, at: pa.at }
+              : { ...mine, by: pa.by, at: pa.at, status: pa.status, due: pa.due,
+                  assignee: pa.assignee, reply: pa.reply, replyAt: pa.replyAt, replyBy: pa.replyBy });
+          }
+          for(const a of incoming.asks){
+            if(!a || !a.id || pm.has(a.id)) continue;               // 새 글
+            out.push({ ...a, by:{ name:user.name||"", email:user.email||"" }, at: Date.now() });
+          }
+          incoming = { ...incoming, asks: out };
+        }
         if(!isManager(role) && prev && Array.isArray(prev.tasks) && Array.isArray(incoming.tasks)){
           const pm = new Map(prev.tasks.filter(t=>t&&t.id).map(t=>[t.id,t]));
           incoming = { ...incoming, tasks: incoming.tasks.map(t=>{
@@ -638,7 +705,10 @@ async function handleApi(request, env, url, ctx){
     } else {
       await env.DB.prepare("UPDATE app_state SET data=?, version=version+1, updated_at=datetime('now'), updated_by=? WHERE id='main'").bind(payload, user.email).run();
     }
-    if(ctx && ctx.waitUntil) ctx.waitUntil(notifyStatusChanges(env, cur && cur.data, payload, user.name || user.email, url.origin));
+    if(ctx && ctx.waitUntil){
+      ctx.waitUntil(notifyStatusChanges(env, cur && cur.data, payload, user.name || user.email, url.origin));
+      ctx.waitUntil(notifyNewAsks(env, cur && cur.data, payload, user.name || user.email, url.origin));
+    }
     /* 2026-09-12: 보드에서 Task 를 지워도 **트렐로 카드는 건드리지 않는다**(사용자 요청).
        예전엔 여기서 trelloDeleteRemoved() 로 카드를 DELETE 했다. 되살리지 말 것. */
     const row = await env.DB.prepare("SELECT version FROM app_state WHERE id='main'").first();
@@ -747,6 +817,36 @@ async function trelloAudit(env){
 
 /* Task 1건 ↔ 카드 1장 — 붙여넣은 주소로 연결하거나(url), 이미 연결된 카드를 다시 읽어온다.
      편집 권한이면 누구나. 카드 1장만 읽으므로 요청 부담이 없다. (2026-09-12) */
+/* 카드 **주소만** 가지고 제목을 읽는다 — 「기획 문의」가 쓴다 (2026-11-05).
+     · Task 에 묶이지 않은 카드도 읽어야 해서 /api/trello/card(taskId 필요) 와 따로 둔다.
+     · 기본은 **제목만** (호출 1회, 60초 캐시). `comments=1` 일 때만 코멘트 10개를 같이 읽는다
+       — 사용자 선택 「나+다」: 제목은 붙여넣을 때 1회, 코멘트는 **누를 때만**. [[free-tier-budget]] */
+  if(p === "/api/trello/cardinfo" && request.method === "GET"){
+    if(!trelloReady(env)) return json({ error:"trello not configured", reason:"not-configured" }, 400);
+    if(!canEdit(await effectiveRole(env, user.email))) return json({ error:"forbidden" }, 403);
+    const cid = trelloCardKey(url.searchParams.get("url") || "");
+    if(!cid) return json({ error:"카드 주소를 알아볼 수 없습니다", reason:"bad-url" }, 400);
+    const wantC = url.searchParams.get("comments") === "1";
+    const ck = cid + (wantC ? "#c" : "");
+    const hit = cardCacheGet(ck);
+    if(hit) return json({ ok:true, cached:true, card:hit });
+    let raw;
+    try{
+      raw = await trelloFetch(env, `/cards/${encodeURIComponent(cid)}?`+
+        `fields=name,shortUrl,closed,dateLastActivity`+
+        (wantC ? `&actions=commentCard&actions_limit=10` : ``));
+    }catch(e){ return json({ error:String(e&&e.message||e), reason:"trello-error" }, 502); }
+    const card = {
+      id: raw.id, name: raw.name||"", url: raw.shortUrl||"", closed: !!raw.closed,
+      at: raw.dateLastActivity||"",
+      comments: (raw.actions||[]).filter(a=>a.type==="commentCard").slice(0,10).map(a=>({
+        by: (a.memberCreator && (a.memberCreator.fullName||a.memberCreator.username)) || "",
+        text: (a.data && a.data.text) || "", at: a.date||"" })),
+    };
+    cardCachePut(ck, card);
+    return json({ ok:true, card });
+  }
+
   if(p === "/api/trello/task" && request.method === "POST"){
     if(!trelloReady(env)) return json({ error:"trello not configured" }, 400);
     if(!canEdit(await effectiveRole(env, user.email))) return json({ error:"forbidden" }, 403);

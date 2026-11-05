@@ -693,6 +693,74 @@
      display:flex; flex-direction:column; overflow:hidden; }
   #roadmapModal .modal > *, #planModal .modal > *, #msModal .modal > *{ flex:0 0 auto; }
   #roadmapModal .rm-scroll, #planModal .sp-scroll{ flex:1 1 0; max-height:none; min-height:0; }
+  /* === 「기획 문의」 — 클라팀 요청함 (2026-11-05) ============================
+     틀은 일정 허브 세 탭과 같게(96vw × 88vh, flex 세로). 표 영역만 flex:1 로 남은 높이를 다 쓴다.
+     ⚠ 이 모달에 직계 자식을 더 넣으면 `flex:0 0 auto` 를 받는다 — 늘어나야 하면 따로 지정할 것. */
+  #askModal .modal{ width:96vw; max-width:96vw; height:88vh; max-height:88vh;
+     display:flex; flex-direction:column; overflow:hidden; }
+  #askModal .modal > *{ flex:0 0 auto; }
+  #askModal .ask-scroll{ flex:1 1 0; min-height:0; overflow:auto;
+     border:1px solid var(--line); border-radius:10px; background:var(--bg); }
+  .ask-bar{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin:6px 0 9px; }
+  .ask-seg{ display:flex; gap:4px; }
+  .ask-seg button{ background:transparent; border:1px solid var(--line); color:var(--muted);
+     border-radius:7px; padding:4px 10px; font:inherit; font-size:11.5px; font-weight:700; cursor:pointer; }
+  .ask-seg button:hover{ color:var(--text); }
+  .ask-seg button.on{ color:var(--text); background:var(--panel2); border-color:var(--accent); }
+  .ask-bar input[type=search]{ background:var(--panel2); border:1px solid var(--line); color:var(--text);
+     border-radius:7px; padding:5px 9px; font:inherit; font-size:12px; width:200px; }
+  .ask-sp{ flex:1 1 auto; }
+  .ask-tb{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  .ask-tb th{ position:sticky; top:0; z-index:2; background:var(--panel2); color:var(--muted);
+     font-size:11px; font-weight:700; text-align:left; padding:7px 10px;
+     border-bottom:1px solid var(--line); white-space:nowrap; }
+  .ask-tb td{ padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  .ask-tb tr.ask-row{ cursor:pointer; }
+  .ask-tb tr.ask-row:hover td{ background:rgba(255,255,255,.04); }
+  .ask-tb tr.ask-row.sel td{ background:rgba(99,102,241,.11); }
+  .ask-st{ font-size:10px; font-weight:800; padding:2px 8px; border-radius:99px;
+     border:1px solid; white-space:nowrap; }
+  .ask-st.s-new{ color:#fcd34d; border-color:rgba(252,211,77,.42); background:rgba(252,211,77,.1); }
+  .ask-st.s-rev{ color:#38bdf8; border-color:rgba(56,189,248,.42); background:rgba(56,189,248,.1); }
+  .ask-st.s-hld{ color:#8b93a3; border-color:rgba(139,147,163,.42); background:rgba(139,147,163,.1); }
+  .ask-st.s-don{ color:#34d399; border-color:rgba(52,211,153,.42); background:rgba(52,211,153,.1); }
+  .ask-t{ font-weight:700; }
+  .ask-p{ color:var(--muted); font-size:11.5px; overflow:hidden; text-overflow:ellipsis;
+     white-space:nowrap; max-width:560px; }
+  .ask-dept{ font-size:10.5px; font-weight:800; padding:1px 7px; border-radius:5px; border:1px solid; }
+  .ask-who{ font-size:11.5px; color:var(--muted); white-space:nowrap; }
+  .ask-lnk{ font-size:11px; color:#a5b4fc; text-decoration:none; display:block; max-width:152px;
+     overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ask-lnk:hover{ text-decoration:underline; }
+  .ask-dt{ background:var(--panel2); border:1px solid var(--line); color:var(--text);
+     border-radius:6px; padding:3px 6px; font:inherit; font-size:11.5px; width:132px; }
+  .ask-det > td{ background:var(--grid); }
+  .ask-in,.ask-form{ display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:16px; padding:4px 2px 8px; }
+  .ask-h4{ margin:0 0 6px; font-size:11px; color:var(--muted); font-weight:700; }
+  .ask-txt{ white-space:pre-wrap; line-height:1.7; font-size:13px; background:var(--panel);
+     border:1px solid var(--line); border-radius:8px; padding:10px 12px; min-height:70px;
+     word-break:break-word; width:100%; box-sizing:border-box; color:var(--text); }
+  textarea.ask-txt{ white-space:pre-wrap; resize:vertical; font-family:inherit; min-height:62px; }
+  .ask-side .fl{ margin-bottom:9px; }
+  .ask-side label{ display:block; font-size:11px; color:var(--muted); font-weight:700; margin-bottom:4px; }
+  .ask-side input,.ask-side select,.ask-form input,.ask-form textarea,.ask-form select{
+     width:100%; box-sizing:border-box; background:var(--panel); border:1px solid var(--line);
+     color:var(--text); border-radius:7px; padding:6px 8px; font:inherit; font-size:12px; }
+  .ask-form textarea{ resize:vertical; font-family:inherit; line-height:1.6; }
+  .ask-side input:disabled,.ask-side select:disabled{ opacity:.55; cursor:not-allowed; }
+  .ask-act{ display:flex; gap:6px; align-items:center; margin-top:8px; }
+  .ask-cm{ margin-top:8px; border:1px solid var(--line); border-radius:8px; background:var(--panel);
+     padding:4px 10px; max-height:240px; overflow:auto; }
+  .ask-cm .c{ border-bottom:1px solid var(--line); padding:7px 0; font-size:12px;
+     white-space:pre-wrap; word-break:break-word; line-height:1.6; }
+  .ask-cm .c:last-child{ border-bottom:0; }
+  .ask-cm .cw{ color:var(--muted); font-size:10.5px; font-weight:700; margin-bottom:2px; }
+  .ask-empty{ padding:36px 12px; text-align:center; color:var(--muted); font-size:12.5px; line-height:1.8; }
+  .ask-foot{ display:flex; align-items:center; gap:8px; margin-top:9px; font-size:11.5px; color:var(--muted); }
+  #askBtn .ask-n{ display:inline-block; margin-left:5px; min-width:15px; padding:0 4px; border-radius:99px;
+     background:#ef4444; color:#fff; font-size:9.5px; font-weight:900; line-height:15px; text-align:center; }
+  body.readonly #askAddBtn{ display:none !important; }
+
   /* === 마일스톤 탭 좌우 분할 (2026-10-26) =====================================
      좌: 마일스톤 목록 + 편집 폼(압축) / 우: **선택한 마일스톤의 일감**.
      사용자 지시: 마일스톤당 40~60건이라 **3열 기본**, **담당자·지연은 행에 안 띄운다**. */
@@ -1575,6 +1643,7 @@
       <button class="btn ghost sm" id="historyBtn">🕘 히스토리</button>
       <button class="btn ghost sm" id="forceReloadBtn" style="display:none">🔄 강제 새로고침</button>
       <button class="btn ghost sm" id="noticeBtn">📢 공지</button>
+      <button class="btn ghost sm" id="askBtn" title="클라팀이 올린 기획서 요청 · 확인 요청">💬 기획 문의</button>
       <button class="btn ghost sm" id="themeBtn">☀ 라이트</button>
     </div>
     <span class="foot-spacer"></span>
@@ -1792,6 +1861,25 @@
       <div class="msub">여기 입력한 내용이 모든 사용자에게 진입 시 팝업으로 표시됩니다. 비워두면 팝업이 뜨지 않습니다. 줄바꿈은 그대로 표시됩니다.</div>
       <textarea id="noticeText" rows="7" placeholder="공지 내용을 입력하세요" style="width:100%;box-sizing:border-box;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;line-height:1.6;resize:vertical;font-family:inherit;"></textarea>
       <div class="modal-actions"><span></span><div class="right"><button class="btn ghost" data-close>취소</button><button class="btn" id="noticeSaveBtn">저장</button></div></div></div>
+  </div>
+  <div class="modal-bg" id="askModal">
+    <div class="modal ask-modal">
+      <div class="hub-head"><span class="hub-tabs"><b style="font-size:14px">💬 기획 문의</b></span>
+        <button type="button" class="hub-x" data-close>✕ 닫기</button></div>
+      <div class="msub" style="margin-bottom:6px">클라팀이 기획서가 필요하거나 확인이 필요한 건을 올립니다. 확인 후 <b>기획서 완료일</b>을 넣으면 자동으로 「검토 중」이 됩니다.</div>
+      <div class="ask-bar">
+        <span class="ask-seg" id="askSeg"></span>
+        <input type="search" id="askQ" placeholder="제목·내용 검색">
+        <span class="ask-sp"></span>
+        <button class="btn sm" id="askAddBtn">＋ 문의 등록</button>
+      </div>
+      <div class="ask-scroll scrollbar"><table class="ask-tb"><thead><tr>
+        <th style="width:76px">상태</th><th>제목 / 내용</th><th style="width:162px">트렐로 카드</th>
+        <th style="width:94px">요청 부서</th><th style="width:120px">요청자 · 일시</th>
+        <th style="width:146px">기획서 완료일</th><th style="width:78px">담당</th>
+      </tr></thead><tbody id="askBody"></tbody></table></div>
+      <div class="ask-foot" id="askFoot"></div>
+    </div>
   </div>
   <input type="file" id="fileInput" accept="application/json" style="display:none">
 
@@ -2534,7 +2622,7 @@ function clearAllFilters(){
   kfFilter.clear(); labelFilter.clear(); prioFilter.clear(); searchQuery=""; lateOnly=false; noteOnly=false; auditOnly=false;
   setFocusDept("__all"); render();
 }
-function render(){ normalizeFocusDept(); renderTitle(); renderDeptFocus(); renderContext(); renderPipeline(); renderLegend(); renderFilter(); renderHead(); renderLeft(); renderBody(); refreshRoadmapIfOpen(); saveView(); if(slotActive()) renderSlot(); }
+function render(){ normalizeFocusDept(); renderTitle(); renderDeptFocus(); renderContext(); renderPipeline(); renderLegend(); renderFilter(); renderHead(); renderLeft(); renderBody(); refreshRoadmapIfOpen(); saveView(); if(slotActive()) renderSlot(); paintAskBtn(); refreshAskIfOpen(); }
 /* 발주 로드맵이 열려 있는 동안 마일스톤이 바뀌면(설정 편집·동기화 수신) 마감 밴드를 다시 그린다.
    편집 팝오버가 떠 있거나 드래그 중이면 건드리지 않는다 — innerHTML 을 갈아끼우면 입력이 날아간다. */
 function refreshRoadmapIfOpen(){
@@ -3556,9 +3644,9 @@ function cancelPendingDept(){
   editing.justOn=false;
   if(sg && sg.on && sg.sched===false){ sg.on=false; save(); render(); }
 }
-function closeModals(){ cancelPendingDept(); closeRmPop(); closeSpPop(); [noteModal,taskModal,auditModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,lbMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.classList.remove("show")); }
+function closeModals(){ cancelPendingDept(); closeRmPop(); closeSpPop(); [noteModal,taskModal,auditModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,lbMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal,askModal].forEach(m=>m.classList.remove("show")); }
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=closeModals);
-[noteModal,taskModal,auditModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,lbMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
+[noteModal,taskModal,auditModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,lbMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal,askModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
 
 /* ===== 종류 관리 (아트·전투 등 종류 방식 분류) ===== */
 let catMgrTrack="아트", catEditKey=null;
@@ -6170,6 +6258,291 @@ document.getElementById("fileInput").onchange=e=>{ const f=e.target.files[0]; if
   r.onload=()=>{ try{ state=JSON.parse(r.result); migrate(); buildTimeline(); save(); render(); }catch(err){ alert("불러오기 실패: 올바른 파일이 아닙니다."); } }; r.readAsText(f); };
 
 /* ===== 테마 ===== */
+/* ===== 「기획 문의」 — 클라팀 요청함 (2026-11-05, build 2026110501) ==========
+   사용자 지시: 클라팀이 기획서가 필요하거나 확인이 필요한 건을 올리고,
+   본인이 확인해서 **기획서 완료일 + 검토 중**을 반영한다. 시안 A안(목록 + 행 펼침) 승인.
+   · 상태·완료일·담당·답변 = **매니저 이상**(담당자·일정과 같은 잠금). 서버도 PUT 에서 덮어쓴다.
+   · 트렐로 = 「나+다」 — 주소를 넣으면 **제목 1회 자동**, 코멘트는 **누를 때만**.
+   · 새 문의가 올라오면 **부관리자 이상**에게 카카오워크 DM(서버 notifyNewAsks).
+   · state.asks 는 최상위 키라 3-way 병합이 자동으로 처리한다. [[sync-merge]] */
+const ASK_MAX = 200, ASK_BODY_MAX = 1000, ASK_TITLE_MAX = 90;
+const ASK_ST = [["new","접수","s-new"],["rev","검토 중","s-rev"],["hold","보류","s-hld"],["done","완료","s-don"]];
+const askStName = k => { const x=ASK_ST.find(y=>y[0]===k); return x?x[1]:"접수"; };
+const askStCls  = k => { const x=ASK_ST.find(y=>y[0]===k); return x?x[2]:"s-new"; };
+function askAll(){ if(!Array.isArray(state.asks)) state.asks=[]; return state.asks; }
+const askOf = id => askAll().find(a=>a && a.id===id) || null;
+const askStatus = a => String((a && a.status) || "new");
+const askCanWrite  = () => !document.body.classList.contains("readonly");
+/* 매니저 이상 — ASG_ROLES 를 그대로 쓴다(담당자·일정과 같은 등급). */
+const askCanManage = () => !window.APP_ROLE || ASG_ROLES.includes(window.APP_ROLE);
+const askMyEmail = () => String((window.APP_USER && window.APP_USER.email) || "").toLowerCase();
+const askIsMine = a => !!a && (!window.APP_USER || String((a.by&&a.by.email)||"").toLowerCase()===askMyEmail());
+const askCanDel = a => askCanWrite() && (askCanManage() || askIsMine(a));
+const askOpenN = () => askAll().filter(a=>askStatus(a)==="new").length;
+function askWhen(ms){ const t=Number(ms)||0; if(!t) return "-"; const d=new Date(t), p=n=>String(n).padStart(2,"0");
+  return (d.getMonth()+1)+"/"+d.getDate()+" "+p(d.getHours())+":"+p(d.getMinutes()); }
+
+const ASK_FILT_KEY = "ask_filter_v1";
+let askFilt="open", askQ="", askSel="", askAdding=false;
+const askCm = {};                       // id -> {loading}|{list}|{err}  트렐로 코멘트(누를 때만)
+let askNewTr = { url:"", name:"" };     // 등록 폼에서 조회해 둔 카드
+try{ askFilt = localStorage.getItem(ASK_FILT_KEY) || "open"; }catch(_){}
+
+function askVisible(){
+  const q = askQ.trim().toLowerCase();
+  return askAll().filter(a=>{
+    if(!a || !a.id) return false;
+    const st = askStatus(a);
+    if(askFilt==="open"){ if(st==="done") return false; }
+    else if(askFilt!=="all" && st!==askFilt) return false;
+    if(q && !((a.title||"")+" "+(a.body||"")+" "+(a.trelloName||"")+" "+(a.assignee||"")).toLowerCase().includes(q)) return false;
+    return true;
+  }).sort((x,y)=>(Number(y.at)||0)-(Number(x.at)||0));
+}
+function paintAskBtn(){
+  const b=document.getElementById("askBtn"); if(!b) return;
+  const n=askOpenN();
+  b.innerHTML = "💬 기획 문의" + (n?`<span class="ask-n">${n}</span>`:"");
+  b.title = n ? `처리를 기다리는 문의 ${n}건` : "클라팀이 올린 기획서 요청 · 확인 요청";
+}
+function renderAskSeg(){
+  const el=document.getElementById("askSeg"); if(!el) return;
+  const all=askAll(), cnt=k=>all.filter(a=>askStatus(a)===k).length;
+  const tabs=[["open","열린 건",all.filter(a=>askStatus(a)!=="done").length],
+              ["new","접수",cnt("new")],["rev","검토 중",cnt("rev")],
+              ["hold","보류",cnt("hold")],["done","완료",cnt("done")]];
+  el.innerHTML = tabs.map(([k,nm,c])=>`<button type="button" data-askf="${k}" class="${askFilt===k?"on":""}">${nm} ${c}</button>`).join("");
+}
+function askCmHtml(c){
+  if(c.loading) return `<div class="ask-cm"><div class="c" style="color:var(--muted)">트렐로에서 코멘트를 읽는 중…</div></div>`;
+  if(c.err) return `<div class="ask-cm"><div class="c" style="color:#fca5a5">${escapeHtml(String(c.err))}</div></div>`;
+  if(!c.list || !c.list.length) return `<div class="ask-cm"><div class="c" style="color:var(--muted)">이 카드에는 코멘트가 없습니다.</div></div>`;
+  return `<div class="ask-cm">`+c.list.map(x=>{
+    const when=x.at?String(x.at).slice(0,10):"";
+    return `<div class="c"><div class="cw">${escapeHtml(x.by||"")}${when?" · "+when:""}</div>${escapeHtml(x.text||"")}</div>`;
+  }).join("")+`</div>`;
+}
+function askRowHtml(a){
+  const st=askStatus(a), mg=askCanManage();
+  const dc=(state.departments||[]).find(d=>d.key===a.dept);
+  const col=(dc&&dc.color)||"#8b93a3";
+  return `<tr class="ask-row${askSel===a.id?" sel":""}" data-askrow="${escapeHtml(a.id)}">`+
+    `<td><span class="ask-st ${askStCls(st)}">${askStName(st)}</span></td>`+
+    `<td><div class="ask-t">${escapeHtml(a.title||"(제목 없음)")}</div>`+
+      `<div class="ask-p">${escapeHtml(String(a.body||"").split("\n").filter(Boolean)[0]||"")}</div></td>`+
+    `<td>${a.trelloUrl
+      ? `<a class="ask-lnk" href="${escapeHtml(a.trelloUrl)}" target="_blank" rel="noopener" title="트렐로 카드 열기">🔗 ${escapeHtml(a.trelloName||a.trelloUrl)}</a>`
+      : `<span class="ask-who">—</span>`}</td>`+
+    `<td>${a.dept?`<span class="ask-dept" style="color:${col};border-color:${col}66;background:${col}14">${escapeHtml(a.dept)}</span>`:`<span class="ask-who">—</span>`}</td>`+
+    `<td class="ask-who">${escapeHtml((a.by&&(a.by.name||a.by.email))||"-")}<br>${askWhen(a.at)}</td>`+
+    `<td>${mg?`<input class="ask-dt" type="date" data-askdue="${escapeHtml(a.id)}" value="${escapeHtml(a.due||"")}">`
+             :`<span class="ask-who">${a.due?escapeHtml(a.due):"—"}</span>`}</td>`+
+    `<td class="ask-who">${escapeHtml(a.assignee||"—")}</td></tr>`;
+}
+function askDetHtml(a){
+  const mg=askCanManage(), c=askCm[a.id];
+  const canTr = mg || askIsMine(a);
+  return `<tr class="ask-det"><td colspan="7"><div class="ask-in">
+    <div>
+      <div class="ask-h4">문의 내용 — ${escapeHtml((a.by&&(a.by.name||a.by.email))||"-")} · ${askWhen(a.at)}</div>
+      <div class="ask-txt">${escapeHtml(a.body||"")}</div>
+      ${a.trelloUrl?`<div class="ask-act">
+        <button type="button" class="btn ghost sm" data-askcm="${escapeHtml(a.id)}">💬 트렐로 코멘트 보기</button>
+        <a class="ask-lnk" style="max-width:none" href="${escapeHtml(a.trelloUrl)}" target="_blank" rel="noopener">카드 열기 ↗</a></div>`:""}
+      ${c?askCmHtml(c):""}
+      <div class="ask-h4" style="margin-top:12px">답변 / 메모${mg?"":' <span style="font-weight:400">(매니저 이상만 작성)</span>'}</div>
+      ${mg?`<textarea class="ask-txt" data-askreply="${escapeHtml(a.id)}" rows="3" placeholder="답변을 적습니다. 보류 사유도 여기에.">${escapeHtml(a.reply||"")}</textarea>`
+          :`<div class="ask-txt" style="min-height:48px">${a.reply?escapeHtml(a.reply):'<span style="color:var(--muted)">아직 답변이 없습니다.</span>'}</div>`}
+      ${a.replyBy?`<div class="ask-who" style="margin-top:4px">${escapeHtml(a.replyBy)} · ${askWhen(a.replyAt)}</div>`:""}
+    </div>
+    <div class="ask-side">
+      <div class="fl"><label>상태</label><select data-askst="${escapeHtml(a.id)}" ${mg?"":"disabled"}>
+        ${ASK_ST.map(([k,nm])=>`<option value="${k}" ${askStatus(a)===k?"selected":""}>${nm}</option>`).join("")}</select></div>
+      <div class="fl"><label>기획서 완료일 (예정)</label>
+        <input type="date" data-askdue2="${escapeHtml(a.id)}" value="${escapeHtml(a.due||"")}" ${mg?"":"disabled"}></div>
+      <div class="fl"><label>담당 (기획)</label>
+        <input data-askas="${escapeHtml(a.id)}" value="${escapeHtml(a.assignee||"")}" placeholder="이름" ${mg?"":"disabled"}></div>
+      <div class="fl"><label>트렐로 카드</label>
+        <input data-asktr="${escapeHtml(a.id)}" value="${escapeHtml(a.trelloUrl||"")}" placeholder="카드 주소 붙여넣기" ${canTr?"":"disabled"}>
+        ${a.trelloName?`<div class="ask-who" style="margin-top:3px;white-space:normal">🔗 ${escapeHtml(a.trelloName)}</div>`:""}</div>
+      <div class="ask-act"><span class="ask-sp"></span>
+        ${askCanDel(a)?`<button type="button" class="btn ghost sm" data-askdel="${escapeHtml(a.id)}">삭제</button>`:""}</div>
+      <div class="ask-who" style="margin-top:6px;white-space:normal">바꾸면 바로 저장됩니다.</div>
+    </div></div></td></tr>`;
+}
+function askFormHtml(){
+  const ds=(state.departments||[]).map(d=>d.key);
+  const mine=(window.APP_USER && window.APP_USER.name)||"";
+  return `<tr class="ask-det"><td colspan="7"><div class="ask-form">
+    <div><div class="ask-h4">새 문의 — ${escapeHtml(mine||"나")}</div>
+      <input id="askNTitle" maxlength="${ASK_TITLE_MAX}" placeholder="제목 — 예: 기믹, 시련 출력 규칙">
+      <textarea id="askNBody" rows="7" style="margin-top:7px" placeholder="무엇이 필요한지, 무엇을 확인해야 하는지 적습니다. 트렐로 카드 코멘트가 근거면 아래에 카드 주소를 넣어 주세요."></textarea>
+      <div class="ask-who" id="askNLen" style="margin-top:4px">0 / ${ASK_BODY_MAX}자</div></div>
+    <div class="ask-side">
+      <div class="fl"><label>요청 부서</label><select id="askNDept">
+        ${ds.map(k=>`<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join("")}</select></div>
+      <div class="fl"><label>트렐로 카드 (선택)</label>
+        <input id="askNTr" placeholder="https://trello.com/c/..." value="${escapeHtml(askNewTr.url||"")}">
+        <div class="ask-who" id="askNTrN" style="margin-top:3px;white-space:normal">${askNewTr.name?"🔗 "+escapeHtml(askNewTr.name):"주소를 넣으면 카드 제목을 한 번 읽어 옵니다."}</div></div>
+      <div class="ask-act"><button type="button" class="btn sm" id="askNSave">등록</button>
+        <button type="button" class="btn ghost sm" id="askNCancel">취소</button></div>
+    </div></div></td></tr>`;
+}
+function renderAsk(){
+  renderAskSeg();
+  const tb=document.getElementById("askBody"); if(!tb) return;
+  const rows=askVisible(); let h="";
+  if(askAdding) h+=askFormHtml();
+  rows.forEach(a=>{ h+=askRowHtml(a); if(askSel===a.id) h+=askDetHtml(a); });
+  if(!rows.length && !askAdding)
+    h+=`<tr><td colspan="7"><div class="ask-empty">${askQ?"검색 결과가 없습니다.":"이 분류에 문의가 없습니다."}<br>`+
+       `${askCanWrite()?"위의 <b>＋ 문의 등록</b> 으로 올릴 수 있습니다.":"읽기 전용 계정입니다."}</div></td></tr>`;
+  tb.innerHTML=h;
+  const ft=document.getElementById("askFoot");
+  if(ft) ft.innerHTML = `<span>행을 누르면 아래로 펼쳐집니다.</span><span class="ask-sp"></span>`+
+    `<span>${askAll().length} / ${ASK_MAX}건 · 본문 ${ASK_BODY_MAX}자 · 완료 건은 「열린 건」에서 빠집니다</span>`;
+  paintAskBtn();
+}
+/* 입력 중에는 다시 그리지 않는다 — 다시 그리면 입력칸이 통째로 교체돼 글자를 끝까지 못 친다
+   (날짜 연도 입력 사고와 같은 함정). [[silent-failures]] */
+function refreshAskIfOpen(){
+  if(!window.askModal || !askModal.classList.contains("show")) return;
+  if(askAdding) return;
+  const ae=document.activeElement;
+  if(ae && askModal.contains(ae) && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+  renderAsk();
+}
+function openAsk(){ closeModals(); askAdding=false; renderAsk(); askModal.classList.add("show"); }
+const _askBtn=document.getElementById("askBtn"); if(_askBtn) _askBtn.onclick=openAsk;
+
+/* 카드 주소 → 제목 (호출 1회, 서버가 60초 캐시). 코멘트는 안 읽는다. */
+async function askLookupCard(url){
+  const u=String(url||"").trim(); if(!u) return { url:"", name:"" };
+  try{
+    const r=await fetch("/api/trello/cardinfo?url="+encodeURIComponent(u), { credentials:"same-origin" });
+    const j=await r.json().catch(()=>({}));
+    if(r.ok && j.card) return { url:j.card.url||u, name:j.card.name||"" };
+    return { url:u, name:"", err:(j&&j.error)||("오류 "+r.status) };
+  }catch(e){ return { url:u, name:"", err:"카드를 읽지 못했습니다." }; }
+}
+async function askLoadComments(id){
+  const a=askOf(id); if(!a || !a.trelloUrl) return;
+  askCm[id]={ loading:true }; renderAsk();
+  try{
+    const r=await fetch("/api/trello/cardinfo?comments=1&url="+encodeURIComponent(a.trelloUrl), { credentials:"same-origin" });
+    const j=await r.json().catch(()=>({}));
+    askCm[id] = (r.ok && j.card) ? { list:j.card.comments||[] } : { err:(j&&j.error)||("카드를 읽지 못했습니다 (오류 "+r.status+")") };
+  }catch(e){ askCm[id]={ err:"카드를 읽지 못했습니다." }; }
+  renderAsk();
+}
+function askSaveNew(){
+  if(!askCanWrite()) return;
+  const T=(document.getElementById("askNTitle")||{}).value||"";
+  const B=(document.getElementById("askNBody")||{}).value||"";
+  const D=(document.getElementById("askNDept")||{}).value||"";
+  const title=T.trim(), body=B.trim();
+  if(!title){ flashNote("제목을 적어 주세요."); return; }
+  if(body.length>ASK_BODY_MAX){ flashNote(`내용은 ${ASK_BODY_MAX}자까지입니다. (${body.length}자)`); return; }
+  if(askAll().length>=ASK_MAX){ flashNote(`문의가 상한(${ASK_MAX}건)에 찼습니다. 완료된 건을 정리한 뒤 올려 주세요.`); return; }
+  const u=window.APP_USER||null;
+  askAll().unshift({ id:"ask"+uid(), title, body, dept:D, status:"new",
+    trelloUrl:askNewTr.url||"", trelloName:askNewTr.name||"",
+    by:{ name:(u&&u.name)||"", email:(u&&u.email)||"" }, at:Date.now(),
+    due:"", assignee:"", reply:"", replyAt:0, replyBy:"" });
+  askNewTr={ url:"", name:"" }; askAdding=false;
+  save(); renderAsk(); flashNote("문의를 등록했습니다. 부관리자에게 알림이 갑니다.");
+}
+/* 완료일을 넣으면 접수 → 검토 중 (사용자 지시: 체크를 따로 누를 일이 없게) */
+function askSetDue(a, v){
+  a.due=v||"";
+  if(a.due && askStatus(a)==="new") a.status="rev";
+}
+function askStampReply(a){
+  const u=window.APP_USER||null;
+  a.replyBy=(u&&(u.name||u.email))||""; a.replyAt=Date.now();
+}
+document.getElementById("askModal").addEventListener("click", e=>{
+  const f=e.target.closest("[data-askf]");
+  if(f){ askFilt=f.dataset.askf; try{ localStorage.setItem(ASK_FILT_KEY, askFilt); }catch(_){}
+    askSel=""; renderAsk(); return; }
+  if(e.target.closest("#askAddBtn")){ if(!askCanWrite()) return;
+    askAdding=true; askSel=""; renderAsk();
+    const t=document.getElementById("askNTitle"); if(t) t.focus(); return; }
+  if(e.target.closest("#askNCancel")){ askAdding=false; askNewTr={url:"",name:""}; renderAsk(); return; }
+  if(e.target.closest("#askNSave")){ askSaveNew(); return; }
+  const cm=e.target.closest("[data-askcm]"); if(cm){ askLoadComments(cm.dataset.askcm); return; }
+  const dl=e.target.closest("[data-askdel]");
+  if(dl){ const a=askOf(dl.dataset.askdel); if(!a || !askCanDel(a)) return;
+    if(!confirm(`「${a.title||"(제목 없음)"}」 문의를 지울까요?`)) return;
+    const i=askAll().indexOf(a); if(i>=0) askAll().splice(i,1);
+    if(askSel===a.id) askSel=""; save(); renderAsk(); return; }
+  const row=e.target.closest("[data-askrow]");
+  if(row){ if(e.target.closest("input,select,textarea,a,button")) return;
+    askSel = (askSel===row.dataset.askrow) ? "" : row.dataset.askrow; renderAsk(); }
+});
+document.getElementById("askModal").addEventListener("change", e=>{
+  const mg=askCanManage();
+  const du=e.target.closest("[data-askdue],[data-askdue2]");
+  if(du){ if(!mg) return;
+    const a=askOf(du.dataset.askdue||du.dataset.askdue2); if(!a) return;
+    if(du.value && !yearReady(du.value)) return;      // 연도를 치는 중 — 아직 다시 그리지 않는다
+    askSetDue(a, du.value); save(); renderAsk();
+    const back=document.querySelector(`[data-askdue="${a.id}"],[data-askdue2="${a.id}"]`); if(back) back.focus();
+    return; }
+  const st=e.target.closest("[data-askst]");
+  if(st){ if(!mg) return; const a=askOf(st.dataset.askst); if(!a) return;
+    a.status=st.value||"new"; save(); renderAsk(); return; }
+  const as=e.target.closest("[data-askas]");
+  if(as){ if(!mg) return; const a=askOf(as.dataset.askas); if(!a) return;
+    a.assignee=String(as.value||"").trim(); save(); renderAsk(); return; }
+  const rp=e.target.closest("[data-askreply]");
+  if(rp){ if(!mg) return; const a=askOf(rp.dataset.askreply); if(!a) return;
+    const v=String(rp.value||"").slice(0, ASK_BODY_MAX);
+    if(v===(a.reply||"")) return;
+    a.reply=v; askStampReply(a); save(); renderAsk(); return; }
+  const tr=e.target.closest("[data-asktr]");
+  if(tr){ const a=askOf(tr.dataset.asktr); if(!a) return;
+    if(!(mg || askIsMine(a))) return;
+    const v=String(tr.value||"").trim();
+    if(!v){ a.trelloUrl=""; a.trelloName=""; save(); renderAsk(); return; }
+    askLookupCard(v).then(c=>{ a.trelloUrl=c.url; a.trelloName=c.name;
+      if(c.err) flashNote("카드 제목을 읽지 못했습니다 — 주소는 그대로 저장했습니다.");
+      save(); renderAsk(); });
+    return; }
+  const nt=e.target.closest("#askNTr");
+  if(nt){ const v=String(nt.value||"").trim();
+    const box=document.getElementById("askNTrN");
+    if(!v){ askNewTr={url:"",name:""}; if(box) box.textContent="주소를 넣으면 카드 제목을 한 번 읽어 옵니다."; return; }
+    if(box) box.textContent="카드를 읽는 중…";
+    askLookupCard(v).then(c=>{ askNewTr={ url:c.url, name:c.name };
+      const b2=document.getElementById("askNTrN"); if(!b2) return;
+      b2.textContent = c.name ? "🔗 "+c.name : (c.err||"카드 제목을 읽지 못했습니다 — 주소는 그대로 저장됩니다.");
+      const ti=document.getElementById("askNTitle");
+      if(ti && !ti.value.trim() && c.name) ti.value=c.name.slice(0, ASK_TITLE_MAX);
+    });
+    return; }
+});
+document.getElementById("askModal").addEventListener("input", e=>{
+  if(e.target.id==="askQ"){ askQ=e.target.value||""; renderAsk(); return; }
+  if(e.target.id==="askNBody"){ const n=(e.target.value||"").length;
+    const el=document.getElementById("askNLen");
+    if(el){ el.textContent=`${n} / ${ASK_BODY_MAX}자`; el.style.color = n>ASK_BODY_MAX ? "#fca5a5" : ""; } }
+});
+paintAskBtn();
+/* 카카오워크 알림의 「바로가기」 → ?ask=<id> 로 들어오면 그 건을 펼쳐서 연다.
+   ⚠ 클라우드 모드에서는 이 줄이 돌 때 아직 서버 데이터가 안 와 있다 — 들어올 때까지 몇 번 다시 본다. */
+(function(){
+  let id=""; try{ id=new URLSearchParams(location.search).get("ask")||""; }catch(_){ return; }
+  if(!id) return;
+  let n=0;
+  const tick=()=>{
+    const a=askOf(id);
+    if(a){ askSel=id; askFilt = askStatus(a)==="done" ? "done" : "open"; openAsk(); return; }
+    if(++n<20) setTimeout(tick, 400);
+  };
+  setTimeout(tick, 300);
+})();
+
 function applyTheme(t){ document.body.classList.toggle("light", t==="light"); const b=document.getElementById("themeBtn"); if(b) b.textContent = t==="light" ? "🌙 다크" : "☀ 라이트"; }
 applyTheme(localStorage.getItem("ms_theme")||"dark");
 document.getElementById("themeBtn").onclick=()=>{ const nxt=document.body.classList.contains("light")?"dark":"light"; localStorage.setItem("ms_theme",nxt); applyTheme(nxt); };
