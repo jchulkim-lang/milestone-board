@@ -770,6 +770,9 @@
      border-radius:99px; padding:3px 10px; font:inherit; font-size:11px; font-weight:700; cursor:pointer; }
   .ask-pre button:hover{ color:var(--text); border-color:var(--accent); background:rgba(99,102,241,.12); }
   .ask-or{ font-size:11px; color:var(--muted); font-weight:700; margin:2px 2px 6px; }
+  .ask-cc{ display:flex; flex-wrap:wrap; gap:4px; margin-bottom:5px; }
+  .ask-cc .mchip{ font-size:11px; padding:1px 3px 1px 8px; max-width:100%; }
+  .ask-cc .mchip span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .ask-empty{ padding:36px 12px; text-align:center; color:var(--muted); font-size:12.5px; line-height:1.8; }
   .ask-foot{ display:flex; align-items:center; gap:8px; margin-top:9px; font-size:11.5px; color:var(--muted); }
   #askBtn .ask-n{ display:inline-block; margin-left:5px; min-width:15px; padding:0 4px; border-radius:99px;
@@ -1881,7 +1884,7 @@
     <div class="modal ask-modal">
       <div class="hub-head"><span class="hub-tabs"><b style="font-size:14px">💬 기획 문의</b></span>
         <button type="button" class="hub-x" data-close>✕ 닫기</button></div>
-      <div class="msub" style="margin-bottom:6px">클라팀이 기획서가 필요하거나 확인이 필요한 건을 올립니다. <b>＋ 문의 등록에서 트렐로 카드 주소를 붙여넣으면 문의가 자동으로 등록됩니다.</b> 확인 후 <b>기획서 완료일</b>을 넣으면 자동으로 「검토 중」이 됩니다.</div>
+      <div class="msub" style="margin-bottom:6px">클라팀이 기획서가 필요하거나 확인이 필요한 건을 올립니다. <b>＋ 문의 등록에서 트렐로 카드 주소를 붙여넣으면 문의가 자동으로 등록됩니다.</b> 확인 후 <b>기획서 완료일</b>을 넣으면 자동으로 「검토 중」이 됩니다. <b>상태가 바뀌면 요청자에게 카카오워크로 알림이 갑니다.</b></div>
       <div class="ask-bar">
         <span class="ask-seg" id="askSeg"></span>
         <input type="search" id="askQ" placeholder="제목·내용 검색">
@@ -6433,6 +6436,15 @@ function askRowHtml(a){
              :`<span class="ask-who">${a.due?escapeHtml(a.due):"—"}</span>`}</td>`+
     `<td class="ask-who">${escapeHtml(a.assignee||"—")}</td></tr>`;
 }
+/* 문의별 추가 수신자 — 상태가 바뀔 때 요청자와 함께 카카오워크를 받는다 (2026-11-06).
+   ⚠ 고정 명단(state.notifyEmails)과는 **다른 값**이다. 그쪽은 Task 상태 변경 알림용. */
+const askCcOf = a => Array.isArray(a && a.cc) ? a.cc : [];
+function askCcHtml(a, canEditCc){
+  const list=askCcOf(a);
+  if(!list.length) return `<div class="ask-who" style="margin-bottom:4px">요청자 외에는 없습니다.</div>`;
+  return `<div class="ask-cc">`+list.map(e=>
+    `<span class="mchip"><span>${escapeHtml(e)}</span>${canEditCc?`<b data-askccdel="${escapeHtml(a.id)}|${escapeHtml(e)}" title="빼기">×</b>`:""}</span>`).join("")+`</div>`;
+}
 function askDetHtml(a){
   const mg=askCanManage(), c=askCm[a.id];
   const canTr = mg || askIsMine(a);
@@ -6463,6 +6475,10 @@ function askDetHtml(a){
       <div class="fl"><label>트렐로 카드</label>
         <input data-asktr="${escapeHtml(a.id)}" value="${escapeHtml(a.trelloUrl||"")}" placeholder="카드 주소 붙여넣기" ${canTr?"":"disabled"}>
         ${a.trelloName?`<div class="ask-who" style="margin-top:3px;white-space:normal">🔗 ${escapeHtml(a.trelloName)}</div>`:""}</div>
+      <div class="fl"><label>같이 받을 사람 (카카오워크)</label>
+        ${askCcHtml(a, canTr)}
+        ${canTr?`<input data-askcc="${escapeHtml(a.id)}" placeholder="이메일 입력 후 Enter">`:""}
+        <div class="ask-who" style="margin-top:3px;white-space:normal">상태가 바뀌면 <b>요청자</b>와 여기 적힌 분들께 카카오워크로 갑니다.</div></div>
       <div class="ask-act">
         <button type="button" class="btn ghost sm" data-asklink="${escapeHtml(a.id)}" title="이 문의가 펼쳐진 채로 열리는 주소를 복사합니다">🔗 링크</button>
         <span class="ask-sp"></span>
@@ -6627,6 +6643,11 @@ document.getElementById("askModal").addEventListener("click", e=>{
   if(e.target.closest("#askAddBtn")){ if(!askCanWrite()) return;
     askAdding=true; askSel=""; renderAsk();
     const t=document.getElementById("askNTitle"); if(t) t.focus(); return; }
+  const cd=e.target.closest("[data-askccdel]");
+  if(cd){ const [id,mail]=String(cd.dataset.askccdel).split("|");
+    const a=askOf(id); if(!a) return;
+    if(!(askCanManage() || askIsMine(a))) return;
+    a.cc=askCcOf(a).filter(x=>x!==mail); save(); renderAsk(); return; }
   const lk=e.target.closest("#askLinkBtn,[data-asklink]");
   if(lk){ askCopyLink(lk, lk.dataset ? lk.dataset.asklink : ""); return; }
   if(e.target.closest("#askNCancel")){ askAdding=false; askNewTr={url:"",name:""}; renderAsk(); return; }
@@ -6688,6 +6709,19 @@ document.getElementById("askModal").addEventListener("change", e=>{
     const v=String(bd.value||"").slice(0, ASK_BODY_MAX);
     if(v===(a.body||"")) return;
     a.body=v; save(); renderAsk(); return; }
+  const cc=e.target.closest("[data-askcc]");
+  if(cc){ const a=askOf(cc.dataset.askcc); if(!a) return;
+    if(!(mg || askIsMine(a))) return;
+    const v=String(cc.value||"").trim().toLowerCase();
+    cc.value="";
+    if(!v) return;
+    if(!/.+@.+\..+/.test(v)){ flashNote("올바른 이메일 형식이 아닙니다."); return; }
+    if(!Array.isArray(a.cc)) a.cc=[];
+    if(a.cc.includes(v)){ flashNote("이미 들어 있습니다."); return; }
+    if(a.cc.length>=10){ flashNote("한 문의에 10명까지입니다."); return; }
+    a.cc.push(v); save(); renderAsk();
+    const back=document.querySelector(`[data-askcc="${a.id}"]`); if(back) back.focus();
+    return; }
   const rp=e.target.closest("[data-askreply]");
   if(rp){ if(!mg) return; const a=askOf(rp.dataset.askreply); if(!a) return;
     const v=String(rp.value||"").slice(0, ASK_BODY_MAX);
@@ -6710,6 +6744,11 @@ document.getElementById("askModal").addEventListener("change", e=>{
       if(b0) b0.innerHTML='주소를 붙여넣으면 <b>문의가 바로 등록됩니다.</b> 제목은 카드 이름, 내용은 <b>카드의 가장 최근 코멘트</b>를 가져옵니다.';
       return; }
     askAutoFromCard(v); return; }
+});
+document.getElementById("askModal").addEventListener("keydown", e=>{
+  if(e.target && e.target.matches("[data-askcc]") && e.key==="Enter"){
+    e.preventDefault(); e.target.dispatchEvent(new Event("change",{bubbles:true}));
+  }
 });
 document.getElementById("askModal").addEventListener("paste", e=>{
   if(!e.target || e.target.id!=="askNTr") return;

@@ -15,7 +15,7 @@ const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 �
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026110504;
+const APP_BUILD = 2026110601;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -172,6 +172,46 @@ async function notifyNewAsks(env, oldStr, newStr, who, origin){
   });
   if(blocks[blocks.length-1].type==="divider") blocks.pop();
   await dmKakaoList(env, await adminEmailsOf(env), preview.join("\n"), blocks);
+}
+
+/* 「기획 문의」 상태가 바뀌면 **요청자 + 그 문의의 추가 멤버(a.cc)** 에게 알린다 (2026-11-06 사용자 지시).
+   · 사용자 선택: **상태 변경만** 알린다. 완료일·담당·답변은 안 알린다 — 보드에서 보면 된다.
+   · 바꾼 본인에게는 안 보낸다.
+   · 새 문의 알림(notifyNewAsks)은 부관리자 이상, 이쪽은 요청자 쪽 — 받는 사람이 서로 다르다. */
+async function notifyAskStatus(env, oldStr, newStr, actorEmail, actorName, origin){
+  if(!env.KAKAO_BOT_KEY && !env.KAKAO_WEBHOOK_URL) return;
+  let o, n; try{ o=JSON.parse(oldStr||"{}"); n=JSON.parse(newStr||"{}"); }catch(_){ return; }
+  const was={}; (o.asks||[]).forEach(a=>{ if(a&&a.id) was[a.id]=String(a.status||"new"); });
+  const NAME={ new:"접수", rev:"검토 중", hold:"보류", done:"완료" };
+  const DOT ={ new:"🟡", rev:"🔵", hold:"⚪", done:"🟢" };
+  const me=String(actorEmail||"").toLowerCase();
+  /* 받는 사람이 서로 다르므로 **사람별로 묶어서** 한 통씩 보낸다 */
+  const bucket=new Map();                       // email -> [segs…]
+  (n.asks||[]).forEach(a=>{
+    if(!a || !a.id) return;
+    const prev=was[a.id], cur=String(a.status||"new");
+    if(prev===undefined || prev===cur) return;
+    const to=new Set();
+    const owner=String((a.by&&a.by.email)||"").toLowerCase(); if(owner) to.add(owner);
+    (Array.isArray(a.cc)?a.cc:[]).forEach(e=>{ const v=String(e||"").trim().toLowerCase(); if(v) to.add(v); });
+    to.delete(me);
+    if(!to.size) return;
+    const segs=[{ text:`${DOT[cur]||"•"} ${a.title||"(제목 없음)"}\n${NAME[prev]||prev} → ${NAME[cur]||cur}` }];
+    if(a.due) segs.push({ text:` · 기획서 완료일 ${a.due}` });
+    segs.push({ text:`\n` });
+    if(a.trelloUrl){ segs.push({ text:`📋 Trello ` }); segs.push({ text:"[LINK]", url:a.trelloUrl }); segs.push({ text:`\n` }); }
+    if(origin){ segs.push({ text:`🔗 ` }); segs.push({ text:"[바로가기]", url:`${origin}/?ask=${encodeURIComponent(a.id)}` }); }
+    to.forEach(e=>{ if(!bucket.has(e)) bucket.set(e,[]); bucket.get(e).push(segs); });
+  });
+  for(const [email, list] of bucket){
+    const head=`🔄 기획 문의 상태 변경 ${list.length}건 (${actorName||""})`;
+    const blocks=[{ type:"text", text:head }];
+    const preview=[head];
+    list.slice(0,10).forEach(segs=>{ blocks.push(textBlock(segs)); blocks.push({ type:"divider" });
+      preview.push(segs.map(x=>x.text).join("")); });
+    if(blocks[blocks.length-1].type==="divider") blocks.pop();
+    await dmKakaoList(env, [email], preview.join("\n"), blocks);
+  }
 }
 
 async function createSessionToken(user, env){
@@ -673,10 +713,15 @@ async function handleApi(request, env, url, ctx){
               if(isManager(role) || owner===me) continue;         // 지움 허용
               out.push(pa); continue;                              // 남의 글 → 되살림
             }
-            out.push(isManager(role)
-              ? { ...mine, by: pa.by, at: pa.at }
-              : { ...mine, by: pa.by, at: pa.at, status: pa.status, due: pa.due,
-                  assignee: pa.assignee, reply: pa.reply, replyAt: pa.replyAt, replyBy: pa.replyBy });
+            const owner = String((pa.by && pa.by.email)||"").toLowerCase();
+            let merged = { ...mine, by: pa.by, at: pa.at };
+            /* 상태·완료일·담당·답변 = 매니저 이상만 */
+            if(!isManager(role)) merged = { ...merged, status: pa.status, due: pa.due,
+              assignee: pa.assignee, reply: pa.reply, replyAt: pa.replyAt, replyBy: pa.replyBy };
+            /* 제목·내용·부서·추가 수신자·카드 = 본인 글 또는 매니저 이상만 */
+            if(!isManager(role) && owner!==me) merged = { ...merged, title: pa.title, body: pa.body,
+              dept: pa.dept, cc: pa.cc, trelloUrl: pa.trelloUrl, trelloName: pa.trelloName };
+            out.push(merged);
           }
           for(const a of incoming.asks){
             if(!a || !a.id || pm.has(a.id)) continue;               // 새 글
@@ -708,6 +753,7 @@ async function handleApi(request, env, url, ctx){
     if(ctx && ctx.waitUntil){
       ctx.waitUntil(notifyStatusChanges(env, cur && cur.data, payload, user.name || user.email, url.origin));
       ctx.waitUntil(notifyNewAsks(env, cur && cur.data, payload, user.name || user.email, url.origin));
+      ctx.waitUntil(notifyAskStatus(env, cur && cur.data, payload, user.email, user.name || user.email, url.origin));
     }
     /* 2026-09-12: 보드에서 Task 를 지워도 **트렐로 카드는 건드리지 않는다**(사용자 요청).
        예전엔 여기서 trelloDeleteRemoved() 로 카드를 DELETE 했다. 되살리지 말 것. */
