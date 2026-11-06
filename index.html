@@ -1898,6 +1898,7 @@
         <th style="width:146px">기획서 완료일</th><th style="width:78px">담당</th>
       </tr></thead><tbody id="askBody"></tbody></table></div>
       <div class="ask-foot" id="askFoot"></div>
+      <datalist id="askMemberList"></datalist>
     </div>
   </div>
   <input type="file" id="fileInput" accept="application/json" style="display:none">
@@ -6374,6 +6375,13 @@ const askCm = {};                       // id -> {loading}|{list}|{err}  트렐�
 const ASK_PRESETS = [
   ["기획 일정 확인", "기획 일정 확인 요청 드립니다."],
   ["기획 의도 확인", "기획 의도 확인 요청 드립니다."],
+  /* 사용자가 실제로 쓰는 카카오워크 요청문 구조 그대로 (2026-11-06 제공 이미지 기준):
+     한 줄 요청 → 현재 상태 → "따라서 … 개선하고자 합니다." */
+  ["티켓 등록 요청",
+   "아래 건으로 일감 티켓 생성 요청드립니다.\n\n"+
+   "■ 대상 / 환경\n- \n\n"+
+   "■ 현재 상태\n- \n\n"+
+   "■ 개선 방향\n- "],
 ];
 function askPreChips(target){
   return `<div class="ask-pre"><span class="lb">자주 쓰는 문구</span>`+
@@ -6392,7 +6400,7 @@ function askVisible(){
     const st = askStatus(a);
     if(askFilt==="open"){ if(st==="done") return false; }
     else if(askFilt!=="all" && st!==askFilt) return false;
-    if(q && !((a.title||"")+" "+(a.body||"")+" "+(a.trelloName||"")+" "+(a.assignee||"")).toLowerCase().includes(q)) return false;
+    if(q && !((a.title||"")+" "+(a.body||"")+" "+(a.trelloName||"")+" "+askAsgOf(a).join(" ")).toLowerCase().includes(q)) return false;
     return true;
   }).sort((x,y)=>(Number(y.at)||0)-(Number(x.at)||0));
 }
@@ -6434,16 +6442,80 @@ function askRowHtml(a){
     `<td class="ask-who">${escapeHtml((a.by&&(a.by.name||a.by.email))||"-")}<br>${askWhen(a.at)}</td>`+
     `<td>${mg?`<input class="ask-dt" type="date" data-askdue="${escapeHtml(a.id)}" value="${escapeHtml(a.due||"")}">`
              :`<span class="ask-who">${a.due?escapeHtml(a.due):"—"}</span>`}</td>`+
-    `<td class="ask-who">${escapeHtml(a.assignee||"—")}</td></tr>`;
+    `<td class="ask-who" title="${escapeHtml(askAsgOf(a).join(", "))}">${(()=>{ const L=askAsgOf(a);
+       if(!L.length) return "—";
+       return escapeHtml(L[0]) + (L.length>1?` <span style="opacity:.75">외 ${L.length-1}</span>`:"");
+     })()}</td></tr>`;
 }
 /* 문의별 추가 수신자 — 상태가 바뀔 때 요청자와 함께 카카오워크를 받는다 (2026-11-06).
    ⚠ 고정 명단(state.notifyEmails)과는 **다른 값**이다. 그쪽은 Task 상태 변경 알림용. */
+/* 「같이 받을 사람」은 **이름으로 고르고 이메일로 저장**한다 (2026-11-06 사용자 요청).
+   카카오워크 DM 은 이메일로 사람을 찾으므로 저장값은 이메일이어야 한다 —
+   화면에만 이름을 쓴다. 명단은 `/api/members`(편집 권한)에서 한 번 받아 둔다. */
+let askMembers = [];              // [{email,name}]
+let askMembersAt = 0;
+async function loadAskMembers(force){
+  if(!force && askMembers.length && Date.now()-askMembersAt < 300000) return;
+  try{
+    const r=await fetch("/api/members", { credentials:"same-origin" });
+    if(!r.ok) return;
+    const j=await r.json().catch(()=>({}));
+    if(Array.isArray(j.members)){ askMembers=j.members; askMembersAt=Date.now();
+      paintAskMemberList(); renderAsk(); }
+  }catch(_){}
+}
+const askMemberName = email => {
+  const v=String(email||"").toLowerCase();
+  const m=askMembers.find(x=>String(x.email||"").toLowerCase()===v);
+  return (m && m.name) ? m.name : email;
+};
+/* 이름 → 이메일. 정확히 같은 이름 하나면 그걸로, 여러 명이면 고르라고 알린다. */
+function askMemberByName(q){
+  const v=String(q||"").trim();
+  if(!v) return { err:"" };
+  /* 이메일이 섞여 있으면 그걸 집는다 — 자동완성이 동명이인에 「이름 (메일)」 을 주기 때문 */
+  const em=v.match(/[^\s<>()]+@[^\s<>()]+\.[^\s<>()]+/);
+  if(em) return { email:em[0].toLowerCase() };
+  const exact=askMembers.filter(x=>String(x.name||"").trim()===v);
+  if(exact.length===1) return { email:exact[0].email };
+  if(exact.length>1) return { err:`「${v}」 가 ${exact.length}명입니다. 이메일로 넣어 주세요.` };
+  const part=askMembers.filter(x=>String(x.name||"").includes(v));
+  if(part.length===1) return { email:part[0].email };
+  if(part.length>1) return { err:`「${v}」 로 ${part.length}명이 걸립니다. 이름을 더 적어 주세요.` };
+  return { err:`「${v}」 는 보드에 없는 이름입니다. 한 번이라도 보드에 들어온 사람만 고를 수 있습니다.` };
+}
+function paintAskMemberList(){
+  const dl=document.getElementById("askMemberList"); if(!dl) return;
+  /* 동명이인은 이름만으로 못 고르므로 「이름 (메일)」 로 보여 준다 */
+  const cnt={}; askMembers.forEach(m=>{ const n=String(m.name||"").trim(); if(n) cnt[n]=(cnt[n]||0)+1; });
+  dl.innerHTML = askMembers.filter(m=>m.name)
+    .map(m=>{ const n=String(m.name).trim();
+      return `<option value="${escapeHtml(cnt[n]>1 ? n+" ("+m.email+")" : n)}"></option>`; }).join("");
+}
 const askCcOf = a => Array.isArray(a && a.cc) ? a.cc : [];
+/* 담당(기획)은 **여러 명**이다 (2026-11-06). 옛 데이터는 `assignee` 문자열 1개였으므로
+   읽을 때 배열로 올려 보고, **고칠 때 `assignees` 로 옮기고 옛 필드를 지운다**(읽기는 순수). */
+function askAsgOf(a){
+  if(!a) return [];
+  if(Array.isArray(a.assignees)) return a.assignees.filter(Boolean);
+  const one=String(a.assignee||"").trim();
+  return one ? [one] : [];
+}
+function askAsgSet(a, list){
+  a.assignees = list.filter(Boolean);
+  if("assignee" in a) delete a.assignee;      // 옛 필드는 더 이상 쓰지 않는다
+}
+function askAsgHtml(a, canEdit){
+  const list=askAsgOf(a);
+  if(!list.length) return `<div class="ask-who" style="margin-bottom:4px">아직 없습니다.</div>`;
+  return `<div class="ask-cc">`+list.map(n=>
+    `<span class="mchip"><span>${escapeHtml(n)}</span>${canEdit?`<b data-askasdel="${escapeHtml(a.id)}|${escapeHtml(n)}" title="빼기">×</b>`:""}</span>`).join("")+`</div>`;
+}
 function askCcHtml(a, canEditCc){
   const list=askCcOf(a);
   if(!list.length) return `<div class="ask-who" style="margin-bottom:4px">요청자 외에는 없습니다.</div>`;
   return `<div class="ask-cc">`+list.map(e=>
-    `<span class="mchip"><span>${escapeHtml(e)}</span>${canEditCc?`<b data-askccdel="${escapeHtml(a.id)}|${escapeHtml(e)}" title="빼기">×</b>`:""}</span>`).join("")+`</div>`;
+    `<span class="mchip" title="${escapeHtml(e)}"><span>${escapeHtml(askMemberName(e))}</span>${canEditCc?`<b data-askccdel="${escapeHtml(a.id)}|${escapeHtml(e)}" title="빼기">×</b>`:""}</span>`).join("")+`</div>`;
 }
 function askDetHtml(a){
   const mg=askCanManage(), c=askCm[a.id];
@@ -6454,7 +6526,7 @@ function askDetHtml(a){
       ${canTr?`<input data-asktitle="${escapeHtml(a.id)}" maxlength="${ASK_TITLE_MAX}" value="${escapeHtml(a.title||"")}"
           style="width:100%;box-sizing:border-box;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:7px;padding:7px 9px;font:inherit;font-size:13px;font-weight:700;margin-bottom:7px">`:""}
       ${canTr?askPreChips(a.id):""}
-      ${canTr?`<textarea class="ask-txt" data-askbody="${escapeHtml(a.id)}" rows="5">${escapeHtml(a.body||"")}</textarea>`
+      ${canTr?`<textarea class="ask-txt" data-askbody="${escapeHtml(a.id)}" rows="9">${escapeHtml(a.body||"")}</textarea>`
              :`<div class="ask-txt">${escapeHtml(a.body||"")}</div>`}
       ${a.trelloUrl?`<div class="ask-act">
         <button type="button" class="btn ghost sm" data-askcm="${escapeHtml(a.id)}">💬 트렐로 코멘트 보기</button>
@@ -6471,14 +6543,15 @@ function askDetHtml(a){
       <div class="fl"><label>기획서 완료일 (예정)</label>
         <input type="date" data-askdue2="${escapeHtml(a.id)}" value="${escapeHtml(a.due||"")}" ${mg?"":"disabled"}></div>
       <div class="fl"><label>담당 (기획)</label>
-        <input data-askas="${escapeHtml(a.id)}" value="${escapeHtml(a.assignee||"")}" placeholder="이름" ${mg?"":"disabled"}></div>
+        ${askAsgHtml(a, mg)}
+        ${mg?`<input data-askas="${escapeHtml(a.id)}" placeholder="이름 입력 후 Enter">`:""}</div>
       <div class="fl"><label>트렐로 카드</label>
         <input data-asktr="${escapeHtml(a.id)}" value="${escapeHtml(a.trelloUrl||"")}" placeholder="카드 주소 붙여넣기" ${canTr?"":"disabled"}>
         ${a.trelloName?`<div class="ask-who" style="margin-top:3px;white-space:normal">🔗 ${escapeHtml(a.trelloName)}</div>`:""}</div>
       <div class="fl"><label>같이 받을 사람 (카카오워크)</label>
         ${askCcHtml(a, canTr)}
-        ${canTr?`<input data-askcc="${escapeHtml(a.id)}" placeholder="이메일 입력 후 Enter">`:""}
-        <div class="ask-who" style="margin-top:3px;white-space:normal">상태가 바뀌면 <b>요청자</b>와 여기 적힌 분들께 카카오워크로 갑니다.</div></div>
+        ${canTr?`<input data-askcc="${escapeHtml(a.id)}" list="askMemberList" placeholder="이름 입력 후 Enter">`:""}
+        <div class="ask-who" style="margin-top:3px;white-space:normal">상태가 바뀌면 <b>요청자</b>와 여기 적힌 분들께 카카오워크로 갑니다. 이름을 치면 자동완성됩니다.</div></div>
       <div class="ask-act">
         <button type="button" class="btn ghost sm" data-asklink="${escapeHtml(a.id)}" title="이 문의가 펼쳐진 채로 열리는 주소를 복사합니다">🔗 링크</button>
         <span class="ask-sp"></span>
@@ -6535,7 +6608,7 @@ function refreshAskIfOpen(){
   if(ae && askModal.contains(ae) && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
   renderAsk();
 }
-function openAsk(){ closeModals(); askAdding=false; renderAsk(); askModal.classList.add("show"); }
+function openAsk(){ closeModals(); askAdding=false; renderAsk(); askModal.classList.add("show"); loadAskMembers(); }
 /* 전달용 주소. `?ask=open` = 이 화면만 열기, `?ask=<id>` = 그 건을 펼쳐서 열기.
    클라팀에 한 번 뿌려 두면 눌렀을 때 바로 「기획 문의」가 뜬다(2026-11-05 사용자 요청). */
 const askShareUrl = id => location.origin + location.pathname + "?ask=" + encodeURIComponent(id || "open");
@@ -6643,6 +6716,10 @@ document.getElementById("askModal").addEventListener("click", e=>{
   if(e.target.closest("#askAddBtn")){ if(!askCanWrite()) return;
     askAdding=true; askSel=""; renderAsk();
     const t=document.getElementById("askNTitle"); if(t) t.focus(); return; }
+  const ad=e.target.closest("[data-askasdel]");
+  if(ad){ const [id,nm]=String(ad.dataset.askasdel).split("|");
+    const a=askOf(id); if(!a || !askCanManage()) return;
+    askAsgSet(a, askAsgOf(a).filter(x=>x!==nm)); save(); renderAsk(); return; }
   const cd=e.target.closest("[data-askccdel]");
   if(cd){ const [id,mail]=String(cd.dataset.askccdel).split("|");
     const a=askOf(id); if(!a) return;
@@ -6658,12 +6735,16 @@ document.getElementById("askModal").addEventListener("click", e=>{
     const tgt=pre.dataset.asktgt;
     if(tgt==="new"){
       const ta=document.getElementById("askNBody"); if(!ta) return;
-      ta.value = (ta.value.trim() ? ta.value.replace(/\s+$/,"")+"\n" : "") + txt;
+      const head = ta.value.trim() ? ta.value.replace(/\s+$/,"")+"\n" : "";
+      ta.value = head + txt;
       const ti=document.getElementById("askNTitle");
       if(ti && !ti.value.trim()) ti.value=(ASK_PRESETS[Number(pre.dataset.askpre)]||[])[0]||"";
       const el=document.getElementById("askNLen");
       if(el) el.textContent=`${ta.value.length} / ${ASK_BODY_MAX}자`;
-      ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+      /* 양식형이면 커서를 **첫 「- 」 뒤**에 둔다 — 붙여 넣자마자 받아 적을 수 있게 */
+      const at = txt.indexOf("- ");
+      const pos = at>=0 ? head.length+at+2 : ta.value.length;
+      ta.focus(); ta.setSelectionRange(pos, pos);
       return;
     }
     const a=askOf(tgt); if(!a) return;
@@ -6696,7 +6777,17 @@ document.getElementById("askModal").addEventListener("change", e=>{
     a.status=st.value||"new"; save(); renderAsk(); return; }
   const as=e.target.closest("[data-askas]");
   if(as){ if(!mg) return; const a=askOf(as.dataset.askas); if(!a) return;
-    a.assignee=String(as.value||"").trim(); save(); renderAsk(); return; }
+    /* 쉼표로 여러 명을 한 번에 넣을 수도 있게 한다 */
+    const add=String(as.value||"").split(",").map(x=>x.trim()).filter(Boolean);
+    as.value="";
+    if(!add.length) return;
+    const cur=askAsgOf(a), out=cur.slice();
+    let dup=0;
+    add.forEach(n=>{ if(out.includes(n)){ dup++; return; } if(out.length<12) out.push(n); });
+    if(dup && out.length===cur.length){ flashNote("이미 들어 있습니다."); return; }
+    askAsgSet(a, out); save(); renderAsk();
+    const back=document.querySelector(`[data-askas="${a.id}"]`); if(back) back.focus();
+    return; }
   const ti=e.target.closest("[data-asktitle]");
   if(ti){ const a=askOf(ti.dataset.asktitle); if(!a) return;
     if(!(mg || askIsMine(a))) return;
@@ -6712,14 +6803,15 @@ document.getElementById("askModal").addEventListener("change", e=>{
   const cc=e.target.closest("[data-askcc]");
   if(cc){ const a=askOf(cc.dataset.askcc); if(!a) return;
     if(!(mg || askIsMine(a))) return;
-    const v=String(cc.value||"").trim().toLowerCase();
-    cc.value="";
-    if(!v) return;
-    if(!/.+@.+\..+/.test(v)){ flashNote("올바른 이메일 형식이 아닙니다."); return; }
+    const raw=String(cc.value||"").trim();
+    if(!raw) return;
+    const hit=askMemberByName(raw);
+    if(!hit.email){ flashNote(hit.err||"찾지 못했습니다."); return; }
+    const v=hit.email; cc.value="";
     if(!Array.isArray(a.cc)) a.cc=[];
-    if(a.cc.includes(v)){ flashNote("이미 들어 있습니다."); return; }
+    if(a.cc.includes(v)){ flashNote(`${askMemberName(v)} 님은 이미 들어 있습니다.`); return; }
     if(a.cc.length>=10){ flashNote("한 문의에 10명까지입니다."); return; }
-    a.cc.push(v); save(); renderAsk();
+    a.cc.push(v); save(); renderAsk(); flashNote(`${askMemberName(v)} 님을 추가했습니다.`);
     const back=document.querySelector(`[data-askcc="${a.id}"]`); if(back) back.focus();
     return; }
   const rp=e.target.closest("[data-askreply]");
@@ -6746,7 +6838,7 @@ document.getElementById("askModal").addEventListener("change", e=>{
     askAutoFromCard(v); return; }
 });
 document.getElementById("askModal").addEventListener("keydown", e=>{
-  if(e.target && e.target.matches("[data-askcc]") && e.key==="Enter"){
+  if(e.target && e.target.matches("[data-askcc],[data-askas]") && e.key==="Enter"){
     e.preventDefault(); e.target.dispatchEvent(new Event("change",{bubbles:true}));
   }
 });

@@ -15,7 +15,7 @@ const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 �
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026110601;
+const APP_BUILD = 2026110604;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -624,6 +624,14 @@ async function handleApi(request, env, url, ctx){
     await env.DB.prepare("INSERT INTO users (email,name,requested) VALUES (?,?,1) ON CONFLICT(email) DO UPDATE SET requested=1, name=excluded.name").bind(user.email, user.name||"").run();
     return json({ ok:true });
   }
+/* 보드 구성원 이름 목록 — 「기획 문의」의 '같이 받을 사람'을 **이름으로** 고르게 하려고 쓴다.
+     이름만으로는 카카오워크 DM 을 못 보내므로(이메일로 찾는다) 화면은 이름, 저장은 이메일이다.
+     편집 권한이면 누구나. 역할·요청 상태는 안 준다(그건 /api/access, 부관리자 전용). (2026-11-06) */
+  if(p === "/api/members" && request.method === "GET"){
+    if(!canEdit(await effectiveRole(env, user.email))) return json({ error:"forbidden" }, 403);
+    const { results } = await env.DB.prepare("SELECT email,name FROM users ORDER BY name LIMIT 500").all();
+    return json({ members: (results||[]).map(u=>({ email:u.email, name:u.name||"" })) });
+  }
   if(p === "/api/access" && request.method === "GET"){
     const me = await effectiveRole(env, user.email);
     if(!isAdmin(me)) return json({ error:"forbidden" }, 403);
@@ -717,7 +725,8 @@ async function handleApi(request, env, url, ctx){
             let merged = { ...mine, by: pa.by, at: pa.at };
             /* 상태·완료일·담당·답변 = 매니저 이상만 */
             if(!isManager(role)) merged = { ...merged, status: pa.status, due: pa.due,
-              assignee: pa.assignee, reply: pa.reply, replyAt: pa.replyAt, replyBy: pa.replyBy };
+              assignee: pa.assignee, assignees: pa.assignees,
+              reply: pa.reply, replyAt: pa.replyAt, replyBy: pa.replyBy };
             /* 제목·내용·부서·추가 수신자·카드 = 본인 글 또는 매니저 이상만 */
             if(!isManager(role) && owner!==me) merged = { ...merged, title: pa.title, body: pa.body,
               dept: pa.dept, cc: pa.cc, trelloUrl: pa.trelloUrl, trelloName: pa.trelloName };
