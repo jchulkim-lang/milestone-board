@@ -770,6 +770,15 @@
      border-radius:99px; padding:3px 10px; font:inherit; font-size:11px; font-weight:700; cursor:pointer; }
   .ask-pre button:hover{ color:var(--text); border-color:var(--accent); background:rgba(99,102,241,.12); }
   .ask-or{ font-size:11px; color:var(--muted); font-weight:700; margin:2px 2px 6px; }
+  /* 트렐로 카드가 올라가 있는 칸(리스트) 이름 — 「완료됐나」를 여기서 읽는다 */
+  .ask-tl{ display:inline-block; margin-top:2px; font-size:9.5px; font-weight:900; letter-spacing:.2px;
+     padding:1px 6px; border-radius:4px; border:1px solid; max-width:150px;
+     overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle; }
+  .ask-tl.t-done{ color:#34d399; border-color:rgba(52,211,153,.45); background:rgba(52,211,153,.12); }
+  .ask-tl.t-qa  { color:#38bdf8; border-color:rgba(56,189,248,.45); background:rgba(56,189,248,.12); }
+  .ask-tl.t-run { color:#fcd34d; border-color:rgba(252,211,77,.45); background:rgba(252,211,77,.12); }
+  .ask-tl.t-etc { color:#8b93a3; border-color:rgba(139,147,163,.45); background:rgba(139,147,163,.12); }
+  .ask-tl.t-off { color:#fca5a5; border-color:rgba(252,165,165,.45); background:rgba(252,165,165,.12); }
   .ask-cc{ display:flex; flex-wrap:wrap; gap:4px; margin-bottom:5px; }
   .ask-cc .mchip{ font-size:11px; padding:1px 3px 1px 8px; max-width:100%; }
   .ask-cc .mchip span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -1889,6 +1898,7 @@
         <span class="ask-seg" id="askSeg"></span>
         <input type="search" id="askQ" placeholder="제목·내용 검색">
         <span class="ask-sp"></span>
+        <button class="btn ghost sm" id="askSyncBtn" title="열린 건에 붙은 트렐로 카드가 지금 어느 칸(Resolved 등)에 있는지 읽어 옵니다">🔄 카드 상태</button>
         <button class="btn ghost sm" id="askLinkBtn" title="이 화면이 바로 열리는 주소를 복사합니다 — 클라팀에 전달하세요">🔗 링크 복사</button>
         <button class="btn sm" id="askAddBtn">＋ 문의 등록</button>
       </div>
@@ -6436,7 +6446,7 @@ function askRowHtml(a){
     `<td><div class="ask-t">${escapeHtml(a.title||"(제목 없음)")}</div>`+
       `<div class="ask-p">${escapeHtml(String(a.body||"").split("\n").filter(Boolean)[0]||"")}</div></td>`+
     `<td>${a.trelloUrl
-      ? `<a class="ask-lnk" href="${escapeHtml(a.trelloUrl)}" target="_blank" rel="noopener" title="트렐로 카드 열기">🔗 ${escapeHtml(a.trelloName||a.trelloUrl)}</a>`
+      ? `<a class="ask-lnk" href="${escapeHtml(a.trelloUrl)}" target="_blank" rel="noopener" title="트렐로 카드 열기">🔗 ${escapeHtml(a.trelloName||a.trelloUrl)}</a>${askTlHtml(a)}`
       : `<span class="ask-who">—</span>`}</td>`+
     `<td>${a.dept?`<span class="ask-dept" style="color:${col};border-color:${col}66;background:${col}14">${escapeHtml(a.dept)}</span>`:`<span class="ask-who">—</span>`}</td>`+
     `<td class="ask-who">${escapeHtml((a.by&&(a.by.name||a.by.email))||"-")}<br>${askWhen(a.at)}</td>`+
@@ -6491,6 +6501,75 @@ function paintAskMemberList(){
   dl.innerHTML = askMembers.filter(m=>m.name)
     .map(m=>{ const n=String(m.name).trim();
       return `<option value="${escapeHtml(cnt[n]>1 ? n+" ("+m.email+")" : n)}"></option>`; }).join("");
+}
+/* ===== 트렐로 카드 상태 (2026-11-09) ======================================
+   사용자 요청: **"상태를 알 수 있을까 resolved 이런 것들, 그것을 보면 완료됬는지 확인할 수 있거든"**
+   → 카드가 올라가 있는 **리스트 이름**(Resolved / 진행 중 …)을 끌어와 목록에 뱃지로 띄운다.
+   ⚠ **자동으로 읽지 않는다.** 열린 건마다 트렐로 호출 1회라, 모달을 열 때마다 긁으면 호출이 쌓인다.
+      바의 `🔄 카드 상태` 를 누를 때만 긁고, 결과를 `ask.trelloList/trelloAt` 에 **저장**해 둔다.
+      (상세를 펼치면 그 한 건만 조용히 갱신한다 — 1회.) [[free-tier-budget]] */
+function askTlCls(name, closed){
+  if(closed) return "t-off";
+  const v=String(name||"");
+  if(/resolve|done|complete|closed|완료|해결|종료/i.test(v)) return "t-done";
+  if(/qa|verify|검증|확인|리뷰|review/i.test(v)) return "t-qa";
+  if(/progress|doing|진행|작업|개발/i.test(v)) return "t-run";
+  return "t-etc";
+}
+function askTlHtml(a){
+  if(!a || !a.trelloUrl) return "";
+  if(a.trelloClosed) return `<span class="ask-tl t-off" title="트렐로에서 보관(archive)된 카드입니다">보관됨</span>`;
+  const nm=String(a.trelloList||"").trim();
+  if(!nm) return `<span class="ask-tl t-etc" title="아직 읽지 않았습니다 — 위의 🔄 카드 상태 를 누르세요">상태 ?</span>`;
+  const when=a.trelloAt ? askWhen(a.trelloAt) : "";
+  return `<span class="ask-tl ${askTlCls(nm,false)}" title="트렐로 리스트: ${escapeHtml(nm)}${when?` · ${when} 확인`:""}">${escapeHtml(nm)}</span>`;
+}
+/* 열린 건(완료 제외) 중 카드가 붙은 것들을 한 번에 긁는다. 동시 3개까지. */
+let askSyncing=false;
+async function askSyncCards(){
+  if(askSyncing) return;
+  const targets=askAll().filter(a=>a && a.trelloUrl && askStatus(a)!=="done");
+  if(!targets.length){ flashNote("읽어 올 트렐로 카드가 없습니다."); return; }
+  askSyncing=true;
+  const btn=document.getElementById("askSyncBtn");
+  if(btn){ btn.disabled=true; btn.textContent=`🔄 0 / ${targets.length}`; }
+  let done=0, fail=0;
+  const one=async a=>{
+    try{
+      const r=await fetch("/api/trello/cardinfo?url="+encodeURIComponent(a.trelloUrl), { credentials:"same-origin" });
+      const j=await r.json().catch(()=>({}));
+      if(r.ok && j.card){
+        a.trelloList=j.card.list||"";
+        a.trelloClosed=!!j.card.closed;
+        if(j.card.name) a.trelloName=j.card.name;
+        a.trelloAt=Date.now();
+      } else fail++;
+    }catch(_){ fail++; }
+    done++; if(btn) btn.textContent=`🔄 ${done} / ${targets.length}`;
+  };
+  const q=targets.slice();
+  await Promise.all([0,1,2].map(async ()=>{ while(q.length) await one(q.shift()); }));
+  askSyncing=false;
+  if(btn){ btn.disabled=false; btn.textContent="🔄 카드 상태"; }
+  save(); renderAsk();
+  /* 이 기능의 요점 — **카드는 끝났는데 문의는 아직 열려 있는 건**을 짚어 준다 */
+  const closable=targets.filter(a=> a.trelloClosed || askTlCls(a.trelloList, false)==="t-done").length;
+  flashNote(
+    (fail ? `카드 ${targets.length-fail}건을 읽었습니다. ${fail}건 실패. ` : `카드 ${targets.length}건의 상태를 읽었습니다. `)+
+    (closable ? `그중 ${closable}건은 트렐로에서 이미 끝났습니다 — 완료로 넘기시면 됩니다.` : "아직 끝난 카드는 없습니다."));
+}
+/* 상세를 펼쳤을 때 그 한 건만 — 10분 지난 것만 다시 읽는다 */
+async function askSyncOne(a){
+  if(!a || !a.trelloUrl) return;
+  if(a.trelloAt && Date.now()-a.trelloAt < 600000) return;
+  try{
+    const r=await fetch("/api/trello/cardinfo?url="+encodeURIComponent(a.trelloUrl), { credentials:"same-origin" });
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok || !j.card) return;
+    a.trelloList=j.card.list||""; a.trelloClosed=!!j.card.closed;
+    if(j.card.name) a.trelloName=j.card.name;
+    a.trelloAt=Date.now(); save(); renderAsk();
+  }catch(_){}
 }
 const askCcOf = a => Array.isArray(a && a.cc) ? a.cc : [];
 /* 담당(기획)은 **여러 명**이다 (2026-11-06). 옛 데이터는 `assignee` 문자열 1개였으므로
@@ -6547,7 +6626,8 @@ function askDetHtml(a){
         ${mg?`<input data-askas="${escapeHtml(a.id)}" placeholder="이름 입력 후 Enter">`:""}</div>
       <div class="fl"><label>트렐로 카드</label>
         <input data-asktr="${escapeHtml(a.id)}" value="${escapeHtml(a.trelloUrl||"")}" placeholder="카드 주소 붙여넣기" ${canTr?"":"disabled"}>
-        ${a.trelloName?`<div class="ask-who" style="margin-top:3px;white-space:normal">🔗 ${escapeHtml(a.trelloName)}</div>`:""}</div>
+        ${a.trelloName?`<div class="ask-who" style="margin-top:3px;white-space:normal">🔗 ${escapeHtml(a.trelloName)}</div>`:""}
+        ${a.trelloUrl?`<div style="margin-top:4px">${askTlHtml(a)}${a.trelloAt?`<span class="ask-who"> · ${askWhen(a.trelloAt)} 확인</span>`:""}</div>`:""}</div>
       <div class="fl"><label>같이 받을 사람 (카카오워크)</label>
         ${askCcHtml(a, canTr)}
         ${canTr?`<input data-askcc="${escapeHtml(a.id)}" list="askMemberList" placeholder="이름 입력 후 Enter">`:""}
@@ -6595,7 +6675,7 @@ function renderAsk(){
        `${askCanWrite()?"위의 <b>＋ 문의 등록</b> 으로 올릴 수 있습니다.":"읽기 전용 계정입니다."}</div></td></tr>`;
   tb.innerHTML=h;
   const ft=document.getElementById("askFoot");
-  if(ft) ft.innerHTML = `<span>행을 누르면 아래로 펼쳐집니다. <b>🔗 링크 복사</b> 로 받은 주소를 열면 이 화면이 바로 뜹니다.</span><span class="ask-sp"></span>`+
+  if(ft) ft.innerHTML = `<span>행을 누르면 아래로 펼쳐집니다. <b>🔄 카드 상태</b> 로 트렐로에서 지금 어느 칸에 있는지 읽어 옵니다.</span><span class="ask-sp"></span>`+
     `<span>${askAll().length} / ${ASK_MAX}건 · 본문 ${ASK_BODY_MAX}자 · 완료 건은 「열린 건」에서 빠집니다</span>`;
   paintAskBtn();
 }
@@ -6725,6 +6805,7 @@ document.getElementById("askModal").addEventListener("click", e=>{
     const a=askOf(id); if(!a) return;
     if(!(askCanManage() || askIsMine(a))) return;
     a.cc=askCcOf(a).filter(x=>x!==mail); save(); renderAsk(); return; }
+  if(e.target.closest("#askSyncBtn")){ askSyncCards(); return; }
   const lk=e.target.closest("#askLinkBtn,[data-asklink]");
   if(lk){ askCopyLink(lk, lk.dataset ? lk.dataset.asklink : ""); return; }
   if(e.target.closest("#askNCancel")){ askAdding=false; askNewTr={url:"",name:""}; renderAsk(); return; }
@@ -6761,7 +6842,8 @@ document.getElementById("askModal").addEventListener("click", e=>{
     if(askSel===a.id) askSel=""; save(); renderAsk(); return; }
   const row=e.target.closest("[data-askrow]");
   if(row){ if(e.target.closest("input,select,textarea,a,button")) return;
-    askSel = (askSel===row.dataset.askrow) ? "" : row.dataset.askrow; renderAsk(); }
+    askSel = (askSel===row.dataset.askrow) ? "" : row.dataset.askrow; renderAsk();
+    if(askSel) askSyncOne(askOf(askSel)); }
 });
 document.getElementById("askModal").addEventListener("change", e=>{
   const mg=askCanManage();

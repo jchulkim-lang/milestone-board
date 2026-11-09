@@ -15,7 +15,7 @@ const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 �
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026110604;
+const APP_BUILD = 2026110901;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -887,12 +887,16 @@ async function trelloAudit(env){
     if(hit) return json({ ok:true, cached:true, card:hit });
     let raw;
     try{
+      /* 리스트 이름(= 그 카드가 올라가 있는 칸: Resolved / 진행 중 …)을 같이 읽는다.
+         사용자가 이걸로 **완료 여부를 판단**한다 (2026-11-09). 중첩 파라미터라 호출 수는 그대로 1회. */
       raw = await trelloFetch(env, `/cards/${encodeURIComponent(cid)}?`+
         `fields=name,shortUrl,closed,dateLastActivity`+
+        `&list=true&list_fields=name`+
         (wantC ? `&actions=commentCard&actions_limit=10` : ``));
     }catch(e){ return json({ error:String(e&&e.message||e), reason:"trello-error" }, 502); }
     const card = {
       id: raw.id, name: raw.name||"", url: raw.shortUrl||"", closed: !!raw.closed,
+      list: (raw.list && raw.list.name) || "",
       at: raw.dateLastActivity||"",
       comments: (raw.actions||[]).filter(a=>a.type==="commentCard").slice(0,10).map(a=>({
         by: (a.memberCreator && (a.memberCreator.fullName||a.memberCreator.username)) || "",
