@@ -1194,24 +1194,39 @@
     --qa-c:#22d3ee; --qa-c-dim:rgba(34,211,238,.30);
     --qa-c-bg:rgba(34,211,238,.13); --qa-c-bd:rgba(34,211,238,.50);
   }
+  /* ===== 라이트 = 「카카오워크 3톤」 (2026-11-11, build 2026111104) =====================
+     사용자 지시: 카카오워크처럼 하되 **"흰색은 밝은기를 더 빼 달라 — 눈 아프다"**.
+     카카오워크 화면에서 실제 픽셀을 뽑아 보니 세 톤이었다:
+       ① 레일 #343858(짙은 남보라) ② 목록 #FFFFFF ③ 본문 바탕 #F8F9FB
+     **화면이 안 하얘 보이는 진짜 이유는 레일이다** — 면적은 좁아도 눈의 기준점이 돼서
+     나머지 흰 면을 눌러 준다. 전체를 회색으로 낮추는 접근은 방향이 틀렸다(시안으로 확인).
+     보드엔 레일이 없으므로 **상단바·컨텍스트바·하단바**가 그 자리를 맡는다(아래 스코프 규칙).
+     카드 면은 원안(#FFFFFF, 밝기 100%)에서 **#EFF1F5(88%)로 더 내렸다** — 사용자 요청.
+     ⚠ 더 올리려면 panel #F4F6F8(92%), 더 내리려면 #E9ECF1(84%). bg 도 같은 폭으로 같이 움직일 것. */
   body.light{
-    --bg:#eef1f8; --panel:#ffffff; --panel2:#f2f5fa; --line:#e2e7f0; --grid:#eef1f6;
-    --text:#1a2030; --muted:#5f6878; --accent:#6366f1; --accent2:#9333ea;
-    --rowhead:#f2f5fa; --rowhead-h:#e9eef6; --mon:#d3dae7; --scroll:#c5cdda;
-    --grad-soft:linear-gradient(135deg,rgba(99,102,241,.12),rgba(168,85,247,.10));
-    --glow:0 6px 18px rgba(99,102,241,.20);
-    --qa-c:#0891b2; --qa-c-dim:rgba(8,145,178,.30);
-    --qa-c-bg:rgba(8,145,178,.12); --qa-c-bd:rgba(8,145,178,.45);
+    --bg:#e5e8ee; --panel:#eff1f5; --panel2:#e3e7ed; --line:#d5dae3; --grid:#e8ebf0;
+    --text:#23262d; --muted:#636a76; --accent:#3c5fd0; --accent2:#3c5fd0;
+    --rowhead:#ebeef3; --rowhead-h:#e1e5ec; --mon:#c4cad4; --scroll:#b6bdc8;
+    --grad:linear-gradient(135deg,#3c5fd0 0%,#3c5fd0 100%);
+    --grad-soft:linear-gradient(135deg,rgba(60,95,208,.12),rgba(60,95,208,.09));
+    --glow:0 2px 8px rgba(35,40,60,.16);
+    --qa-c:#0e7490; --qa-c-dim:rgba(14,116,144,.26);
+    --qa-c-bg:rgba(14,116,144,.11); --qa-c-bd:rgba(14,116,144,.42);
   }
+  /* 틀(= 카카오워크의 레일). ⚠ 글자색을 덮어씌우지 말고 **바 안에서 변수를 다시 정의**한다 —
+     그래야 그 안의 부서 칩·버튼·드롭다운이 전부 알아서 따라온다.
+     (덮어씌우기로 했다가 부서 칩이 묻히는 것을 시안에서 확인하고 이 방식으로 바꿨다.) */
+  body.light .topbar, body.light .ctxbar, body.light .footbar{
+    --panel:#343858; --panel2:#3e4368; --line:#474c77; --text:#edeff5; --muted:#aeb6c6;
+    background:#343858; border-color:#474c77; color:#edeff5; }
+  body.light .topbar .btn, body.light .ctxbar .btn, body.light .footbar .btn{ border-color:#474c77; }
   html,body{ font-family:'Pretendard Variable','Pretendard',-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',sans-serif; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
   body{ background:
       radial-gradient(1100px 560px at 10% -12%, rgba(99,102,241,.10), transparent 60%),
       radial-gradient(1000px 560px at 102% -4%, rgba(168,85,247,.08), transparent 55%),
       var(--bg); background-attachment:fixed; }
-  body.light{ background:
-      radial-gradient(1100px 560px at 10% -12%, rgba(99,102,241,.09), transparent 60%),
-      radial-gradient(1000px 560px at 102% -4%, rgba(168,85,247,.07), transparent 55%),
-      var(--bg); background-attachment:fixed; }
+  /* 라이트는 **평평하게**. 보라빛 글로우가 밝은 바탕과 겹치면 번들거린다(사용자 제보). */
+  body.light{ background:var(--bg); background-attachment:fixed; }
 
   /* 상단바 */
   .topbar{ background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0)), var(--panel);
