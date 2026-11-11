@@ -3677,7 +3677,11 @@ leftBody.addEventListener("click", e=>{
   { const _dh=e.target.closest("[data-drag]");
     if(_dh && !canReorder()){ e.stopPropagation(); noticeSortLock(); return; } }
   if(e.target.closest("a")) return;
-  if(e.target.closest("[data-status]")||e.target.closest("[data-setms]")||e.target.closest("[data-settrack]")||e.target.closest("[data-prio]")) return;
+  /* ⚠ **행 안의 select 는 전부 여기서 빠져나가야 한다.** 안 그러면 아래 [data-toggleopen] 이
+     행을 펼치며 render() 를 돌리고, **열려 있던 드롭다운이 통째로 교체돼 즉시 닫힌다**
+     → 값을 고를 수가 없다. (2026-11-11 볼륨 select 를 추가하면서 이 줄에 안 넣어 실제로 터졌다.)
+     행에 select 를 새로 넣으면 **반드시 이 목록에도 추가할 것.** */
+  if(e.target.closest("[data-status]")||e.target.closest("[data-setms]")||e.target.closest("[data-settrack]")||e.target.closest("[data-prio]")||e.target.closest("[data-vol]")) return;
   const grp=e.target.closest("[data-group]"); if(grp){ const k=grp.dataset.group; groupCollapsed.has(k)?groupCollapsed.delete(k):groupCollapsed.add(k); render(); return; }
   const mg=e.target.closest("[data-memgroup]"); if(mg){ const k="g:"+mg.dataset.memgroup; memCollapsed.has(k)?memCollapsed.delete(k):memCollapsed.add(k); render(); return; }
   const mt=e.target.closest("[data-memtoggle]"); if(mt){ const k=mt.dataset.memtoggle; memCollapsed.has(k)?memCollapsed.delete(k):memCollapsed.add(k); render(); return; }
