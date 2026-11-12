@@ -15,7 +15,7 @@ const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 �
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026111104;
+const APP_BUILD = 2026111201;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -738,6 +738,11 @@ async function handleApi(request, env, url, ctx){
           }
           incoming = { ...incoming, asks: out };
         }
+        /* 「업데이트 폴더」 리소스 표(state.ufolders) = **매니저 이상만**.
+           아트팀이 이 표를 보고 리소스를 배치하므로 아무나 고쳐서는 안 된다(2026-11-12).
+           거부가 아니라 **저장본으로 덮어쓰기** — 이 파일의 다른 가드와 같은 방식이다.
+           prev.ufolders 가 undefined 면 그대로 undefined 로 되돌아간다(JSON.stringify 가 키를 버린다). */
+        if(!isManager(role) && prev) incoming = { ...incoming, ufolders: prev.ufolders };
         if(!isManager(role) && prev && Array.isArray(prev.tasks) && Array.isArray(incoming.tasks)){
           const pm = new Map(prev.tasks.filter(t=>t&&t.id).map(t=>[t.id,t]));
           incoming = { ...incoming, tasks: incoming.tasks.map(t=>{

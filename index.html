@@ -712,6 +712,75 @@
      display:flex; flex-direction:column; overflow:hidden; }
   #roadmapModal .modal > *, #planModal .modal > *, #msModal .modal > *{ flex:0 0 auto; }
   #roadmapModal .rm-scroll, #planModal .sp-scroll{ flex:1 1 0; max-height:none; min-height:0; }
+  /* === 「업데이트 폴더」 — 폴더별 리소스 기재 (2026-11-12) =====================
+     틀은 일정 허브 세 탭과 같게(96vw × 88vh). 표 영역만 flex:1.
+     클래스는 전부 `uf-` 로 묶어 둔다 — .badge/.sum/.det 같은 일반명은 다른 뎀과 부딪힌다. */
+  #ufModal .modal{ width:96vw; max-width:96vw; height:88vh; max-height:88vh;
+     display:flex; flex-direction:column; overflow:hidden; }
+  #ufModal .modal > *{ flex:0 0 auto; }
+  #ufModal .uf-scroll{ flex:1 1 0; min-height:0; overflow:auto;
+     border:1px solid var(--line); border-radius:10px; background:var(--bg); }
+  .uf-tbl{ width:100%; border-collapse:separate; border-spacing:0; font-size:12.5px; }
+  .uf-tbl th, .uf-tbl td{ border-bottom:1px solid var(--line); padding:0; }
+  .uf-tbl thead th{ position:sticky; top:0; z-index:2; background:var(--rowhead); color:var(--muted);
+     font-weight:800; font-size:11.5px; padding:8px 6px; text-align:center; white-space:nowrap; }
+  .uf-tbl thead th.uf-fold{ text-align:left; padding-left:12px; width:236px; z-index:3; }
+  .uf-tbl thead th.uf-sum{ width:64px; }
+  .uf-tbl thead th i{ display:inline-block; width:7px; height:7px; border-radius:50%;
+     margin-right:5px; vertical-align:middle; }
+  .uf-fcell{ padding:9px 12px; background:var(--rowhead); border-right:1px solid var(--line); }
+  .uf-r{ cursor:pointer; }
+  .uf-r:hover .uf-fcell{ background:var(--rowhead-h); }
+  .uf-fname{ font-weight:800; font-size:13.5px; letter-spacing:.4px; display:flex; align-items:center; gap:7px; }
+  .uf-caret{ color:var(--muted); font-size:10px; }
+  .uf-badge{ font-size:10px; font-weight:900; padding:2px 6px; border-radius:5px; letter-spacing:.3px; }
+  .uf-b-build{ background:rgba(252,211,77,.14); color:#fcd34d; }
+  .uf-b-cdn{ background:rgba(56,189,248,.14); color:#38bdf8; }
+  /* 라이트에서는 연른 색이 흰 바탕에 묻힌다 — 글자만 진하게 바꾸고 연한 칩은 그대로 둔다. */
+  body.light .uf-b-build{ background:rgba(161,98,7,.12); color:#a16207; }
+  body.light .uf-b-cdn{ background:rgba(3,105,161,.12); color:#0369a1; }
+  .uf-fmeta{ font-size:11px; color:var(--muted); margin-top:3px; }
+  .uf-fpath{ font-size:10.5px; color:var(--muted); opacity:.75; margin-top:4px;
+     font-family:ui-monospace,Menlo,Consolas,monospace; display:flex; align-items:center; gap:5px; }
+  .uf-cpy{ background:var(--panel2); border:1px solid var(--line); color:var(--muted);
+     border-radius:5px; font-size:10px; padding:1px 6px; cursor:pointer; font-family:inherit; white-space:nowrap; }
+  .uf-cpy:hover{ color:var(--text); border-color:var(--accent); }
+  .uf-tbl td.uf-c{ text-align:center; vertical-align:middle; border-right:1px solid var(--grid); min-width:84px; }
+  .uf-n{ font-size:17px; font-weight:800; line-height:1.1; }
+  .uf-n.zero{ color:var(--muted); opacity:.35; font-weight:600; font-size:14px; }
+  .uf-tbl td.uf-sum{ text-align:center; font-weight:800; color:var(--accent); background:var(--panel2); }
+  .uf-tbl tr.uf-tot td{ background:var(--panel2); font-weight:800; text-align:center;
+     padding:8px 0; border-bottom:0; }
+  .uf-tbl tr.uf-tot td.uf-fcell{ text-align:left; color:var(--muted); font-size:11.5px; }
+  .uf-tbl tr.uf-det td{ background:var(--panel); padding:0; }
+  .uf-detwrap{ padding:10px 14px 12px; max-width:1180px; }
+  .uf-ditem{ display:flex; align-items:center; gap:9px; font-size:12px; padding:5px 0;
+     border-bottom:1px dashed var(--line); }
+  .uf-ditem:last-of-type{ border-bottom:0; }
+  .uf-dk{ font-size:10px; font-weight:800; padding:3px 8px; border-radius:5px;
+     background:var(--panel2); color:var(--muted); min-width:72px; text-align:center; }
+  .uf-dn{ flex:1; color:var(--text); min-width:0; }
+  .uf-dc{ font-weight:800; color:var(--accent); min-width:34px; text-align:right; }
+  /* ⚠ `.modal input,.modal select{width:100%}` 이 이기려든다 — **폭을 명시하지 않으면**
+     select 가 한 줄을 다 먹고 이름란이 0px 로 눌린다(실측 2026-11-12). width 를 반드시 적는다. */
+  .uf-ditem select.uf-dk{ width:auto; flex:0 0 auto; min-width:106px; font-family:inherit; font-size:11.5px;
+     border:1px solid var(--line); color:var(--text); cursor:pointer; padding:4px 6px; text-align:left; }
+  .uf-ditem input.uf-dn{ width:auto; flex:1 1 auto; min-width:0; background:var(--panel2);
+     border:1px solid var(--line); color:var(--text); border-radius:6px; padding:5px 9px; font:inherit; font-size:12px; }
+  .uf-ditem input.uf-dc{ width:74px; flex:0 0 auto; background:var(--panel2); border:1px solid var(--line);
+     color:var(--text); border-radius:6px; padding:5px 7px; font:inherit; font-size:12px; text-align:right; }
+  .uf-dx{ background:transparent; border:1px solid var(--line); color:var(--muted);
+     border-radius:6px; padding:3px 7px; font:inherit; font-size:11px; cursor:pointer; }
+  .uf-dx:hover{ color:#f87171; border-color:#f87171; }
+  .uf-add{ margin-top:9px; background:var(--panel2); border:1px dashed var(--line); color:var(--muted);
+     border-radius:7px; padding:5px 12px; font-family:inherit; font-size:11.5px; font-weight:700; cursor:pointer; }
+  .uf-add:hover{ color:var(--text); border-color:var(--accent); }
+  .uf-none{ color:var(--muted); font-size:11.5px; padding:2px 0 4px; }
+  .uf-empty{ padding:40px 20px; text-align:center; color:var(--muted); font-size:13px; line-height:2; }
+  .uf-empty b{ color:var(--text); }
+  .uf-foot{ display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--muted); flex-wrap:wrap; }
+  .uf-foot code{ font-family:ui-monospace,Menlo,Consolas,monospace; color:var(--text); }
+
   /* === 「기획 문의」 — 클라팀 요청함 (2026-11-05) ============================
      틀은 일정 허브 세 탭과 같게(96vw × 88vh, flex 세로). 표 영역만 flex:1 로 남은 높이를 다 쓴다.
      ⚠ 이 모달에 직계 자식을 더 넣으면 `flex:0 0 auto` 를 받는다 — 늘어나야 하면 따로 지정할 것. */
@@ -1699,6 +1768,7 @@
       <button class="btn ghost sm" id="dashBtn">📊 대시보드</button>
       <button class="btn ghost sm" id="roadmapBtn">🗺 발주 로드맵</button>
       <button class="btn ghost sm" id="planBtn">📅 서비스 플랜</button>
+      <button class="btn ghost sm" id="ufBtn" title="업데이트 폴더에 들어갈 리소스 목록">📦 업데이트 폴더</button>
       <button class="btn ghost sm" id="auditBtn">🔍 점검</button>
       <button class="btn ghost sm" id="trelloBtn" style="display:none">🔗 트렐로 동기화</button>
       <button class="btn ghost sm" id="historyBtn">🕘 히스토리</button>
@@ -1766,7 +1836,7 @@
   </div>
   <div class="modal-bg" id="msModal">
     <div class="modal">
-      <div class="hub-head"><span class="hub-tabs"><button type="button" class="hub-tab " data-hubtab="rm">🗺 발주 로드맵</button><button type="button" class="hub-tab " data-hubtab="sp">📅 서비스 플랜</button><button type="button" class="hub-tab on" data-hubtab="ms">⚙ 마일스톤</button></span><button type="button" class="hub-x" data-close>✕ 닫기</button></div><div class="msub" id="msModalSub">여러 마일스톤을 만들고 각 Task에 배정합니다. 목록에서 선택해 편집하세요.</div>
+      <div class="hub-head"><span class="hub-tabs"><button type="button" class="hub-tab " data-hubtab="rm">🗺 발주 로드맵</button><button type="button" class="hub-tab " data-hubtab="sp">📅 서비스 플랜</button><button type="button" class="hub-tab on" data-hubtab="ms">⚙ 마일스톤</button><button type="button" class="hub-tab " data-hubtab="uf">📦 업데이트 폴더</button></span><button type="button" class="hub-x" data-close>✕ 닫기</button></div><div class="msub" id="msModalSub">여러 마일스톤을 만들고 각 Task에 배정합니다. 목록에서 선택해 편집하세요.</div>
       <div class="ms-split">
       <div class="ms-left" id="msLeft">
       <div class="ro-note" id="msRoNote">🔒 읽기 전용 — 마일스톤 편집은 관리자만 할 수 있습니다. 내용 확인은 자유롭게 하세요.</div>
@@ -1872,7 +1942,7 @@
     </div>
   </div>
   <div class="modal-bg" id="planModal">
-    <div class="modal sp-modal"><div class="hub-head"><span class="hub-tabs"><button type="button" class="hub-tab " data-hubtab="rm">🗺 발주 로드맵</button><button type="button" class="hub-tab on" data-hubtab="sp">📅 서비스 플랜</button><button type="button" class="hub-tab " data-hubtab="ms">⚙ 마일스톤</button></span><button type="button" class="hub-x" data-close>✕ 닫기</button></div>
+    <div class="modal sp-modal"><div class="hub-head"><span class="hub-tabs"><button type="button" class="hub-tab " data-hubtab="rm">🗺 발주 로드맵</button><button type="button" class="hub-tab on" data-hubtab="sp">📅 서비스 플랜</button><button type="button" class="hub-tab " data-hubtab="ms">⚙ 마일스톤</button><button type="button" class="hub-tab " data-hubtab="uf">📦 업데이트 폴더</button></span><button type="button" class="hub-x" data-close>✕ 닫기</button></div>
       <div class="msub" id="spSub">런칭 이후 라이브 운영 일정입니다. 행 = 운영 트랙, 열 = 런칭 기준 주차.</div>
       <div class="sp-guide" id="spGuide"></div>
       <div class="sp-scroll scrollbar"><div class="sp-grid" id="spGrid"></div></div>
@@ -1881,8 +1951,17 @@
         <div class="right"><button class="btn" data-close>닫기</button></div></div>
     </div>
   </div>
+  <div class="modal-bg" id="ufModal">
+    <div class="modal uf-modal"><div class="hub-head"><span class="hub-tabs"><button type="button" class="hub-tab " data-hubtab="rm">🗺 발주 로드맵</button><button type="button" class="hub-tab " data-hubtab="sp">📅 서비스 플랜</button><button type="button" class="hub-tab " data-hubtab="ms">⚙ 마일스톤</button><button type="button" class="hub-tab on" data-hubtab="uf">📦 업데이트 폴더</button></span><button type="button" class="hub-x" data-close>✕ 닫기</button></div>
+      <div class="msub" id="ufSub">업데이트 폴더에 들어갈 리소스를 종류별로 적어 둡니다. 아트팀은 이 표를 보고 해당 폴더에 리소스를 배치합니다. 폴더 줄을 누르면 목록이 펼쳐집니다.</div>
+      <div class="uf-scroll scrollbar"><div id="ufGrid"></div></div>
+      <div class="modal-actions">
+        <div class="uf-foot" id="ufFoot"></div>
+        <div class="right"><button class="btn" data-close>닫기</button></div></div>
+    </div>
+  </div>
   <div class="modal-bg" id="roadmapModal">
-    <div class="modal rm-modal"><div class="hub-head"><span class="hub-tabs"><button type="button" class="hub-tab on" data-hubtab="rm">🗺 발주 로드맵</button><button type="button" class="hub-tab " data-hubtab="sp">📅 서비스 플랜</button><button type="button" class="hub-tab " data-hubtab="ms">⚙ 마일스톤</button></span><button type="button" class="hub-x" data-close>✕ 닫기</button></div>
+    <div class="modal rm-modal"><div class="hub-head"><span class="hub-tabs"><button type="button" class="hub-tab on" data-hubtab="rm">🗺 발주 로드맵</button><button type="button" class="hub-tab " data-hubtab="sp">📅 서비스 플랜</button><button type="button" class="hub-tab " data-hubtab="ms">⚙ 마일스톤</button><button type="button" class="hub-tab " data-hubtab="uf">📦 업데이트 폴더</button></span><button type="button" class="hub-x" data-close>✕ 닫기</button></div>
       <div class="msub" id="rmSub">월별로 무엇이 발주·킥오프되는지 한눈에 봅니다.</div>
       <div class="rm-notes" id="rmNotes"></div>
       <div class="rm-filter" id="rmFilter"></div>
@@ -3840,6 +3919,7 @@ let editing=null;
 const taskModal=document.getElementById("taskModal"), taskInput=document.getElementById("taskInput"), taskMs=document.getElementById("taskMs");
 const roadmapModal=document.getElementById("roadmapModal"), trelloModal=document.getElementById("trelloModal");
 const planModal=document.getElementById("planModal");
+const ufModal=document.getElementById("ufModal");
 const holModal=document.getElementById("holModal");
 const auditModal=document.getElementById("auditModal");
 const noteModal=document.getElementById("noteModal");
@@ -3851,7 +3931,7 @@ function cancelPendingDept(){
   editing.justOn=false;
   if(sg && sg.on && sg.sched===false){ sg.on=false; save(); render(); }
 }
-function closeModals(){ cancelPendingDept(); closeRmPop(); closeSpPop(); [noteModal,taskModal,auditModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,lbMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal,askModal].forEach(m=>m.classList.remove("show")); }
+function closeModals(){ cancelPendingDept(); closeRmPop(); closeSpPop(); [noteModal,taskModal,auditModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,lbMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal,askModal,ufModal].forEach(m=>m.classList.remove("show")); }
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=closeModals);
 [noteModal,taskModal,auditModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,lbMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal,askModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
 
@@ -5556,10 +5636,154 @@ function openPlan(){ const fresh=!state.plan; planState();
   if(fresh && spCanEdit()) save();          // 첫 열람에서 시드를 한 번 저장해 모두가 같은 표를 본다
   renderPlan(); planModal.classList.add("show"); }
 
+/* ===== 「업데이트 폴더」 탭 (2026-11-12, build 2026111201) ======================
+   사용자 지시: "서비스 플랜의 1_1_a, 1_1_b 의 업데이트 폴더에 들어갈 볼륨을 기재할거야.
+                아트팀이 해당 볼륨을 보고 아래의 업데이트 폴더에 리소스를 적용해둘거야."
+   근거 티켓: #Tech [시스템/엔진] CDN 빌드/배포 디렉터리 및 폴더 구조 개편 (trello.com/c/gUAuD9bS)
+             — 미출시 스펙이 CDN 에 혼입되는 걸 막기 위해 폴더를 물리적으로 나눈다. 목표 M11.
+   시안 B안 채택(2026-11-12): 표는 **숫자만**, 폴더 줄을 누르면 그 아래 리소스 항목이 펼쳐진다.
+   「확정/미확정」 표시는 사용자 지시로 **넣지 않았다**.
+
+   ⚠ 폴더 목록은 **코드에 없다**. SP_SEED 에는 「업데이트 폴더」 트랙이 없고 운영 D1 데이터에만
+     있으므로 하드코딩하면 빈 표가 된다. spUpdRow() 와 같은 방식으로 런타임에 찾는다.
+   ⚠ 데이터 키는 **폴더 이름 문자열**(1_1_a). 항목 id 가 아니라 이름이라, 서비스 플랜에서
+     폴더 이름을 바꾸면 기재분이 떨어져 나간다 — 이름은 안 바꾸는 것이 전제다.
+   ⚠ 기간·빌드/CDN 뱃지는 서비스 플랜 계산(spRange/spNcKind)을 그대로 쓴다. 중복 입력 없음. */
+const UF_KINDS = [["BG","#22c55e"],["Cinematic","#a855f7"],["FX","#f97316"],["Movie","#ec4899"],["UI","#38bdf8"],["Unit","#eab308"]];
+const UF_ROOT  = "Content/GameR/Update/";
+/* 폴더 하나당 줄 상한 — 무료 D1 때문이다. state 는 한 덩어리 JSON 이라 저장·폴링마다 통째로 오간다.
+   한 줄이 대략 90바이트이니 → 폴더 20개 × 60줄 = 약 110KB 가 최악이고, 평상시는 수 KB 수준. */
+const UF_MAX   = 60;
+function ufRow(){
+  for(const sec of planState().sections||[])
+    for(const r of sec.rows||[]) if(/업데이트\s*폴더/.test(r.name||"")) return r;
+  return null;
+}
+function ufAll(){ if(!state.ufolders || typeof state.ufolders!=="object" || Array.isArray(state.ufolders)) state.ufolders={}; return state.ufolders; }
+const ufKey = it => String((it&&it.text)||"").trim();
+function ufItems(key){ const a=ufAll(); if(!Array.isArray(a[key])) a[key]=[]; return a[key]; }
+/* 편집은 매니저 이상 — 담당자·일정과 같은 등급(ASG_ROLES). 그 아래는 읽기 전용. */
+const ufCanEdit = () => askCanWrite() && askCanManage();
+const ufCount = (key,k) => ufItems(key).filter(x=>x&&x.k===k).reduce((s,x)=>s+(Number(x.n)||0),0);
+const ufNewId = () => "ufi"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+/* 펼쳐진 폴더 — 화면 상태라 state 에 저장하지 않는다(다른 사람 화면을 맘대로 열지 않게). */
+let ufOpenSet = new Set();
+function ufRef(ds){
+  const p=String(ds||"").split("|"), key=p[0], id=p[1], list=ufItems(key);
+  return { key, id, list, it:list.find(x=>x&&x.id===id)||null };
+}
+function ufDetail(key, can){
+  const list=ufItems(key);
+  let h='<div class="uf-detwrap">';
+  if(!list.length) h+='<div class="uf-none">아직 기재된 리소스가 없습니다.</div>';
+  for(const x of list){
+    if(!x || !x.id) continue;
+    const ref=escapeHtml(key)+"|"+escapeHtml(x.id);
+    h+='<div class="uf-ditem">';
+    if(can){
+      h+=`<select class="uf-dk" data-ufk="${ref}" title="리소스 종류">`+
+         UF_KINDS.map(([k])=>`<option value="${k}" ${x.k===k?"selected":""}>${k}</option>`).join("")+`</select>`+
+         `<input class="uf-dn" data-ufn="${ref}" value="${escapeHtml(x.name||"")}" maxlength="120" `+
+           `placeholder="무엇이 들어가는지 (예: 신규 캐릭터 — 리나 / 카일)">`+
+         `<input class="uf-dc" type="number" min="0" max="999" step="1" data-ufc="${ref}" value="${Number(x.n)||0}" title="개수">`+
+         `<button type="button" class="uf-dx" data-ufdel="${ref}" title="이 줄 삭제">✕</button>`;
+    }else{
+      h+=`<span class="uf-dk">${escapeHtml(x.k||"")}</span>`+
+         `<span class="uf-dn">${escapeHtml(x.name||"")||'<i style="opacity:.4">(내용 없음)</i>'}</span>`+
+         `<span class="uf-dc">${Number(x.n)||0}</span>`;
+    }
+    h+='</div>';
+  }
+  if(can) h+=`<button type="button" class="uf-add" data-ufadd="${escapeHtml(key)}">＋ 리소스 추가</button>`;
+  return h+'</div>';
+}
+function renderUF(){
+  const grid=document.getElementById("ufGrid"), foot=document.getElementById("ufFoot");
+  if(!grid) return;
+  const row=ufRow(), can=ufCanEdit();
+  const items=[...((row&&row.items)||[])].filter(it=>ufKey(it)).sort((a,b)=>(a.s||0)-(b.s||0));
+  if(!items.length){
+    grid.innerHTML='<div class="uf-empty">서비스 플랜에 「업데이트 폴더」 트랙이 없습니다.<br>'+
+      '📅 서비스 플랜 탭에서 트랙 이름에 <b>업데이트 폴더</b> 가 들어가는 행을 만들고 '+
+      '<b>1_1_a</b> 같은 항목을 넣으면 이 표에 줄이 생깁니다.</div>';
+    if(foot) foot.innerHTML='';
+    return;
+  }
+  const tot={}; UF_KINDS.forEach(([k])=>tot[k]=0);
+  let h='<table class="uf-tbl"><thead><tr><th class="uf-fold">업데이트 폴더</th>'+
+    UF_KINDS.map(([k,c])=>`<th><i style="background:${c}"></i>${k}</th>`).join("")+
+    '<th class="uf-sum">합계</th></tr></thead><tbody>';
+  for(const it of items){
+    const key=ufKey(it), open=ufOpenSet.has(key);
+    const kind=spNcKind(it), rng=spRange(it);
+    const cnt=UF_KINDS.map(([k])=>{ const n=ufCount(key,k); tot[k]+=n; return n; });
+    const sum=cnt.reduce((a,b)=>a+b,0);
+    h+=`<tr class="uf-r" data-uffold="${escapeHtml(key)}">`+
+      `<td class="uf-fcell"><div class="uf-fname"><span class="uf-caret">${open?"▼":"▶"}</span>${escapeHtml(key)}`+
+        `<span class="uf-badge uf-b-${spNcCls(kind)}">${spNcLabel(kind)}</span></div>`+
+      `<div class="uf-fmeta">${escapeHtml(rng.label)}</div>`+
+      `<div class="uf-fpath">…/Update/${escapeHtml(key)}`+
+        `<button type="button" class="uf-cpy" data-ufcopy="${escapeHtml(key)}" title="${escapeHtml(UF_ROOT+key)}">경로 복사</button></div></td>`+
+      cnt.map(n=>`<td class="uf-c">${n?`<b class="uf-n">${n}</b>`:'<b class="uf-n zero">—</b>'}</td>`).join("")+
+      `<td class="uf-sum">${sum||"—"}</td></tr>`;
+    if(open) h+=`<tr class="uf-det"><td colspan="${UF_KINDS.length+2}">${ufDetail(key,can)}</td></tr>`;
+  }
+  const grand=UF_KINDS.reduce((s,[k])=>s+tot[k],0);
+  h+='<tr class="uf-tot"><td class="uf-fcell">종류별 합계</td>'+
+     UF_KINDS.map(([k])=>`<td>${tot[k]||"—"}</td>`).join("")+
+     `<td>${grand||"—"}</td></tr></tbody></table>`;
+  grid.innerHTML=h;
+  if(foot) foot.innerHTML=`<span>📁 <code>${escapeHtml(UF_ROOT)}</code></span><span>·</span>`+
+    `<span>폴더 ${items.length}개 · 리소스 ${grand}건</span><span>·</span>`+
+    `<span>${can?"매니저 이상 편집 가능":"읽기 전용"}</span>`;
+}
+/* ⚠ 재그리기는 **한 틱 미룬다**. change 는 blur 도중에 떠는데 그 자리에서 그리드 innerHTML 을 갈면
+   "The node to be removed is no longer a child of this node" 예외가 난다(실측 2026-11-12). */
+let _ufT=0;
+function ufRedraw(){ clearTimeout(_ufT); _ufT=setTimeout(renderUF, 0); }
+function openUF(){ planState(); renderUF(); ufModal.classList.add("show"); }
+(function ufWire(){
+  const g=document.getElementById("ufGrid"); if(!g) return;
+  g.addEventListener("click", e=>{
+    const cp=e.target.closest("[data-ufcopy]");
+    if(cp){ e.stopPropagation(); const path=UF_ROOT+cp.dataset.ufcopy;
+      const done=()=>{ const o=cp.textContent; cp.textContent="✓ 복사됨";
+        setTimeout(()=>{ try{ cp.textContent=o; }catch(_){} }, 1500); };
+      if(navigator.clipboard && navigator.clipboard.writeText)
+        navigator.clipboard.writeText(path).then(done).catch(()=>fallbackCopyText(path,done));
+      else fallbackCopyText(path, done);
+      return; }
+    const ad=e.target.closest("[data-ufadd]");
+    if(ad){ e.stopPropagation(); if(!ufCanEdit()) return;
+      const list=ufItems(ad.dataset.ufadd);
+      if(list.length>=UF_MAX){ flashNote("폴더 하나에 "+UF_MAX+"줄까지만 적을 수 있습니다."); return; }
+      list.push({ id:ufNewId(), k:UF_KINDS[0][0], name:"", n:1 });
+      save(); ufRedraw(); return; }
+    const dl=e.target.closest("[data-ufdel]");
+    if(dl){ e.stopPropagation(); if(!ufCanEdit()) return;
+      const r=ufRef(dl.dataset.ufdel); if(!r.it) return;
+      r.list.splice(r.list.indexOf(r.it),1); save(); ufRedraw(); return; }
+    /* 상세 줄 안의 입력란은 .uf-det 행이라 [data-uffold] 가 안 잡힌다 — 접힘 사고 없음 */
+    const fr=e.target.closest("[data-uffold]");
+    if(fr){ const k=fr.dataset.uffold;
+      if(ufOpenSet.has(k)) ufOpenSet.delete(k); else ufOpenSet.add(k);
+      ufRedraw(); }
+  });
+  /* change 는 blur 에 떠므로 다시 그려도 포커스가 날아가지 않는다(합계를 갱신해야 하므로 필요). */
+  g.addEventListener("change", e=>{
+    if(!ufCanEdit()) return;
+    const t=e.target;
+    if(t.matches("[data-ufk]")){ const r=ufRef(t.dataset.ufk); if(r.it){ r.it.k=t.value; save(); ufRedraw(); } return; }
+    if(t.matches("[data-ufn]")){ const r=ufRef(t.dataset.ufn); if(r.it){ r.it.name=String(t.value||"").slice(0,120); save(); } return; }
+    if(t.matches("[data-ufc]")){ const r=ufRef(t.dataset.ufc);
+      if(r.it){ r.it.n=Math.max(0, Math.min(999, Math.round(Number(t.value)||0))); save(); ufRedraw(); } return; }
+  });
+})();
+
 /* 발주 로드맵(런칭 이전) ↔ 서비스 플랜(런칭 이후) 바로 이동 (2026-10-20 사용자 요청).
    **반드시 closeModals() 를 거친다** — 두 모달이 동시에 떠 있으면 뒤쪽 모달의 배경 클릭·ESC 가
    엉키고, 열려 있던 팝오버(#rmPop/#spPop)가 남는다. closeModals() 가 그 정리를 전부 한다. */
-const HUB_OPEN = { rm:()=>openRoadmap(), sp:()=>openPlan(), ms:()=>openMsModal() };
+const HUB_OPEN = { rm:()=>openRoadmap(), sp:()=>openPlan(), ms:()=>openMsModal(), uf:()=>openUF() };
 /* 탭 전환 = closeModals() 후 해당 화면 열기. 세 모달이 같은 자리·같은 크기라 하나의 창처럼 보인다.
    **반드시 closeModals() 를 거친다** — 두 모달이 겹치면 배경 클릭·ESC 가 엉키고
    열려 있던 팝오버(#rmPop/#spPop/#kfPop)가 남는다. closeModals() 가 그 정리를 전부 한다.
@@ -5720,6 +5944,7 @@ function spPopDelete(){
 
 /* --- 상호작용 --- */
 document.getElementById("planBtn").onclick=openPlan;
+const _ufBtn=document.getElementById("ufBtn"); if(_ufBtn) _ufBtn.onclick=openUF;
 document.getElementById("spGuide").addEventListener("click", e=>{
   if(e.target.closest("#spGuideToggle")){ planState().guideOpen=!planState().guideOpen; renderPlanGuide(); return; }
   if(!spCanEdit()) return;
