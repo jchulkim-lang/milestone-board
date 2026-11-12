@@ -758,6 +758,13 @@
      font-weight:800; font-size:11.5px; padding:8px 6px; text-align:center; white-space:nowrap; }
   .uf-tbl thead th.uf-fold{ text-align:left; padding-left:12px; width:236px; z-index:3; }
   .uf-tbl thead th.uf-sum{ width:64px; }
+  .uf-tbl thead th.uf-pickh{ width:132px; text-align:left; padding-left:11px; }
+  .uf-pk{ padding:8px 11px; border-right:1px solid var(--line); background:var(--panel);
+     vertical-align:middle; white-space:nowrap; }
+  .uf-pk b{ font-size:12.5px; font-weight:700; color:var(--text); }
+  .uf-pk small{ display:block; font-size:10px; color:var(--muted); margin-top:2px; }
+  .uf-pk.none{ color:var(--muted); opacity:.35; font-size:13px; }
+  .uf-tbl tr.uf-tot td.uf-pk{ background:var(--panel2); }
   .uf-tbl thead th i{ display:inline-block; width:7px; height:7px; border-radius:50%;
      margin-right:5px; vertical-align:middle; }
   .uf-fcell{ padding:9px 12px; background:var(--rowhead); border-right:1px solid var(--line); }
@@ -5770,6 +5777,20 @@ function ufRow(){
     for(const r of sec.rows||[]) if(/업데이트\s*폴더/.test(r.name||"")) return r;
   return null;
 }
+/* 「캐릭터 픽업」 열 (2026-11-12, build 2026111204)
+   사용자 지시: "서비스 플랜의 캐릭터 픽업 이름을 불러왔으면해 / 캐릭터 픽업을 cdn 업데이트로 관리하려는거거든"
+   ⚠ 여기서 입력받지 않는다 — **서비스 플랜의 「캐릭터 픽업」 트랙을 그대로 읽어 온다.** 중복 입력 금지.
+   매칭은 납품 D− 와 **같은 규칙**(spNcBase): 시작 주가 같은 항목 → 그 주를 품은 항목 → 없으면 공란.
+   픽업 주기도 업데이트 폴더도 3주라 보통 1:1 로 맞는다. */
+function ufPickRow(){
+  for(const sec of planState().sections||[])
+    for(const r of sec.rows||[]) if(/캐릭터\s*픽업/.test(r.name||"")) return r;
+  return null;
+}
+function ufPickOf(it){
+  const r=ufPickRow(); if(!r || !it) return null;
+  return (r.items||[]).find(y=>y.s===it.s) || (r.items||[]).find(y=>it.s>=y.s && it.s<y.s+y.w) || null;
+}
 function ufFolderNames(){ const r=ufRow(); return [...((r&&r.items)||[])].map(ufKey).filter(Boolean); }
 function ufAll(){ if(!state.ufolders || typeof state.ufolders!=="object" || Array.isArray(state.ufolders)) state.ufolders={}; return state.ufolders; }
 const ufKey = it => String((it&&it.text)||"").trim();
@@ -5856,7 +5877,9 @@ function renderUF(){
     return;
   }
   const tot={}; ks.forEach(k=>tot[k.n]=0);
+  const prow=ufPickRow();
   let h='<table class="uf-tbl"><thead><tr><th class="uf-fold">업데이트 폴더</th>'+
+    `<th class="uf-pickh"><i style="background:${escapeHtml((prow&&prow.color)||"#ec4899")}"></i>캐릭터 픽업</th>`+
     ks.map(k=>`<th><i style="background:${escapeHtml(k.c||"#64748b")}"></i>${escapeHtml(k.n)}</th>`).join("")+
     '<th class="uf-sum">합계</th></tr></thead><tbody>';
   for(const it of items){
@@ -5872,6 +5895,10 @@ function renderUF(){
       (af ? `<div class="uf-fscan">실제 ${af.n}개${af.m?" · 최근 "+ufMD(af.m):""}</div>` : "")+
       `<div class="uf-fpath">\u2026/Update/${escapeHtml(key)}`+
         `<button type="button" class="uf-cpy" data-ufcopy="${escapeHtml(key)}" title="${escapeHtml(UF_ROOT+key)}">경로 복사</button></div></td>`+
+      (()=>{ const pk=ufPickOf(it);
+        return pk ? `<td class="uf-pk" title="서비스 플랜 「캐릭터 픽업」에서 가져옵니다"><b>${escapeHtml(pk.text||"")}</b>`+
+                    (pk.note?`<small>${escapeHtml(pk.note)}</small>`:"")+`</td>`
+                  : '<td class="uf-pk none">—</td>'; })()+
       cnt.map((n,ci)=>{
         const a=ufActOf(key, ks[ci].n);
         let act="", tip="계획 "+n;
@@ -5884,10 +5911,10 @@ function renderUF(){
           (n?`<b class="uf-n">${n}</b>`:'<b class="uf-n zero">\u2014</b>')+act+`</td>`;
       }).join("")+
       `<td class="uf-sum">${sum||"\u2014"}</td></tr>`;
-    if(open) h+=`<tr class="uf-det"><td colspan="${ks.length+2}">${ufDetail(key,can)}</td></tr>`;
+    if(open) h+=`<tr class="uf-det"><td colspan="${ks.length+3}">${ufDetail(key,can)}</td></tr>`;
   }
   const grand=ks.reduce((s,k)=>s+tot[k.n],0);
-  h+='<tr class="uf-tot"><td class="uf-fcell">종류별 합계</td>'+
+  h+='<tr class="uf-tot"><td class="uf-fcell">종류별 합계</td><td class="uf-pk"></td>'+
      ks.map(k=>`<td>${tot[k.n]||"\u2014"}</td>`).join("")+
      `<td>${grand||"\u2014"}</td></tr></tbody></table>`;
   grid.innerHTML=h;
