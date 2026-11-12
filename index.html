@@ -5925,6 +5925,30 @@ function ufApplyScan(o, who){
   flashNote("폴더 "+folders+"개를 읽었습니다. 열 "+list.length+"종.");
   return folders;
 }
+/* ===== 「⚡ 바로 갱신」 — 로컬 중계기(ufhelper) (2026-11-12, build 2026111207) ==========
+   SVN 이 `svn://10.10.0.253` 이라 브라우저가 직접 말을 걸 수 없다(프로토콜도 다르고 사설 IP 다).
+   그래서 PC 안에서만 도는 작은 HTTP 서버(tools/ufhelper.ps1)를 두고 여기서 물어본다.
+   ⚠ **http://127.0.0.1 은 HTTPS 페이지에서 허용되는 유일한 예외다.** 사내 IP(10.x)로 직접
+     fetch 하면 혼합 콘텐츠 + Private Network Access 로 막히니 반드시 루프백을 거쳐야 한다.
+   중계기가 안 떠 있으면 fetch 가 바로 실패한다 — 그때는 「파일 불러오기/붙여넣기」로 안내한다. */
+const UF_HELPER = "http://127.0.0.1:8787";
+async function ufPull(btn){
+  if(!ufCanEdit()) return;
+  const label = btn ? btn.textContent : "";
+  if(btn){ btn.textContent="⚡ 불러오는 중…"; btn.disabled=true; }
+  try{
+    const r = await fetch(UF_HELPER+"/scan", { cache:"no-store" });
+    if(!r.ok){ let m=""; try{ m=(await r.json()).error||""; }catch(_){}
+      throw new Error(m || ("중계기가 "+r.status+" 를 돌려줬습니다")); }
+    const j = await r.json();
+    ufApplyScan(j, (window.APP_USER&&window.APP_USER.name)||"");
+  }catch(err){
+    const net = (err && (err.name==="TypeError" || /Failed to fetch|NetworkError/i.test(String(err.message||""))));
+    flashNote(net
+      ? "중계기에 연결하지 못했습니다. PC 에서 tools\\ufhelper.bat 을 실행했는지 확인해 주세요. (http://127.0.0.1:8787/ping 으로 확인 가능)"
+      : "갱신 실패 — "+(err&&err.message||err));
+  }finally{ if(btn){ btn.textContent=label||"⚡ 바로 갱신"; btn.disabled=false; } }
+}
 async function ufScan(btn){
   if(!ufCanEdit()) return;
   if(!window.showDirectoryPicker){ flashNote("이 브라우저는 폴더 읽기를 지원하지 않습니다. 크롬이나 엣지에서 열어 주세요."); return; }
@@ -5978,8 +6002,9 @@ function renderUFTools(){
   const el=document.getElementById("ufTools"); if(!el) return;
   const can=ufCanEdit(), a=ufActual();
   let h='<div class="uf-bar">';
-  if(can) h+=`<button type="button" class="uf-kbtn-top hl" data-ufscan data-again="${ufDirHandle?"1":"0"}" `+
-    `title="Update 폴더를 읽어 실제 에셋을 셉니다 (크롬·엣지)">${ufDirHandle?"↻ 다시 스캔":"📂 폴더 스캔"}</button>`;
+  if(can) h+=`<button type="button" class="uf-kbtn-top hl" data-ufpull title="PC 의 중계기에게 SVN 을 읽어 오라고 시킵니다 (tools\\ufhelper.bat 실행 필요)">⚡ 바로 갱신</button>`;
+  if(can) h+=`<button type="button" class="uf-kbtn-top" data-ufscan data-again="${ufDirHandle?"1":"0"}" `+
+    `title="브라우저로 Update 폴더를 직접 읽습니다 (사내 방화벽이 막을 수 있습니다)">${ufDirHandle?"↻ 다시 스캔":"📂 폴더 스캔"}</button>`;
   if(can) h+=`<button type="button" class="uf-kbtn-top" data-ufpaste title="스캔 결과(JSON)를 붙여넣습니다 — 브라우저 폴더 읽기가 막힌 PC 용">📋 현황 붙여넣기</button>`;
   if(can) h+=`<label class="uf-kbtn-top" title="스캔 결과 파일(ufscan.json)을 불러옵니다">📄 파일 불러오기`+
      `<input type="file" accept=".json,application/json" data-uffile hidden></label>`;
@@ -6218,6 +6243,7 @@ function openUF(){ planState(); ufKinds(); renderUF(); ufModal.classList.add("sh
   });
   const tl=document.getElementById("ufTools"); if(!tl) return;
   tl.addEventListener("click", e=>{
+    const pl=e.target.closest("[data-ufpull]"); if(pl){ ufPull(pl); return; }
     const sc=e.target.closest("[data-ufscan]"); if(sc){ ufScan(sc); return; }
     if(e.target.closest("[data-ufpaste]")){ ufPasteOpen=!ufPasteOpen; renderUFTools(); return; }
     if(e.target.closest("[data-ufapply]")){
