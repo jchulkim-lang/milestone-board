@@ -720,6 +720,38 @@
   #ufModal .modal > *{ flex:0 0 auto; }
   #ufModal .uf-scroll{ flex:1 1 0; min-height:0; overflow:auto;
      border:1px solid var(--line); border-radius:10px; background:var(--bg); }
+  .uf-bar{ display:flex; align-items:center; gap:9px; margin:4px 0 8px; flex-wrap:wrap; }
+  .uf-barnote{ font-size:11px; color:var(--muted); }
+  .uf-barnote code{ font-family:ui-monospace,Menlo,Consolas,monospace; }
+  .uf-kbtn-top{ background:var(--panel2); border:1px solid var(--line); color:var(--muted);
+     border-radius:7px; padding:5px 11px; font-family:inherit; font-size:11.5px; font-weight:700; cursor:pointer; }
+  .uf-kbtn-top:hover{ color:var(--text); border-color:var(--accent); }
+  .uf-kbtn-top.on{ color:var(--text); border-color:var(--accent); background:var(--panel); }
+  .uf-kedit{ border:1px solid var(--accent); border-radius:10px; background:var(--panel2);
+     padding:11px 13px 13px; margin:0 0 10px; max-width:560px; }
+  .uf-kh{ font-size:11px; color:var(--muted); line-height:1.6; margin-bottom:9px; }
+  .uf-krow{ display:flex; align-items:center; gap:7px; margin-bottom:6px; }
+  .uf-ksw{ width:10px; height:10px; border-radius:50%; flex:0 0 auto; }
+  /* ⚠ `.modal input{width:100%}` 때문에 폭을 명시해야 한다 */
+  .uf-krow input.uf-kin{ width:auto; flex:1 1 auto; min-width:0; background:var(--bg);
+     border:1px solid var(--line); color:var(--text); border-radius:6px; padding:5px 9px; font:inherit; font-size:12px; }
+  .uf-kn{ flex:0 0 auto; min-width:44px; text-align:right; font-size:10.5px; color:var(--muted); }
+  .uf-kb{ flex:0 0 auto; background:transparent; border:1px solid var(--line); color:var(--muted);
+     border-radius:6px; padding:3px 7px; font:inherit; font-size:11px; cursor:pointer; line-height:1.4; }
+  .uf-kb:hover:not(:disabled){ color:var(--text); border-color:var(--accent); }
+  .uf-kb.del:hover:not(:disabled){ color:#f87171; border-color:#f87171; }
+  .uf-kb:disabled{ opacity:.3; cursor:default; }
+  .uf-add:disabled{ opacity:.4; cursor:default; }
+  /* 실제 폴더 현황 — 계획 숫자 아래 작은 둘째 줄 */
+  .uf-act{ display:block; font-size:10px; font-weight:800; margin-top:1px; letter-spacing:-.2px; }
+  .uf-act.ok{ color:#34d399; }
+  .uf-act.low{ color:#fbbf24; }
+  .uf-act.ext{ color:#60a5fa; }
+  .uf-act.none{ color:var(--muted); opacity:.45; }
+  body.light .uf-act.ok{ color:#047857; }
+  body.light .uf-act.low{ color:#b45309; }
+  body.light .uf-act.ext{ color:#1d4ed8; }
+  .uf-fscan{ font-size:10.5px; color:var(--muted); opacity:.8; margin-top:2px; }
   .uf-tbl{ width:100%; border-collapse:separate; border-spacing:0; font-size:12.5px; }
   .uf-tbl th, .uf-tbl td{ border-bottom:1px solid var(--line); padding:0; }
   .uf-tbl thead th{ position:sticky; top:0; z-index:2; background:var(--rowhead); color:var(--muted);
@@ -1954,6 +1986,7 @@
   <div class="modal-bg" id="ufModal">
     <div class="modal uf-modal"><div class="hub-head"><span class="hub-tabs"><button type="button" class="hub-tab " data-hubtab="rm">🗺 발주 로드맵</button><button type="button" class="hub-tab " data-hubtab="sp">📅 서비스 플랜</button><button type="button" class="hub-tab " data-hubtab="ms">⚙ 마일스톤</button><button type="button" class="hub-tab on" data-hubtab="uf">📦 업데이트 폴더</button></span><button type="button" class="hub-x" data-close>✕ 닫기</button></div>
       <div class="msub" id="ufSub">업데이트 폴더에 들어갈 리소스를 종류별로 적어 둡니다. 아트팀은 이 표를 보고 해당 폴더에 리소스를 배치합니다. 폴더 줄을 누르면 목록이 펼쳐집니다.</div>
+      <div id="ufTools"></div>
       <div class="uf-scroll scrollbar"><div id="ufGrid"></div></div>
       <div class="modal-actions">
         <div class="uf-foot" id="ufFoot"></div>
@@ -5649,8 +5682,86 @@ function openPlan(){ const fresh=!state.plan; planState();
    ⚠ 데이터 키는 **폴더 이름 문자열**(1_1_a). 항목 id 가 아니라 이름이라, 서비스 플랜에서
      폴더 이름을 바꾸면 기재분이 떨어져 나간다 — 이름은 안 바꾸는 것이 전제다.
    ⚠ 기간·빌드/CDN 뱃지는 서비스 플랜 계산(spRange/spNcKind)을 그대로 쓴다. 중복 입력 없음. */
-const UF_KINDS = [["BG","#22c55e"],["Cinematic","#a855f7"],["FX","#f97316"],["Movie","#ec4899"],["UI","#38bdf8"],["Unit","#eab308"]];
+/* ===== 리소스 종류(열) — 사용자가 직접 고친다 (2026-11-12, build 2026111202) =============
+   사용자 지시: "저 필드 편집할 수 있게 해줘" (열 머리글을 빨간 원으로 표시).
+   언리얼 Update 폴더의 하위 구조가 바뀔 때마다 코드를 고치지 않게 **종류 목록을 state 로** 옮겼다.
+   기본값은 스크린샷의 6종 — state.ufKinds 가 비면 여기서 다시 시드된다.
+   ⚠ 색은 사용자가 고르지 않는다 — 추가할 때 팔레트에서 자동으로 붙는다(고를 거리가 늘면 복잡해진다).
+   ⚠ 이름을 바꾸면 기재된 항목의 `k` 를 **같이 옮긴다**. 안 그러면 숫자가 통째로 사라진다.
+   ⚠ 쓰고 있는 종류는 **지우지 못한다**(몇 건이 있는지 알려 주고 막는다). 기재분이 고아가 되는 걸 막는다. */
+const UF_PALETTE = ["#22c55e","#a855f7","#f97316","#ec4899","#38bdf8","#eab308","#14b8a6","#f43f5e","#8b5cf6","#84cc16","#06b6d4","#fb923c"];
+const UF_KINDS_SEED = [["BG","#22c55e"],["Cinematic","#a855f7"],["FX","#f97316"],["Movie","#ec4899"],["UI","#38bdf8"],["Unit","#eab308"]];
+const UF_KIND_MAX = 12, UF_KIND_LEN = 24;
+function ufKinds(){
+  if(!Array.isArray(state.ufKinds) || !state.ufKinds.length)
+    state.ufKinds = UF_KINDS_SEED.map(([n,c])=>({n,c}));
+  return state.ufKinds;
+}
+const ufKindNames = () => ufKinds().map(x=>x.n);
 const UF_ROOT  = "Content/GameR/Update/";
+/* ===== 실제 폴더 현황 (2026-11-12, build 2026111203) =======================
+   사용자 요청: "폴더를 연결해줄테니깐 작업된 내역도 볼 수 있게 해줄래?" → 「보드에서 폴더 직접 읽기」 선택.
+   ⚠ 보드는 Cloudflare 위의 웹페이지라 **스스로 디스크를 읽지 못한다.** 브라우저의 File System Access API
+     (`showDirectoryPicker`)로 **사람이 한 번 폴더를 골라 줘야** 읽는다. 크롬·엣지 전용, HTTPS 필요.
+   읽은 결과는 state 에 저장하므로 **한 사람이 스캔하면 모두가 본다.**
+   세는 것: `.uasset` / `.umap` 개수 + 가장 최근 수정 시각(재귀). 전체 파일 수는 툴팁에만.
+   용량: 폴더 × 종류당 약 25바이트 → 8×6 이면 1KB 남짓. 무료 한도 영향 없음. */
+const UF_ASSET_RE = /\.(uasset|umap)$/i;
+const ufActual = () => (state.ufActual && typeof state.ufActual==="object" && state.ufActual.f) ? state.ufActual : null;
+function ufActOf(key, kind){ const a=ufActual(); const f=a&&a.f&&a.f[key]; return (f&&f[kind]) || null; }
+function ufActFolder(key){ const a=ufActual(); const f=a&&a.f&&a.f[key]; if(!f) return null;
+  let n=0, m=0; for(const k of Object.keys(f)){ n+=Number(f[k].n)||0; if((f[k].m||0)>m) m=f[k].m; }
+  return { n, m }; }
+const ufMD = ms => { const t=Number(ms)||0; if(!t) return ""; const d=new Date(t);
+  return (d.getMonth()+1)+"/"+d.getDate(); };
+function ufWhen(ms){ const t=Number(ms)||0; if(!t) return "-"; const d=new Date(t), p=n=>String(n).padStart(2,"0");
+  return (d.getMonth()+1)+"/"+d.getDate()+" "+p(d.getHours())+":"+p(d.getMinutes()); }
+/* 한 폴더를 재귀로 센다. {n: 에셋 수, f: 전체 파일 수, m: 가장 최근 수정 시각} */
+async function ufScanDir(dh){
+  let n=0, f=0, m=0;
+  for await (const e of dh.values()){
+    if(e.kind==="directory"){ const r=await ufScanDir(e); n+=r.n; f+=r.f; if(r.m>m) m=r.m; }
+    else { f++; if(UF_ASSET_RE.test(e.name)) n++;
+      try{ const fl=await e.getFile(); if(fl.lastModified>m) m=fl.lastModified; }catch(_){} }
+  }
+  return { n, f, m };
+}
+async function ufScan(btn){
+  if(!ufCanEdit()) return;
+  if(!window.showDirectoryPicker){
+    flashNote("이 브라우저는 폴더 읽기를 지원하지 않습니다. 크롬이나 엣지에서 열어 주세요."); return; }
+  let root;
+  try{ root = await window.showDirectoryPicker({ id:"ufUpdate", mode:"read" }); }
+  catch(_){ return; }                                     // 사용자가 취소
+  const label = btn ? btn.textContent : "";
+  if(btn){ btn.textContent="📂 읽는 중…"; btn.disabled=true; }
+  try{
+    const names = ufFolderNames();
+    /* Update 가 아니라 그 윗 폴더를 집었으면 한 단계 내려가 본다 */
+    let dh = root, hit = false;
+    for await (const e of dh.values()) if(e.kind==="directory" && names.indexOf(e.name)>=0){ hit=true; break; }
+    if(!hit){ try{ dh = await root.getDirectoryHandle("Update"); }catch(_){} }
+    const kinds = ufKindNames(), out = {}, unknown = new Set();
+    let folders = 0;
+    for await (const e of dh.values()){
+      if(e.kind!=="directory") continue;
+      const rec = {};
+      for await (const k of e.values()){
+        if(k.kind!=="directory") continue;
+        const r = await ufScanDir(k);
+        rec[k.name] = { n:r.n, f:r.f, m:r.m };
+        if(kinds.indexOf(k.name)<0) unknown.add(k.name);
+      }
+      out[e.name] = rec; folders++;
+    }
+    state.ufActual = { at:Date.now(), by:(window.APP_USER&&window.APP_USER.name)||"", root:dh.name||"Update", f:out };
+    save(); renderUF();
+    let msg = "폴더 "+folders+"개를 읽었습니다.";
+    if(unknown.size) msg += " 종류 목록에 없는 하위 폴더: "+[...unknown].join(", ");
+    flashNote(msg);
+  }catch(err){ flashNote("폴더를 읽지 못했습니다 — "+(err&&err.message||err)); }
+  finally{ if(btn){ btn.textContent=label||"📂 폴더 스캔"; btn.disabled=false; } }
+}
 /* 폴더 하나당 줄 상한 — 무료 D1 때문이다. state 는 한 덩어리 JSON 이라 저장·폴링마다 통째로 오간다.
    한 줄이 대략 90바이트이니 → 폴더 20개 × 60줄 = 약 110KB 가 최악이고, 평상시는 수 KB 수준. */
 const UF_MAX   = 60;
@@ -5659,6 +5770,7 @@ function ufRow(){
     for(const r of sec.rows||[]) if(/업데이트\s*폴더/.test(r.name||"")) return r;
   return null;
 }
+function ufFolderNames(){ const r=ufRow(); return [...((r&&r.items)||[])].map(ufKey).filter(Boolean); }
 function ufAll(){ if(!state.ufolders || typeof state.ufolders!=="object" || Array.isArray(state.ufolders)) state.ufolders={}; return state.ufolders; }
 const ufKey = it => String((it&&it.text)||"").trim();
 function ufItems(key){ const a=ufAll(); if(!Array.isArray(a[key])) a[key]=[]; return a[key]; }
@@ -5666,23 +5778,29 @@ function ufItems(key){ const a=ufAll(); if(!Array.isArray(a[key])) a[key]=[]; re
 const ufCanEdit = () => askCanWrite() && askCanManage();
 const ufCount = (key,k) => ufItems(key).filter(x=>x&&x.k===k).reduce((s,x)=>s+(Number(x.n)||0),0);
 const ufNewId = () => "ufi"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+/* 종류 하나가 보드 전체에서 몇 줄에 쓰이고 있는지 — 삭제 막기용 */
+function ufKindUse(n){ let c=0; const a=ufAll();
+  for(const key of Object.keys(a)) (a[key]||[]).forEach(x=>{ if(x&&x.k===n) c++; });
+  return c; }
 /* 펼쳐진 폴더 — 화면 상태라 state 에 저장하지 않는다(다른 사람 화면을 맘대로 열지 않게). */
-let ufOpenSet = new Set();
+let ufOpenSet = new Set(), ufKOpen = false;
 function ufRef(ds){
   const p=String(ds||"").split("|"), key=p[0], id=p[1], list=ufItems(key);
   return { key, id, list, it:list.find(x=>x&&x.id===id)||null };
 }
 function ufDetail(key, can){
-  const list=ufItems(key);
+  const list=ufItems(key), names=ufKindNames();
   let h='<div class="uf-detwrap">';
   if(!list.length) h+='<div class="uf-none">아직 기재된 리소스가 없습니다.</div>';
   for(const x of list){
     if(!x || !x.id) continue;
     const ref=escapeHtml(key)+"|"+escapeHtml(x.id);
+    const orphan = x.k && names.indexOf(x.k)<0;      // 종류 목록에 없는 값(이론상 안 생긴다)
     h+='<div class="uf-ditem">';
     if(can){
       h+=`<select class="uf-dk" data-ufk="${ref}" title="리소스 종류">`+
-         UF_KINDS.map(([k])=>`<option value="${k}" ${x.k===k?"selected":""}>${k}</option>`).join("")+`</select>`+
+         (orphan?`<option value="${escapeHtml(x.k)}" selected>${escapeHtml(x.k)} (목록 없음)</option>`:"")+
+         names.map(n=>`<option value="${escapeHtml(n)}" ${x.k===n?"selected":""}>${escapeHtml(n)}</option>`).join("")+`</select>`+
          `<input class="uf-dn" data-ufn="${ref}" value="${escapeHtml(x.name||"")}" maxlength="120" `+
            `placeholder="무엇이 들어가는지 (예: 신규 캐릭터 — 리나 / 카일)">`+
          `<input class="uf-dc" type="number" min="0" max="999" step="1" data-ufc="${ref}" value="${Number(x.n)||0}" title="개수">`+
@@ -5697,10 +5815,38 @@ function ufDetail(key, can){
   if(can) h+=`<button type="button" class="uf-add" data-ufadd="${escapeHtml(key)}">＋ 리소스 추가</button>`;
   return h+'</div>';
 }
+/* 상단 도구줄 + 「종류 편집」 패널. 표와 따로 그린다(표를 다시 그려도 패널이 닫히지 않게). */
+function renderUFTools(){
+  const el=document.getElementById("ufTools"); if(!el) return;
+  const can=ufCanEdit(), ks=ufKinds();
+  let h='<div class="uf-bar">';
+  if(can) h+=`<button type="button" class="uf-kbtn-top${ufKOpen?" on":""}" data-ufkedit>⚙ 리소스 종류 편집</button>`;
+  if(can) h+=`<button type="button" class="uf-kbtn-top" data-ufscan title="Update 폴더를 골라 실제 들어있는 에셋을 셉니다 (크롬·엣지)">📂 폴더 스캔</button>`;
+  { const a=ufActual();
+    if(a) h+=`<span class="uf-barnote">스캔 ${escapeHtml(ufWhen(a.at))}${a.by?" · "+escapeHtml(a.by):""}</span>`; }
+  h+=`<span class="uf-barnote">열 ${ks.length}종 · 언리얼 <code>Update/&lt;폴더&gt;/</code> 아래 하위 폴더와 같은 이름을 씁니다.</span>`;
+  h+='</div>';
+  if(can && ufKOpen){
+    h+='<div class="uf-kedit"><div class="uf-kh">리소스 종류 — 이름을 고치면 기재된 건도 같이 따라옵니다. 쓰이고 있는 종류는 지우지 못합니다.</div>';
+    ks.forEach((k,i)=>{
+      const use=ufKindUse(k.n);
+      h+=`<div class="uf-krow"><i class="uf-ksw" style="background:${escapeHtml(k.c||"#64748b")}"></i>`+
+         `<input class="uf-kin" data-ufkn="${i}" value="${escapeHtml(k.n||"")}" maxlength="${UF_KIND_LEN}">`+
+         `<span class="uf-kn">${use?use+"건":"—"}</span>`+
+         `<button type="button" class="uf-kb" data-ufkup="${i}" ${i===0?"disabled":""} title="위로">↑</button>`+
+         `<button type="button" class="uf-kb" data-ufkdn="${i}" ${i===ks.length-1?"disabled":""} title="아래로">↓</button>`+
+         `<button type="button" class="uf-kb del" data-ufkdel="${i}" title="${use?"기재된 건이 있어 지울 수 없습니다":"이 종류 삭제"}">✕</button></div>`;
+    });
+    h+=`<button type="button" class="uf-add" data-ufkadd ${ks.length>=UF_KIND_MAX?"disabled":""}>＋ 종류 추가</button>`;
+    h+='</div>';
+  }
+  el.innerHTML=h;
+}
 function renderUF(){
+  renderUFTools();
   const grid=document.getElementById("ufGrid"), foot=document.getElementById("ufFoot");
   if(!grid) return;
-  const row=ufRow(), can=ufCanEdit();
+  const row=ufRow(), can=ufCanEdit(), ks=ufKinds();
   const items=[...((row&&row.items)||[])].filter(it=>ufKey(it)).sort((a,b)=>(a.s||0)-(b.s||0));
   if(!items.length){
     grid.innerHTML='<div class="uf-empty">서비스 플랜에 「업데이트 폴더」 트랙이 없습니다.<br>'+
@@ -5709,29 +5855,41 @@ function renderUF(){
     if(foot) foot.innerHTML='';
     return;
   }
-  const tot={}; UF_KINDS.forEach(([k])=>tot[k]=0);
+  const tot={}; ks.forEach(k=>tot[k.n]=0);
   let h='<table class="uf-tbl"><thead><tr><th class="uf-fold">업데이트 폴더</th>'+
-    UF_KINDS.map(([k,c])=>`<th><i style="background:${c}"></i>${k}</th>`).join("")+
+    ks.map(k=>`<th><i style="background:${escapeHtml(k.c||"#64748b")}"></i>${escapeHtml(k.n)}</th>`).join("")+
     '<th class="uf-sum">합계</th></tr></thead><tbody>';
   for(const it of items){
     const key=ufKey(it), open=ufOpenSet.has(key);
     const kind=spNcKind(it), rng=spRange(it);
-    const cnt=UF_KINDS.map(([k])=>{ const n=ufCount(key,k); tot[k]+=n; return n; });
+    const cnt=ks.map(k=>{ const n=ufCount(key,k.n); tot[k.n]+=n; return n; });
     const sum=cnt.reduce((a,b)=>a+b,0);
+    const af=ufActFolder(key);
     h+=`<tr class="uf-r" data-uffold="${escapeHtml(key)}">`+
-      `<td class="uf-fcell"><div class="uf-fname"><span class="uf-caret">${open?"▼":"▶"}</span>${escapeHtml(key)}`+
+      `<td class="uf-fcell"><div class="uf-fname"><span class="uf-caret">${open?"\u25bc":"\u25b6"}</span>${escapeHtml(key)}`+
         `<span class="uf-badge uf-b-${spNcCls(kind)}">${spNcLabel(kind)}</span></div>`+
       `<div class="uf-fmeta">${escapeHtml(rng.label)}</div>`+
-      `<div class="uf-fpath">…/Update/${escapeHtml(key)}`+
+      (af ? `<div class="uf-fscan">실제 ${af.n}개${af.m?" · 최근 "+ufMD(af.m):""}</div>` : "")+
+      `<div class="uf-fpath">\u2026/Update/${escapeHtml(key)}`+
         `<button type="button" class="uf-cpy" data-ufcopy="${escapeHtml(key)}" title="${escapeHtml(UF_ROOT+key)}">경로 복사</button></div></td>`+
-      cnt.map(n=>`<td class="uf-c">${n?`<b class="uf-n">${n}</b>`:'<b class="uf-n zero">—</b>'}</td>`).join("")+
-      `<td class="uf-sum">${sum||"—"}</td></tr>`;
-    if(open) h+=`<tr class="uf-det"><td colspan="${UF_KINDS.length+2}">${ufDetail(key,can)}</td></tr>`;
+      cnt.map((n,ci)=>{
+        const a=ufActOf(key, ks[ci].n);
+        let act="", tip="계획 "+n;
+        if(a){
+          tip += " · 실제 "+a.n+" (파일 "+(a.f||0)+(a.m?", 최근 "+ufMD(a.m):"")+")";
+          if(a.n>0) act=`<span class="uf-act ${n===0?"ext":(a.n>=n?"ok":"low")}">실 ${a.n}</span>`;
+          else if(n>0) act='<span class="uf-act none">실 0</span>';
+        }
+        return `<td class="uf-c" title="${escapeHtml(tip)}">`+
+          (n?`<b class="uf-n">${n}</b>`:'<b class="uf-n zero">\u2014</b>')+act+`</td>`;
+      }).join("")+
+      `<td class="uf-sum">${sum||"\u2014"}</td></tr>`;
+    if(open) h+=`<tr class="uf-det"><td colspan="${ks.length+2}">${ufDetail(key,can)}</td></tr>`;
   }
-  const grand=UF_KINDS.reduce((s,[k])=>s+tot[k],0);
+  const grand=ks.reduce((s,k)=>s+tot[k.n],0);
   h+='<tr class="uf-tot"><td class="uf-fcell">종류별 합계</td>'+
-     UF_KINDS.map(([k])=>`<td>${tot[k]||"—"}</td>`).join("")+
-     `<td>${grand||"—"}</td></tr></tbody></table>`;
+     ks.map(k=>`<td>${tot[k.n]||"\u2014"}</td>`).join("")+
+     `<td>${grand||"\u2014"}</td></tr></tbody></table>`;
   grid.innerHTML=h;
   if(foot) foot.innerHTML=`<span>📁 <code>${escapeHtml(UF_ROOT)}</code></span><span>·</span>`+
     `<span>폴더 ${items.length}개 · 리소스 ${grand}건</span><span>·</span>`+
@@ -5741,13 +5899,13 @@ function renderUF(){
    "The node to be removed is no longer a child of this node" 예외가 난다(실측 2026-11-12). */
 let _ufT=0;
 function ufRedraw(){ clearTimeout(_ufT); _ufT=setTimeout(renderUF, 0); }
-function openUF(){ planState(); renderUF(); ufModal.classList.add("show"); }
+function openUF(){ planState(); ufKinds(); renderUF(); ufModal.classList.add("show"); }
 (function ufWire(){
   const g=document.getElementById("ufGrid"); if(!g) return;
   g.addEventListener("click", e=>{
     const cp=e.target.closest("[data-ufcopy]");
     if(cp){ e.stopPropagation(); const path=UF_ROOT+cp.dataset.ufcopy;
-      const done=()=>{ const o=cp.textContent; cp.textContent="✓ 복사됨";
+      const done=()=>{ const o=cp.textContent; cp.textContent="\u2713 복사됨";
         setTimeout(()=>{ try{ cp.textContent=o; }catch(_){} }, 1500); };
       if(navigator.clipboard && navigator.clipboard.writeText)
         navigator.clipboard.writeText(path).then(done).catch(()=>fallbackCopyText(path,done));
@@ -5757,7 +5915,7 @@ function openUF(){ planState(); renderUF(); ufModal.classList.add("show"); }
     if(ad){ e.stopPropagation(); if(!ufCanEdit()) return;
       const list=ufItems(ad.dataset.ufadd);
       if(list.length>=UF_MAX){ flashNote("폴더 하나에 "+UF_MAX+"줄까지만 적을 수 있습니다."); return; }
-      list.push({ id:ufNewId(), k:UF_KINDS[0][0], name:"", n:1 });
+      list.push({ id:ufNewId(), k:(ufKinds()[0]||{}).n||"", name:"", n:1 });
       save(); ufRedraw(); return; }
     const dl=e.target.closest("[data-ufdel]");
     if(dl){ e.stopPropagation(); if(!ufCanEdit()) return;
@@ -5777,6 +5935,48 @@ function openUF(){ planState(); renderUF(); ufModal.classList.add("show"); }
     if(t.matches("[data-ufn]")){ const r=ufRef(t.dataset.ufn); if(r.it){ r.it.name=String(t.value||"").slice(0,120); save(); } return; }
     if(t.matches("[data-ufc]")){ const r=ufRef(t.dataset.ufc);
       if(r.it){ r.it.n=Math.max(0, Math.min(999, Math.round(Number(t.value)||0))); save(); ufRedraw(); } return; }
+  });
+
+  /* ----- 「리소스 종류 편집」 패널 ----- */
+  const tl=document.getElementById("ufTools"); if(!tl) return;
+  tl.addEventListener("click", e=>{
+    if(e.target.closest("[data-ufkedit]")){ ufKOpen=!ufKOpen; renderUFTools(); return; }
+    const sc=e.target.closest("[data-ufscan]");
+    if(sc){ ufScan(sc); return; }
+    if(!ufCanEdit()) return;
+    const ks=ufKinds();
+    const up=e.target.closest("[data-ufkup]");
+    if(up){ const i=Number(up.dataset.ufkup); if(i>0){ const t=ks[i]; ks[i]=ks[i-1]; ks[i-1]=t; save(); ufRedraw(); } return; }
+    const dn=e.target.closest("[data-ufkdn]");
+    if(dn){ const i=Number(dn.dataset.ufkdn); if(i<ks.length-1){ const t=ks[i]; ks[i]=ks[i+1]; ks[i+1]=t; save(); ufRedraw(); } return; }
+    const de=e.target.closest("[data-ufkdel]");
+    if(de){ const i=Number(de.dataset.ufkdel), k=ks[i]; if(!k) return;
+      const use=ufKindUse(k.n);
+      if(use){ flashNote("「"+k.n+"」로 기재된 것이 "+use+"줄 있습니다. 먼저 그 줄들을 다른 종류로 옮기거나 지우세요."); return; }
+      if(ks.length<=1){ flashNote("종류는 최소 하나는 있어야 합니다."); return; }
+      ks.splice(i,1); save(); ufRedraw(); return; }
+    if(e.target.closest("[data-ufkadd]")){
+      if(ks.length>=UF_KIND_MAX){ flashNote("종류는 "+UF_KIND_MAX+"개까지만 만들 수 있습니다."); return; }
+      let base="새 종류", n=base, i=2;
+      while(ks.some(x=>x.n===n)) n=base+" "+(i++);
+      /* 이미 쓰는 색을 피해서 고른다 — index % 로 놓으면 종류를 지우고 더했을 때 색이 겹친다(실측). */
+      const used=new Set(ks.map(x=>x.c));
+      ks.push({ n, c: UF_PALETTE.find(c=>!used.has(c)) || UF_PALETTE[ks.length % UF_PALETTE.length] });
+      save(); ufRedraw(); return; }
+  });
+  tl.addEventListener("change", e=>{
+    if(!ufCanEdit()) return;
+    const t=e.target; if(!t.matches("[data-ufkn]")) return;
+    const ks=ufKinds(), i=Number(t.dataset.ufkn), k=ks[i]; if(!k) return;
+    const was=k.n, now=String(t.value||"").trim().slice(0,UF_KIND_LEN);
+    if(!now){ flashNote("종류 이름은 비울 수 없습니다."); ufRedraw(); return; }
+    if(now===was) return;
+    if(ks.some((x,j)=>j!==i && x.n===now)){ flashNote("「"+now+"」는 이미 있는 종류입니다."); ufRedraw(); return; }
+    k.n=now;
+    /* 기재된 항목의 k 도 같이 옮긴다 — 안 그러면 숫자가 통째로 사라진다. */
+    const a=ufAll();
+    for(const key of Object.keys(a)) (a[key]||[]).forEach(x=>{ if(x&&x.k===was) x.k=now; });
+    save(); ufRedraw();
   });
 })();
 
