@@ -712,111 +712,166 @@
      display:flex; flex-direction:column; overflow:hidden; }
   #roadmapModal .modal > *, #planModal .modal > *, #msModal .modal > *{ flex:0 0 auto; }
   #roadmapModal .rm-scroll, #planModal .sp-scroll{ flex:1 1 0; max-height:none; min-height:0; }
-  /* === 「업데이트 폴더」 — 폴더별 리소스 기재 (2026-11-12) =====================
-     틀은 일정 허브 세 탭과 같게(96vw × 88vh). 표 영역만 flex:1.
-     클래스는 전부 `uf-` 로 묶어 둔다 — .badge/.sum/.det 같은 일반명은 다른 뎀과 부딪힌다. */
+  /* === 「업데이트 폴더」 (2026-11-12, build 2026111205) ========================
+     레이아웃 B안 — 왼쪽 매트릭스 + 오른쪽 패널. 행을 펼치지 않는다.
+     클래스는 전부 `uf-` 로 묶는다 — .badge/.sum/.det 같은 일반명은 다른 데와 부딪힌다. */
   #ufModal .modal{ width:96vw; max-width:96vw; height:88vh; max-height:88vh;
      display:flex; flex-direction:column; overflow:hidden; }
   #ufModal .modal > *{ flex:0 0 auto; }
-  #ufModal .uf-scroll{ flex:1 1 0; min-height:0; overflow:auto;
+  /* ⚠ `#ufModal .modal > *{flex:0 0 auto}` 가 id 특이도로 이긴다 — 여기도 id 를 붙여야 늘어난다 */
+  #ufModal .uf-split{ flex:1 1 0; min-height:0; display:flex; gap:0; }
+  .uf-scroll{ flex:1 1 auto; min-width:0; min-height:0; overflow:auto;
      border:1px solid var(--line); border-radius:10px; background:var(--bg); }
+  .uf-panel{ display:none; }
+  .uf-panel.show{ display:flex; flex-direction:column; flex:0 0 452px; width:452px;
+     margin-left:10px; min-height:0; overflow:hidden;
+     border:1px solid var(--accent); border-radius:10px; background:var(--bg); }
+  /* 창이 좁으면 패널이 표를 덮는다 — 표가 눌려 종류 열이 뭉개지는 것보다 낫다 */
+  @media (max-width:1400px){
+    .uf-split.open .uf-scroll{ display:none; }
+    .uf-panel.show{ flex:1 1 auto; width:auto; margin-left:0; }
+  }
   .uf-bar{ display:flex; align-items:center; gap:9px; margin:4px 0 8px; flex-wrap:wrap; }
   .uf-barnote{ font-size:11px; color:var(--muted); }
   .uf-barnote code{ font-family:ui-monospace,Menlo,Consolas,monospace; }
   .uf-kbtn-top{ background:var(--panel2); border:1px solid var(--line); color:var(--muted);
      border-radius:7px; padding:5px 11px; font-family:inherit; font-size:11.5px; font-weight:700; cursor:pointer; }
   .uf-kbtn-top:hover{ color:var(--text); border-color:var(--accent); }
-  .uf-kbtn-top.on{ color:var(--text); border-color:var(--accent); background:var(--panel); }
-  .uf-kedit{ border:1px solid var(--accent); border-radius:10px; background:var(--panel2);
-     padding:11px 13px 13px; margin:0 0 10px; max-width:560px; }
-  .uf-kh{ font-size:11px; color:var(--muted); line-height:1.6; margin-bottom:9px; }
-  .uf-krow{ display:flex; align-items:center; gap:7px; margin-bottom:6px; }
-  .uf-ksw{ width:10px; height:10px; border-radius:50%; flex:0 0 auto; }
-  /* ⚠ `.modal input{width:100%}` 때문에 폭을 명시해야 한다 */
-  .uf-krow input.uf-kin{ width:auto; flex:1 1 auto; min-width:0; background:var(--bg);
-     border:1px solid var(--line); color:var(--text); border-radius:6px; padding:5px 9px; font:inherit; font-size:12px; }
-  .uf-kn{ flex:0 0 auto; min-width:44px; text-align:right; font-size:10.5px; color:var(--muted); }
-  .uf-kb{ flex:0 0 auto; background:transparent; border:1px solid var(--line); color:var(--muted);
-     border-radius:6px; padding:3px 7px; font:inherit; font-size:11px; cursor:pointer; line-height:1.4; }
-  .uf-kb:hover:not(:disabled){ color:var(--text); border-color:var(--accent); }
-  .uf-kb.del:hover:not(:disabled){ color:#f87171; border-color:#f87171; }
-  .uf-kb:disabled{ opacity:.3; cursor:default; }
-  .uf-add:disabled{ opacity:.4; cursor:default; }
-  /* 실제 폴더 현황 — 계획 숫자 아래 작은 둘째 줄 */
-  .uf-act{ display:block; font-size:10px; font-weight:800; margin-top:1px; letter-spacing:-.2px; }
-  .uf-act.ok{ color:#34d399; }
-  .uf-act.low{ color:#fbbf24; }
-  .uf-act.ext{ color:#60a5fa; }
-  .uf-act.none{ color:var(--muted); opacity:.45; }
-  body.light .uf-act.ok{ color:#047857; }
-  body.light .uf-act.low{ color:#b45309; }
-  body.light .uf-act.ext{ color:#1d4ed8; }
-  .uf-fscan{ font-size:10.5px; color:var(--muted); opacity:.8; margin-top:2px; }
+  .uf-kbtn-top.hl{ color:var(--text); border-color:var(--accent); }
+  .uf-kbtn-top:disabled{ opacity:.5; cursor:default; }
+
+  /* ---- 표 ---- */
   .uf-tbl{ width:100%; border-collapse:separate; border-spacing:0; font-size:12.5px; }
   .uf-tbl th, .uf-tbl td{ border-bottom:1px solid var(--line); padding:0; }
   .uf-tbl thead th{ position:sticky; top:0; z-index:2; background:var(--rowhead); color:var(--muted);
      font-weight:800; font-size:11.5px; padding:8px 6px; text-align:center; white-space:nowrap; }
-  .uf-tbl thead th.uf-fold{ text-align:left; padding-left:12px; width:236px; z-index:3; }
-  .uf-tbl thead th.uf-sum{ width:64px; }
-  .uf-tbl thead th.uf-pickh{ width:132px; text-align:left; padding-left:11px; }
-  .uf-pk{ padding:8px 11px; border-right:1px solid var(--line); background:var(--panel);
-     vertical-align:middle; white-space:nowrap; }
-  .uf-pk b{ font-size:12.5px; font-weight:700; color:var(--text); }
-  .uf-pk small{ display:block; font-size:10px; color:var(--muted); margin-top:2px; }
-  .uf-pk.none{ color:var(--muted); opacity:.35; font-size:13px; }
-  .uf-tbl tr.uf-tot td.uf-pk{ background:var(--panel2); }
+  .uf-tbl thead th.uf-fold{ text-align:left; padding-left:12px; width:208px; z-index:3; }
+  .uf-tbl thead th.uf-pickh{ text-align:left; padding-left:11px; width:200px; }
+  .uf-tbl thead th.uf-sum{ width:60px; }
   .uf-tbl thead th i{ display:inline-block; width:7px; height:7px; border-radius:50%;
      margin-right:5px; vertical-align:middle; }
-  .uf-fcell{ padding:9px 12px; background:var(--rowhead); border-right:1px solid var(--line); }
+  .uf-tbl thead th.uf-xk{ opacity:.6; }
+  .uf-tbl thead th.uf-xk::after{ content:" ＋"; color:#60a5fa; font-size:10px; }
+  .uf-fcell{ padding:8px 12px; background:var(--rowhead); border-right:1px solid var(--line); vertical-align:top; }
   .uf-r{ cursor:pointer; }
   .uf-r:hover .uf-fcell{ background:var(--rowhead-h); }
-  .uf-fname{ font-weight:800; font-size:13.5px; letter-spacing:.4px; display:flex; align-items:center; gap:7px; }
-  .uf-caret{ color:var(--muted); font-size:10px; }
-  .uf-badge{ font-size:10px; font-weight:900; padding:2px 6px; border-radius:5px; letter-spacing:.3px; }
+  .uf-r.on .uf-fcell{ background:#232a3d; box-shadow:inset 3px 0 0 var(--accent); }
+  .uf-r.on td{ background:#1a1f2c; }
+  /* ⚠ 선택 행의 배경은 하드코딩 값이라 라이트에서 깜깜해진다 — 반드시 같이 덮을 것 */
+  body.light .uf-r.on .uf-fcell{ background:#dbe2f6; }
+  body.light .uf-r.on td{ background:#eceffc; }
+  .uf-diff .uf-fcell{ box-shadow:inset 3px 0 0 #fbbf24; }
+  .uf-r.on.uf-diff .uf-fcell{ box-shadow:inset 3px 0 0 var(--accent); }
+  .uf-fname{ font-weight:800; font-size:13px; letter-spacing:.3px; display:flex;
+     align-items:center; gap:6px; flex-wrap:wrap; }
+  .uf-badge{ font-size:9.5px; font-weight:900; padding:2px 6px; border-radius:5px; letter-spacing:.3px; }
   .uf-b-build{ background:rgba(252,211,77,.14); color:#fcd34d; }
   .uf-b-cdn{ background:rgba(56,189,248,.14); color:#38bdf8; }
-  /* 라이트에서는 연른 색이 흰 바탕에 묻힌다 — 글자만 진하게 바꾸고 연한 칩은 그대로 둔다. */
   body.light .uf-b-build{ background:rgba(161,98,7,.12); color:#a16207; }
   body.light .uf-b-cdn{ background:rgba(3,105,161,.12); color:#0369a1; }
-  .uf-fmeta{ font-size:11px; color:var(--muted); margin-top:3px; }
-  .uf-fpath{ font-size:10.5px; color:var(--muted); opacity:.75; margin-top:4px;
-     font-family:ui-monospace,Menlo,Consolas,monospace; display:flex; align-items:center; gap:5px; }
-  .uf-cpy{ background:var(--panel2); border:1px solid var(--line); color:var(--muted);
-     border-radius:5px; font-size:10px; padding:1px 6px; cursor:pointer; font-family:inherit; white-space:nowrap; }
-  .uf-cpy:hover{ color:var(--text); border-color:var(--accent); }
-  .uf-tbl td.uf-c{ text-align:center; vertical-align:middle; border-right:1px solid var(--grid); min-width:84px; }
-  .uf-n{ font-size:17px; font-weight:800; line-height:1.1; }
-  .uf-n.zero{ color:var(--muted); opacity:.35; font-weight:600; font-size:14px; }
+  .uf-sch{ font-size:9px; font-weight:800; padding:1px 5px; border-radius:4px; }
+  .uf-sch.ng{ background:rgba(248,113,113,.14); color:#f87171; }
+  .uf-sch.ad{ background:rgba(96,165,250,.14); color:#60a5fa; }
+  .uf-dmark{ font-size:9px; font-weight:900; color:#fbbf24;
+     background:rgba(251,191,36,.13); border-radius:4px; padding:1px 5px; }
+  .uf-fmeta{ font-size:10.5px; color:var(--muted); margin-top:2px; }
+  .uf-fscan{ font-size:10px; color:var(--muted); opacity:.75; margin-top:2px; }
+
+  /* CDN 콘텐츠 세 줄 — 「나안 + 색상」 */
+  .uf-pk{ padding:7px 11px; border-right:1px solid var(--line); vertical-align:top; }
+  .uf-p2{ display:flex; align-items:baseline; gap:7px; padding:1.5px 0; font-size:12px; white-space:nowrap; }
+  .uf-lb{ flex:0 0 38px; font-size:9.5px; font-weight:800; text-align:right; }
+  .uf-p2 b{ font-weight:700; overflow:hidden; text-overflow:ellipsis; }
+  .uf-p2 small{ color:var(--muted); font-size:10px; font-weight:600; }
+  .uf-p2.dim b{ color:var(--muted); opacity:.45; font-weight:600; }
+
+  .uf-tbl td.uf-c{ text-align:center; vertical-align:middle; border-right:1px solid var(--grid); min-width:78px; }
+  .uf-tbl td.uf-c.nofold{ background:repeating-linear-gradient(135deg,transparent,transparent 5px,
+     rgba(255,255,255,.035) 5px,rgba(255,255,255,.035) 10px); }
+  body.light .uf-tbl td.uf-c.nofold{ background:repeating-linear-gradient(135deg,transparent,transparent 5px,
+     rgba(0,0,0,.04) 5px,rgba(0,0,0,.04) 10px); }
+  .uf-n{ font-size:16px; font-weight:800; line-height:1.1; }
+  .uf-n.zero{ color:var(--muted); opacity:.32; font-weight:600; font-size:13px; }
+  .uf-act{ display:block; font-size:9.5px; font-weight:800; margin-top:1px; letter-spacing:-.2px; }
+  .uf-act.ok{ color:#34d399; } .uf-act.low{ color:#fbbf24; }
+  .uf-act.ext{ color:#60a5fa; } .uf-act.none{ color:var(--muted); opacity:.45; }
+  body.light .uf-act.ok{ color:#047857; } body.light .uf-act.low{ color:#b45309; }
+  body.light .uf-act.ext{ color:#1d4ed8; }
+  .uf-fmark{ display:block; font-size:9px; font-weight:800; margin-top:1px; letter-spacing:-.2px; }
+  .uf-fmark.miss{ color:#f87171; } .uf-fmark.add{ color:#60a5fa; }
   .uf-tbl td.uf-sum{ text-align:center; font-weight:800; color:var(--accent); background:var(--panel2); }
-  .uf-tbl tr.uf-tot td{ background:var(--panel2); font-weight:800; text-align:center;
-     padding:8px 0; border-bottom:0; }
+  .uf-tbl tr.uf-tot td{ background:var(--panel2); font-weight:800; text-align:center; padding:8px 0; border-bottom:0; }
   .uf-tbl tr.uf-tot td.uf-fcell{ text-align:left; color:var(--muted); font-size:11.5px; }
-  .uf-tbl tr.uf-det td{ background:var(--panel); padding:0; }
-  .uf-detwrap{ padding:10px 14px 12px; max-width:1180px; }
-  .uf-ditem{ display:flex; align-items:center; gap:9px; font-size:12px; padding:5px 0;
+  .uf-tbl tr.uf-tot td.uf-pk{ background:var(--panel2); }
+  .uf-empty{ padding:40px 20px; text-align:center; color:var(--muted); font-size:13px; line-height:2; }
+  .uf-empty b{ color:var(--text); }
+
+  /* ---- 우측 패널 ---- */
+  .uf-ph{ padding:11px 13px; border-bottom:1px solid var(--line); background:var(--panel); }
+  .uf-ph-t{ display:flex; align-items:center; gap:7px; font-size:15px; font-weight:800; letter-spacing:.4px; }
+  .uf-ph-x{ margin-left:auto; background:transparent; border:1px solid var(--line); color:var(--muted);
+     border-radius:6px; padding:2px 8px; font:inherit; font-size:11px; cursor:pointer; }
+  .uf-ph-x:hover{ color:var(--text); border-color:var(--accent); }
+  .uf-ph-m{ font-size:11px; color:var(--muted); margin-top:4px; }
+  .uf-ph-tr{ margin-top:7px; padding-top:7px; border-top:1px dashed var(--line); }
+  .uf-ph-p{ font-size:10.5px; font-family:ui-monospace,Menlo,Consolas,monospace; color:var(--muted);
+     margin-top:7px; display:flex; align-items:center; gap:6px; }
+  .uf-cpy{ background:var(--panel2); border:1px solid var(--line); color:var(--muted);
+     border-radius:5px; font:inherit; font-size:10px; padding:1px 6px; cursor:pointer; white-space:nowrap; }
+  .uf-cpy:hover{ color:var(--text); border-color:var(--accent); }
+  .uf-strip{ display:flex; border-bottom:1px solid var(--line); background:var(--panel2); }
+  .uf-st{ flex:1; text-align:center; padding:8px 2px; border-right:1px solid var(--line); }
+  .uf-st:last-child{ border-right:0; }
+  .uf-st b{ display:block; font-size:15px; font-weight:800; line-height:1.2; }
+  .uf-st span{ font-size:9.5px; color:var(--muted); }
+  .uf-st.ok b{ color:#34d399; } .uf-st.warn b{ color:#fbbf24; }
+  .uf-psc{ flex:1 1 0; min-height:0; overflow:auto; padding:11px 13px 16px; }
+  .uf-ph2{ font-size:11px; font-weight:800; color:var(--muted); margin:0 0 7px; letter-spacing:.3px; }
+  .uf-ph2:not(:first-child){ margin-top:17px; }
+  .uf-sub{ font-weight:600; opacity:.8; }
+  .uf-mrow{ display:flex; align-items:center; gap:7px; font-size:12px; padding:5px 0;
      border-bottom:1px dashed var(--line); }
-  .uf-ditem:last-of-type{ border-bottom:0; }
-  .uf-dk{ font-size:10px; font-weight:800; padding:3px 8px; border-radius:5px;
-     background:var(--panel2); color:var(--muted); min-width:72px; text-align:center; }
-  .uf-dn{ flex:1; color:var(--text); min-width:0; }
-  .uf-dc{ font-weight:800; color:var(--accent); min-width:34px; text-align:right; }
-  /* ⚠ `.modal input,.modal select{width:100%}` 이 이기려든다 — **폭을 명시하지 않으면**
-     select 가 한 줄을 다 먹고 이름란이 0px 로 눌린다(실측 2026-11-12). width 를 반드시 적는다. */
-  .uf-ditem select.uf-dk{ width:auto; flex:0 0 auto; min-width:106px; font-family:inherit; font-size:11.5px;
-     border:1px solid var(--line); color:var(--text); cursor:pointer; padding:4px 6px; text-align:left; }
-  .uf-ditem input.uf-dn{ width:auto; flex:1 1 auto; min-width:0; background:var(--panel2);
-     border:1px solid var(--line); color:var(--text); border-radius:6px; padding:5px 9px; font:inherit; font-size:12px; }
-  .uf-ditem input.uf-dc{ width:74px; flex:0 0 auto; background:var(--panel2); border:1px solid var(--line);
-     color:var(--text); border-radius:6px; padding:5px 7px; font:inherit; font-size:12px; text-align:right; }
-  .uf-dx{ background:transparent; border:1px solid var(--line); color:var(--muted);
+  .uf-dot{ width:8px; height:8px; border-radius:50%; flex:0 0 auto; background:var(--line); }
+  .uf-dot.g{ background:#34d399; } .uf-dot.a{ background:#fbbf24; } .uf-dot.b{ background:#60a5fa; }
+  /* ⚠ `.modal input{width:100%}` 가 이긴다 — 폭을 반드시 명시할 것 */
+  .uf-mrow input.uf-mk{ width:86px; flex:0 0 86px; }
+  .uf-mrow input.uf-mn{ width:auto; flex:1 1 auto; min-width:0; }
+  .uf-mrow input.uf-mc{ width:58px; flex:0 0 58px; text-align:right; }
+  .uf-mrow input{ background:var(--panel2); border:1px solid var(--line); color:var(--text);
+     border-radius:6px; padding:4px 7px; font:inherit; font-size:11.5px; }
+  .uf-mk.ro{ flex:0 0 86px; font-size:9.5px; font-weight:800; padding:2px 6px; border-radius:4px;
+     background:var(--panel2); color:var(--muted); text-align:center; }
+  .uf-mn.ro{ flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .uf-mv{ flex:0 0 auto; font-size:11.5px; font-weight:800; color:var(--muted); }
+  .uf-mv b{ color:var(--muted); } .uf-mv b.g{ color:#34d399; }
+  .uf-mv b.a{ color:#fbbf24; } .uf-mv b.b{ color:#60a5fa; }
+  .uf-dx{ flex:0 0 auto; background:transparent; border:1px solid var(--line); color:var(--muted);
      border-radius:6px; padding:3px 7px; font:inherit; font-size:11px; cursor:pointer; }
   .uf-dx:hover{ color:#f87171; border-color:#f87171; }
   .uf-add{ margin-top:9px; background:var(--panel2); border:1px dashed var(--line); color:var(--muted);
      border-radius:7px; padding:5px 12px; font-family:inherit; font-size:11.5px; font-weight:700; cursor:pointer; }
   .uf-add:hover{ color:var(--text); border-color:var(--accent); }
-  .uf-none{ color:var(--muted); font-size:11.5px; padding:2px 0 4px; }
-  .uf-empty{ padding:40px 20px; text-align:center; color:var(--muted); font-size:13px; line-height:2; }
-  .uf-empty b{ color:var(--text); }
+  .uf-none{ color:var(--muted); font-size:11.5px; padding:3px 0; }
+  .uf-warn{ border:1px solid #4a3a1a; background:#1f1a12; border-radius:8px; padding:9px 11px;
+     font-size:11.5px; color:#e8dcc4; line-height:1.8; }
+  .uf-warn b{ color:#fcd34d; }
+  .uf-warn code{ font-family:ui-monospace,Menlo,Consolas,monospace; }
+  body.light .uf-warn{ background:#fdf6e3; border-color:#e7d9a8; color:#6b5520; }
+  body.light .uf-warn b{ color:#92400e; }
+  .uf-grp{ border:1px solid var(--line); border-radius:8px; margin-bottom:6px; overflow:hidden; }
+  .uf-grp-h{ display:flex; align-items:center; gap:7px; padding:7px 10px; background:var(--panel2);
+     cursor:pointer; font-size:11.5px; font-weight:700; }
+  .uf-grp-h:hover{ background:var(--rowhead-h); }
+  .uf-ct{ margin-left:auto; color:var(--muted); font-size:10.5px; font-weight:600; }
+  .uf-grp-b{ padding:5px 10px 8px; }
+  .uf-frow{ display:flex; align-items:center; gap:8px; font-size:11px; padding:3px 0;
+     font-family:ui-monospace,Menlo,Consolas,monospace; }
+  .uf-fnm{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .uf-fsz{ color:var(--muted); flex:0 0 auto; }
+  .uf-fdt{ color:var(--muted); opacity:.7; flex:0 0 auto; width:38px; text-align:right; }
+  .uf-frow.new .uf-fnm{ color:#34d399; }
+  .uf-frow.new::after{ content:"NEW"; font-size:8.5px; font-weight:800; color:#34d399;
+     background:rgba(52,211,153,.12); padding:1px 4px; border-radius:3px; }
   .uf-foot{ display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--muted); flex-wrap:wrap; }
   .uf-foot code{ font-family:ui-monospace,Menlo,Consolas,monospace; color:var(--text); }
 
@@ -1992,9 +2047,12 @@
   </div>
   <div class="modal-bg" id="ufModal">
     <div class="modal uf-modal"><div class="hub-head"><span class="hub-tabs"><button type="button" class="hub-tab " data-hubtab="rm">🗺 발주 로드맵</button><button type="button" class="hub-tab " data-hubtab="sp">📅 서비스 플랜</button><button type="button" class="hub-tab " data-hubtab="ms">⚙ 마일스톤</button><button type="button" class="hub-tab on" data-hubtab="uf">📦 업데이트 폴더</button></span><button type="button" class="hub-x" data-close>✕ 닫기</button></div>
-      <div class="msub" id="ufSub">업데이트 폴더에 들어갈 리소스를 종류별로 적어 둡니다. 아트팀은 이 표를 보고 해당 폴더에 리소스를 배치합니다. 폴더 줄을 누르면 목록이 펼쳐집니다.</div>
+      <div class="msub" id="ufSub">업데이트 폴더에 들어갈 리소스를 종류별로 적어 둡니다. 아트팀은 이 표를 보고 해당 폴더에 리소스를 배치합니다. 폴더 줄을 누르면 오른쪽에 상세가 열립니다.</div>
       <div id="ufTools"></div>
-      <div class="uf-scroll scrollbar"><div id="ufGrid"></div></div>
+      <div class="uf-split" id="ufSplit">
+        <div class="uf-scroll scrollbar"><div id="ufGrid"></div></div>
+        <div class="uf-panel scrollbar" id="ufPanel"></div>
+      </div>
       <div class="modal-actions">
         <div class="uf-foot" id="ufFoot"></div>
         <div class="right"><button class="btn" data-close>닫기</button></div></div>
@@ -5689,323 +5747,435 @@ function openPlan(){ const fresh=!state.plan; planState();
    ⚠ 데이터 키는 **폴더 이름 문자열**(1_1_a). 항목 id 가 아니라 이름이라, 서비스 플랜에서
      폴더 이름을 바꾸면 기재분이 떨어져 나간다 — 이름은 안 바꾸는 것이 전제다.
    ⚠ 기간·빌드/CDN 뱃지는 서비스 플랜 계산(spRange/spNcKind)을 그대로 쓴다. 중복 입력 없음. */
-/* ===== 리소스 종류(열) — 사용자가 직접 고친다 (2026-11-12, build 2026111202) =============
-   사용자 지시: "저 필드 편집할 수 있게 해줘" (열 머리글을 빨간 원으로 표시).
-   언리얼 Update 폴더의 하위 구조가 바뀔 때마다 코드를 고치지 않게 **종류 목록을 state 로** 옮겼다.
-   기본값은 스크린샷의 6종 — state.ufKinds 가 비면 여기서 다시 시드된다.
-   ⚠ 색은 사용자가 고르지 않는다 — 추가할 때 팔레트에서 자동으로 붙는다(고를 거리가 늘면 복잡해진다).
-   ⚠ 이름을 바꾸면 기재된 항목의 `k` 를 **같이 옮긴다**. 안 그러면 숫자가 통째로 사라진다.
-   ⚠ 쓰고 있는 종류는 **지우지 못한다**(몇 건이 있는지 알려 주고 막는다). 기재분이 고아가 되는 걸 막는다. */
-const UF_PALETTE = ["#22c55e","#a855f7","#f97316","#ec4899","#38bdf8","#eab308","#14b8a6","#f43f5e","#8b5cf6","#84cc16","#06b6d4","#fb923c"];
-const UF_KINDS_SEED = [["BG","#22c55e"],["Cinematic","#a855f7"],["FX","#f97316"],["Movie","#ec4899"],["UI","#38bdf8"],["Unit","#eab308"]];
-const UF_KIND_MAX = 12, UF_KIND_LEN = 24;
+/* ═══ 「업데이트 폴더」 탭 — 전체 (2026-11-12, build 2026111205) ════════════════
+   레이아웃 B안: **매트릭스는 그대로 두고, 폴더를 누르면 오른쪽에 패널**이 열린다.
+   예전의 '행을 펼쳐 아래에 목록' 방식은 버렸다 — 파일 목록까지 넣으면 한 폴더가 화면을 다 먹는다.
+
+   사용자가 정한 것 (2026-11-12):
+   · 리소스 종류(열)는 **손으로 관리하지 않는다** — 스캔한 하위 폴더에서 뽑는다. 편집 UI 삭제
+   · 열 순서는 **스캔 당시 순서** 그대로. 스캔할 때마다 다시 맞춘다
+   · 업데이트 폴더마다 구조가 다르면 **「폴더 없음」 / 「＋추가」** 로 표시
+   · 파일 목록·용량·NEW 는 **보드에 저장하지 않는다**(비용). 스캔한 브라우저에만 있다
+   · CDN 콘텐츠 = 캐릭터 픽업 + 프리미엄 코스튬 픽업 + 프리미엄 코스튬 이벤트 **세 줄을 한 열에**,
+     「나안 + 색상」 — 라벨은 픽업/코스튬/이벤트, 각자 색을 준다
+
+   state 에 쓰는 것 (추가 0바이트 — 이미 있던 세 개뿐):
+     ufolders  계획      { "1_1_a": [{id,k,name,n}] }
+     ufKinds   열 목록   [{n,c}]  ← 스캔에서 자동 도출(기재에 쓰인 종류도 합집합)
+     ufActual  실제 집계 { at,by,root, f:{ 폴더:{ 종류:{n,f,m} } } }
+   브라우저에만 (저장 안 함): ufFiles(파일 목록) · ufPrev(직전 스캔, NEW 계산용) · ufDirHandle */
+const UF_ROOT  = "Content/GameR/Update/";
+const UF_MAX   = 60;                        // 폴더당 계획 줄 상한 (무료 D1)
+const UF_ASSET_RE = /\.(uasset|umap)$/i;
+const UF_PALETTE = ["#22c55e","#a855f7","#f97316","#ec4899","#38bdf8","#eab308",
+                    "#14b8a6","#f43f5e","#8b5cf6","#84cc16","#06b6d4","#fb923c"];
+const UF_KINDS_SEED = [["BG","#22c55e"],["Cinematic","#a855f7"],["FX","#f97316"],
+                       ["Movie","#ec4899"],["UI","#38bdf8"],["Unit","#eab308"]];
+/* CDN 콘텐츠 세 트랙. 색은 **고정** — 서비스 플랜에서 코스튬 픽업과 코스튬 이벤트가
+   같은 색(#a855f7)이라 트랙 색을 그대로 쓰면 둘을 구분할 수 없다. */
+const UF_TRACKS = [
+  { lb:"픽업",   c:"#f472b6", re:/캐릭터\s*픽업/ },
+  { lb:"코스튬", c:"#c084fc", re:/프리미엄\s*코스튬\s*픽업/ },
+  { lb:"이벤트", c:"#60a5fa", re:/프리미엄\s*코스튬\s*이벤트/ },
+];
+let ufSel = null;                 // 선택한 폴더 키 (우측 패널)
+let ufFiles = null;               // { 폴더: { 종류: [{n,s,m}], "":[느슨한 파일] } } — 저장 안 함
+let ufPrev  = null;               // 직전 스캔의 파일 이름 Set (NEW 표시용) — 저장 안 함
+let ufOpenKind = new Set();       // 패널에서 펼친 종류
+
+/* ---------- 서비스 플랜에서 읽어 오는 것들 ---------- */
+function ufPlanRow(re){
+  for(const sec of planState().sections||[])
+    for(const r of sec.rows||[]) if(re.test(r.name||"")) return r;
+  return null;
+}
+const ufRow = () => ufPlanRow(/업데이트\s*폴더/);
+function ufItemAt(row, it){
+  if(!row || !it) return null;
+  return (row.items||[]).find(y=>y.s===it.s) || (row.items||[]).find(y=>it.s>=y.s && it.s<y.s+y.w) || null;
+}
+/* 한 업데이트 폴더에 걸리는 CDN 콘텐츠 세 줄 */
+function ufTracksOf(it){
+  return UF_TRACKS.map(t=>{ const r=ufPlanRow(t.re); const x=ufItemAt(r,it);
+    return { lb:t.lb, c:t.c, text:x?(x.text||""):"", note:x?(x.note||""):"" }; });
+}
+const ufTrackDiff = tr => { const v=tr.filter(x=>x.text).map(x=>x.text);
+  return v.length>1 && new Set(v).size>1; };
+
+/* ---------- 계획 ---------- */
+const ufKey = it => String((it&&it.text)||"").trim();
+function ufFolders(){ const r=ufRow();
+  return [...((r&&r.items)||[])].filter(it=>ufKey(it)).sort((a,b)=>(a.s||0)-(b.s||0)); }
+const ufFolderNames = () => ufFolders().map(ufKey);
+function ufAll(){ if(!state.ufolders || typeof state.ufolders!=="object" || Array.isArray(state.ufolders)) state.ufolders={}; return state.ufolders; }
+function ufItems(key){ const a=ufAll(); if(!Array.isArray(a[key])) a[key]=[]; return a[key]; }
+const ufCanEdit = () => askCanWrite() && askCanManage();
+const ufCount = (key,k) => ufItems(key).filter(x=>x&&x.k===k).reduce((s,x)=>s+(Number(x.n)||0),0);
+const ufNewId = () => "ufi"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+
+/* ---------- 종류(열) — 스캔 ∪ 기재 ----------
+   ⚠ 기재에만 있고 폴더가 아직 없는 종류도 **열로 남긴다**. 미리 적어 둔 숫자가 숨으면 안 된다. */
 function ufKinds(){
-  if(!Array.isArray(state.ufKinds) || !state.ufKinds.length)
-    state.ufKinds = UF_KINDS_SEED.map(([n,c])=>({n,c}));
-  return state.ufKinds;
+  let ks = Array.isArray(state.ufKinds) ? state.ufKinds.filter(x=>x&&x.n) : [];
+  if(!ks.length) ks = UF_KINDS_SEED.map(([n,c])=>({n,c}));
+  const have = new Set(ks.map(x=>x.n));
+  const a = ufAll();                                    // 기재에 쓰인 종류 보충
+  for(const key of Object.keys(a))
+    for(const x of (a[key]||[])) if(x && x.k && !have.has(x.k)){ have.add(x.k);
+      ks.push({ n:x.k, c:UF_PALETTE[ks.length % UF_PALETTE.length] }); }
+  state.ufKinds = ks;
+  return ks;
 }
 const ufKindNames = () => ufKinds().map(x=>x.n);
-const UF_ROOT  = "Content/GameR/Update/";
-/* ===== 실제 폴더 현황 (2026-11-12, build 2026111203) =======================
-   사용자 요청: "폴더를 연결해줄테니깐 작업된 내역도 볼 수 있게 해줄래?" → 「보드에서 폴더 직접 읽기」 선택.
-   ⚠ 보드는 Cloudflare 위의 웹페이지라 **스스로 디스크를 읽지 못한다.** 브라우저의 File System Access API
-     (`showDirectoryPicker`)로 **사람이 한 번 폴더를 골라 줘야** 읽는다. 크롬·엣지 전용, HTTPS 필요.
-   읽은 결과는 state 에 저장하므로 **한 사람이 스캔하면 모두가 본다.**
-   세는 것: `.uasset` / `.umap` 개수 + 가장 최근 수정 시각(재귀). 전체 파일 수는 툴팁에만.
-   용량: 폴더 × 종류당 약 25바이트 → 8×6 이면 1KB 남짓. 무료 한도 영향 없음. */
-const UF_ASSET_RE = /\.(uasset|umap)$/i;
+/* 표준 = 하위 폴더를 하나라도 가진 업데이트 폴더들 중 **과반**이 가진 종류.
+   아직 아무것도 안 만든 폴더는 세지 않는다(시작 전일 뿐이므로). */
+function ufStd(){
+  const a=ufActual(); const std=new Set();
+  const none={ std, base:0, enough:false };
+  if(!a || !a.f) return none;
+  const names=ufFolderNames();
+  const live=Object.keys(a.f).filter(k=>names.indexOf(k)>=0 && Object.keys(a.f[k]||{}).length);
+  /* ⚠ 내용이 있는 폴더가 **3개 미만이면 비교하지 않는다.** 초반엔 1_0_b 하나만 채워져 있는데
+     그때 과반을 따지면 "2곳 중 1곳" 이 전부 비표준으로 찍혀 경고가 도배된다(실측 2026-11-12). */
+  if(live.length < 3) return none;
+  for(const k of ufKindNames()){
+    const c=live.filter(f=>a.f[f] && a.f[f][k]).length;
+    if(c*2 > live.length) std.add(k);          // 과반 = 절반 '초과'
+  }
+  return { std, base:live.length, enough:true };
+}
+const ufHasFolder = (key,k) => { const a=ufActual(); return !!(a && a.f && a.f[key] && a.f[key][k]); };
+const ufScanned   = key => { const a=ufActual(); return !!(a && a.f && a.f[key]); };
+
+/* ---------- 실제 집계 ---------- */
 const ufActual = () => (state.ufActual && typeof state.ufActual==="object" && state.ufActual.f) ? state.ufActual : null;
 function ufActOf(key, kind){ const a=ufActual(); const f=a&&a.f&&a.f[key]; return (f&&f[kind]) || null; }
 function ufActFolder(key){ const a=ufActual(); const f=a&&a.f&&a.f[key]; if(!f) return null;
-  let n=0, m=0; for(const k of Object.keys(f)){ n+=Number(f[k].n)||0; if((f[k].m||0)>m) m=f[k].m; }
+  let n=0,m=0; for(const k of Object.keys(f)){ n+=Number(f[k].n)||0; if((f[k].m||0)>m) m=f[k].m; }
   return { n, m }; }
-const ufMD = ms => { const t=Number(ms)||0; if(!t) return ""; const d=new Date(t);
-  return (d.getMonth()+1)+"/"+d.getDate(); };
+const ufMD = ms => { const t=Number(ms)||0; if(!t) return ""; const d=new Date(t); return (d.getMonth()+1)+"/"+d.getDate(); };
 function ufWhen(ms){ const t=Number(ms)||0; if(!t) return "-"; const d=new Date(t), p=n=>String(n).padStart(2,"0");
   return (d.getMonth()+1)+"/"+d.getDate()+" "+p(d.getHours())+":"+p(d.getMinutes()); }
-/* 한 폴더를 재귀로 센다. {n: 에셋 수, f: 전체 파일 수, m: 가장 최근 수정 시각} */
-async function ufScanDir(dh){
-  let n=0, f=0, m=0;
+const ufMB = b => { const n=Number(b)||0; if(n<1024) return n+"B";
+  if(n<1048576) return (n/1024).toFixed(0)+"KB"; return (n/1048576).toFixed(n<104857600?1:0)+"MB"; };
+
+/* ---------- 스캔 ---------- */
+async function ufScanDir(dh, out){
+  let n=0, f=0, m=0, sz=0;
   for await (const e of dh.values()){
-    if(e.kind==="directory"){ const r=await ufScanDir(e); n+=r.n; f+=r.f; if(r.m>m) m=r.m; }
-    else { f++; if(UF_ASSET_RE.test(e.name)) n++;
-      try{ const fl=await e.getFile(); if(fl.lastModified>m) m=fl.lastModified; }catch(_){} }
+    if(e.kind==="directory"){ const r=await ufScanDir(e, out); n+=r.n; f+=r.f; sz+=r.sz; if(r.m>m) m=r.m; }
+    else{ f++; let size=0, mod=0;
+      try{ const fl=await e.getFile(); size=fl.size||0; mod=fl.lastModified||0; }catch(_){}
+      sz+=size; if(mod>m) m=mod;
+      if(UF_ASSET_RE.test(e.name)){ n++; if(out) out.push({ n:e.name, s:size, m:mod }); }
+    }
   }
-  return { n, f, m };
+  return { n, f, m, sz };
 }
 async function ufScan(btn){
   if(!ufCanEdit()) return;
-  if(!window.showDirectoryPicker){
-    flashNote("이 브라우저는 폴더 읽기를 지원하지 않습니다. 크롬이나 엣지에서 열어 주세요."); return; }
+  if(!window.showDirectoryPicker){ flashNote("이 브라우저는 폴더 읽기를 지원하지 않습니다. 크롬이나 엣지에서 열어 주세요."); return; }
   let root;
-  try{ root = await window.showDirectoryPicker({ id:"ufUpdate", mode:"read" }); }
-  catch(_){ return; }                                     // 사용자가 취소
+  if(ufDirHandle && btn && btn.dataset.again==="1"){
+    root = ufDirHandle;
+    try{ const p = await root.queryPermission({mode:"read"});
+      if(p!=="granted" && await root.requestPermission({mode:"read"})!=="granted") root=null; }catch(_){ root=null; }
+  }
+  if(!root){ try{ root = await window.showDirectoryPicker({ id:"ufUpdate", mode:"read" }); }catch(_){ return; } }
   const label = btn ? btn.textContent : "";
   if(btn){ btn.textContent="📂 읽는 중…"; btn.disabled=true; }
   try{
     const names = ufFolderNames();
-    /* Update 가 아니라 그 윗 폴더를 집었으면 한 단계 내려가 본다 */
-    let dh = root, hit = false;
+    let dh = root, hit=false;
     for await (const e of dh.values()) if(e.kind==="directory" && names.indexOf(e.name)>=0){ hit=true; break; }
     if(!hit){ try{ dh = await root.getDirectoryHandle("Update"); }catch(_){} }
-    const kinds = ufKindNames(), out = {}, unknown = new Set();
-    let folders = 0;
+    ufDirHandle = dh;
+    /* 직전 스캔의 파일 이름을 기억해 NEW 를 표시한다(브라우저 안에서만) */
+    ufPrev = new Set();
+    if(ufFiles) for(const fk of Object.keys(ufFiles)) for(const kk of Object.keys(ufFiles[fk]||{}))
+      (ufFiles[fk][kk]||[]).forEach(x=>ufPrev.add(fk+"/"+kk+"/"+x.n));
+    const out={}, files={}, order=[], loose={};
+    let folders=0;
     for await (const e of dh.values()){
-      if(e.kind!=="directory") continue;
-      const rec = {};
+      if(e.kind!=="directory" || e.name.charAt(0)==="." || e.name.charAt(0)==="_") continue;
+      const rec={}, frec={}; let lo=[];
       for await (const k of e.values()){
-        if(k.kind!=="directory") continue;
-        const r = await ufScanDir(k);
-        rec[k.name] = { n:r.n, f:r.f, m:r.m };
-        if(kinds.indexOf(k.name)<0) unknown.add(k.name);
+        if(k.kind==="directory"){
+          if(k.name.charAt(0)==="." || k.name.charAt(0)==="_") continue;
+          const list=[]; const r=await ufScanDir(k, list);
+          rec[k.name]={ n:r.n, f:r.f, m:r.m };
+          frec[k.name]=list.sort((a,b)=>a.n.localeCompare(b.n));
+          frec[k.name]._sz=r.sz;
+          if(order.indexOf(k.name)<0) order.push(k.name);     // ★ 스캔 순서 그대로
+        }else{
+          let size=0, mod=0; try{ const fl=await k.getFile(); size=fl.size||0; mod=fl.lastModified||0; }catch(_){}
+          lo.push({ n:k.name, s:size, m:mod });               // 종류 폴더 밖에 놓인 파일
+        }
       }
-      out[e.name] = rec; folders++;
+      out[e.name]=rec; files[e.name]=frec; loose[e.name]=lo; folders++;
     }
+    /* 열 = 스캔 순서 ∪ 기재에만 있는 종류 */
+    const used=new Set(); const a=ufAll();
+    for(const key of Object.keys(a)) for(const x of (a[key]||[])) if(x&&x.k) used.add(x.k);
+    const list=[...order]; used.forEach(k=>{ if(list.indexOf(k)<0) list.push(k); });
+    const old=new Map((state.ufKinds||[]).map(x=>[x.n,x.c]));
+    state.ufKinds = list.map((n,i)=>({ n, c: old.get(n) || UF_PALETTE[i % UF_PALETTE.length] }));
     state.ufActual = { at:Date.now(), by:(window.APP_USER&&window.APP_USER.name)||"", root:dh.name||"Update", f:out };
+    ufFiles = files; ufFiles._loose = loose;
     save(); renderUF();
-    let msg = "폴더 "+folders+"개를 읽었습니다.";
-    if(unknown.size) msg += " 종류 목록에 없는 하위 폴더: "+[...unknown].join(", ");
-    flashNote(msg);
+    flashNote("폴더 "+folders+"개를 읽었습니다. 열 "+list.length+"종.");
   }catch(err){ flashNote("폴더를 읽지 못했습니다 — "+(err&&err.message||err)); }
   finally{ if(btn){ btn.textContent=label||"📂 폴더 스캔"; btn.disabled=false; } }
 }
-/* 폴더 하나당 줄 상한 — 무료 D1 때문이다. state 는 한 덩어리 JSON 이라 저장·폴링마다 통째로 오간다.
-   한 줄이 대략 90바이트이니 → 폴더 20개 × 60줄 = 약 110KB 가 최악이고, 평상시는 수 KB 수준. */
-const UF_MAX   = 60;
-function ufRow(){
-  for(const sec of planState().sections||[])
-    for(const r of sec.rows||[]) if(/업데이트\s*폴더/.test(r.name||"")) return r;
-  return null;
-}
-/* 「캐릭터 픽업」 열 (2026-11-12, build 2026111204)
-   사용자 지시: "서비스 플랜의 캐릭터 픽업 이름을 불러왔으면해 / 캐릭터 픽업을 cdn 업데이트로 관리하려는거거든"
-   ⚠ 여기서 입력받지 않는다 — **서비스 플랜의 「캐릭터 픽업」 트랙을 그대로 읽어 온다.** 중복 입력 금지.
-   매칭은 납품 D− 와 **같은 규칙**(spNcBase): 시작 주가 같은 항목 → 그 주를 품은 항목 → 없으면 공란.
-   픽업 주기도 업데이트 폴더도 3주라 보통 1:1 로 맞는다. */
-function ufPickRow(){
-  for(const sec of planState().sections||[])
-    for(const r of sec.rows||[]) if(/캐릭터\s*픽업/.test(r.name||"")) return r;
-  return null;
-}
-function ufPickOf(it){
-  const r=ufPickRow(); if(!r || !it) return null;
-  return (r.items||[]).find(y=>y.s===it.s) || (r.items||[]).find(y=>it.s>=y.s && it.s<y.s+y.w) || null;
-}
-function ufFolderNames(){ const r=ufRow(); return [...((r&&r.items)||[])].map(ufKey).filter(Boolean); }
-function ufAll(){ if(!state.ufolders || typeof state.ufolders!=="object" || Array.isArray(state.ufolders)) state.ufolders={}; return state.ufolders; }
-const ufKey = it => String((it&&it.text)||"").trim();
-function ufItems(key){ const a=ufAll(); if(!Array.isArray(a[key])) a[key]=[]; return a[key]; }
-/* 편집은 매니저 이상 — 담당자·일정과 같은 등급(ASG_ROLES). 그 아래는 읽기 전용. */
-const ufCanEdit = () => askCanWrite() && askCanManage();
-const ufCount = (key,k) => ufItems(key).filter(x=>x&&x.k===k).reduce((s,x)=>s+(Number(x.n)||0),0);
-const ufNewId = () => "ufi"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-/* 종류 하나가 보드 전체에서 몇 줄에 쓰이고 있는지 — 삭제 막기용 */
-function ufKindUse(n){ let c=0; const a=ufAll();
-  for(const key of Object.keys(a)) (a[key]||[]).forEach(x=>{ if(x&&x.k===n) c++; });
-  return c; }
-/* 펼쳐진 폴더 — 화면 상태라 state 에 저장하지 않는다(다른 사람 화면을 맘대로 열지 않게). */
-let ufOpenSet = new Set(), ufKOpen = false;
-function ufRef(ds){
-  const p=String(ds||"").split("|"), key=p[0], id=p[1], list=ufItems(key);
-  return { key, id, list, it:list.find(x=>x&&x.id===id)||null };
-}
-function ufDetail(key, can){
-  const list=ufItems(key), names=ufKindNames();
-  let h='<div class="uf-detwrap">';
-  if(!list.length) h+='<div class="uf-none">아직 기재된 리소스가 없습니다.</div>';
-  for(const x of list){
-    if(!x || !x.id) continue;
-    const ref=escapeHtml(key)+"|"+escapeHtml(x.id);
-    const orphan = x.k && names.indexOf(x.k)<0;      // 종류 목록에 없는 값(이론상 안 생긴다)
-    h+='<div class="uf-ditem">';
-    if(can){
-      h+=`<select class="uf-dk" data-ufk="${ref}" title="리소스 종류">`+
-         (orphan?`<option value="${escapeHtml(x.k)}" selected>${escapeHtml(x.k)} (목록 없음)</option>`:"")+
-         names.map(n=>`<option value="${escapeHtml(n)}" ${x.k===n?"selected":""}>${escapeHtml(n)}</option>`).join("")+`</select>`+
-         `<input class="uf-dn" data-ufn="${ref}" value="${escapeHtml(x.name||"")}" maxlength="120" `+
-           `placeholder="무엇이 들어가는지 (예: 신규 캐릭터 — 리나 / 카일)">`+
-         `<input class="uf-dc" type="number" min="0" max="999" step="1" data-ufc="${ref}" value="${Number(x.n)||0}" title="개수">`+
-         `<button type="button" class="uf-dx" data-ufdel="${ref}" title="이 줄 삭제">✕</button>`;
-    }else{
-      h+=`<span class="uf-dk">${escapeHtml(x.k||"")}</span>`+
-         `<span class="uf-dn">${escapeHtml(x.name||"")||'<i style="opacity:.4">(내용 없음)</i>'}</span>`+
-         `<span class="uf-dc">${Number(x.n)||0}</span>`;
-    }
-    h+='</div>';
-  }
-  if(can) h+=`<button type="button" class="uf-add" data-ufadd="${escapeHtml(key)}">＋ 리소스 추가</button>`;
-  return h+'</div>';
-}
-/* 상단 도구줄 + 「종류 편집」 패널. 표와 따로 그린다(표를 다시 그려도 패널이 닫히지 않게). */
+let ufDirHandle = null;
+
+/* ---------- 도구줄 ---------- */
 function renderUFTools(){
   const el=document.getElementById("ufTools"); if(!el) return;
-  const can=ufCanEdit(), ks=ufKinds();
+  const can=ufCanEdit(), a=ufActual();
   let h='<div class="uf-bar">';
-  if(can) h+=`<button type="button" class="uf-kbtn-top${ufKOpen?" on":""}" data-ufkedit>⚙ 리소스 종류 편집</button>`;
-  if(can) h+=`<button type="button" class="uf-kbtn-top" data-ufscan title="Update 폴더를 골라 실제 들어있는 에셋을 셉니다 (크롬·엣지)">📂 폴더 스캔</button>`;
-  { const a=ufActual();
-    if(a) h+=`<span class="uf-barnote">스캔 ${escapeHtml(ufWhen(a.at))}${a.by?" · "+escapeHtml(a.by):""}</span>`; }
-  h+=`<span class="uf-barnote">열 ${ks.length}종 · 언리얼 <code>Update/&lt;폴더&gt;/</code> 아래 하위 폴더와 같은 이름을 씁니다.</span>`;
+  if(can) h+=`<button type="button" class="uf-kbtn-top hl" data-ufscan data-again="${ufDirHandle?"1":"0"}" `+
+    `title="Update 폴더를 읽어 실제 에셋을 셉니다 (크롬·엣지)">${ufDirHandle?"↻ 다시 스캔":"📂 폴더 스캔"}</button>`;
+  h+=`<span class="uf-barnote">`+
+     (a ? `스캔 ${escapeHtml(ufWhen(a.at))}${a.by?" · "+escapeHtml(a.by):""} · 열과 순서는 스캔한 폴더 그대로`
+        : `아직 스캔하지 않았습니다 — SVN 업데이트 뒤 눌러 주세요`)+`</span>`;
   h+='</div>';
-  if(can && ufKOpen){
-    h+='<div class="uf-kedit"><div class="uf-kh">리소스 종류 — 이름을 고치면 기재된 건도 같이 따라옵니다. 쓰이고 있는 종류는 지우지 못합니다.</div>';
-    ks.forEach((k,i)=>{
-      const use=ufKindUse(k.n);
-      h+=`<div class="uf-krow"><i class="uf-ksw" style="background:${escapeHtml(k.c||"#64748b")}"></i>`+
-         `<input class="uf-kin" data-ufkn="${i}" value="${escapeHtml(k.n||"")}" maxlength="${UF_KIND_LEN}">`+
-         `<span class="uf-kn">${use?use+"건":"—"}</span>`+
-         `<button type="button" class="uf-kb" data-ufkup="${i}" ${i===0?"disabled":""} title="위로">↑</button>`+
-         `<button type="button" class="uf-kb" data-ufkdn="${i}" ${i===ks.length-1?"disabled":""} title="아래로">↓</button>`+
-         `<button type="button" class="uf-kb del" data-ufkdel="${i}" title="${use?"기재된 건이 있어 지울 수 없습니다":"이 종류 삭제"}">✕</button></div>`;
-    });
-    h+=`<button type="button" class="uf-add" data-ufkadd ${ks.length>=UF_KIND_MAX?"disabled":""}>＋ 종류 추가</button>`;
-    h+='</div>';
-  }
   el.innerHTML=h;
 }
+
+/* ---------- 표 ---------- */
 function renderUF(){
-  renderUFTools();
+  renderUFTools(); renderUFPanel();
   const grid=document.getElementById("ufGrid"), foot=document.getElementById("ufFoot");
   if(!grid) return;
-  const row=ufRow(), can=ufCanEdit(), ks=ufKinds();
-  const items=[...((row&&row.items)||[])].filter(it=>ufKey(it)).sort((a,b)=>(a.s||0)-(b.s||0));
+  const items=ufFolders(), ks=ufKinds(), can=ufCanEdit();
   if(!items.length){
     grid.innerHTML='<div class="uf-empty">서비스 플랜에 「업데이트 폴더」 트랙이 없습니다.<br>'+
       '📅 서비스 플랜 탭에서 트랙 이름에 <b>업데이트 폴더</b> 가 들어가는 행을 만들고 '+
       '<b>1_1_a</b> 같은 항목을 넣으면 이 표에 줄이 생깁니다.</div>';
-    if(foot) foot.innerHTML='';
-    return;
+    if(foot) foot.innerHTML=''; return;
   }
+  const { std, enough } = ufStd();
   const tot={}; ks.forEach(k=>tot[k.n]=0);
-  const prow=ufPickRow();
   let h='<table class="uf-tbl"><thead><tr><th class="uf-fold">업데이트 폴더</th>'+
-    `<th class="uf-pickh"><i style="background:${escapeHtml((prow&&prow.color)||"#ec4899")}"></i>캐릭터 픽업</th>`+
-    ks.map(k=>`<th><i style="background:${escapeHtml(k.c||"#64748b")}"></i>${escapeHtml(k.n)}</th>`).join("")+
+    '<th class="uf-pickh"><i style="background:#f472b6"></i>CDN 콘텐츠</th>'+
+    ks.map(k=>`<th class="${(!enough||std.has(k.n))?"":"uf-xk"}" title="${(!enough||std.has(k.n))?"":"일부 폴더에만 있는 종류"}">`+
+      `<i style="background:${escapeHtml(k.c||"#64748b")}"></i>${escapeHtml(k.n)}</th>`).join("")+
     '<th class="uf-sum">합계</th></tr></thead><tbody>';
   for(const it of items){
-    const key=ufKey(it), open=ufOpenSet.has(key);
-    const kind=spNcKind(it), rng=spRange(it);
+    const key=ufKey(it), kind=spNcKind(it), rng=spRange(it);
+    const af=ufActFolder(key), tr=ufTracksOf(it), diff=ufTrackDiff(tr);
+    const scanned=ufScanned(key);
+    const miss=[], extra=[];
+    if(enough) ks.forEach(k=>{ const has=ufHasFolder(key,k.n);
+      if(scanned && std.has(k.n) && !has) miss.push(k.n);
+      if(has && !std.has(k.n)) extra.push(k.n); });
     const cnt=ks.map(k=>{ const n=ufCount(key,k.n); tot[k.n]+=n; return n; });
-    const sum=cnt.reduce((a,b)=>a+b,0);
-    const af=ufActFolder(key);
-    h+=`<tr class="uf-r" data-uffold="${escapeHtml(key)}">`+
-      `<td class="uf-fcell"><div class="uf-fname"><span class="uf-caret">${open?"\u25bc":"\u25b6"}</span>${escapeHtml(key)}`+
-        `<span class="uf-badge uf-b-${spNcCls(kind)}">${spNcLabel(kind)}</span></div>`+
+    const sum=cnt.reduce((x,y)=>x+y,0);
+    h+=`<tr class="uf-r${ufSel===key?" on":""}${diff?" uf-diff":""}" data-uffold="${escapeHtml(key)}">`+
+      `<td class="uf-fcell"><div class="uf-fname">${escapeHtml(key)}`+
+        `<span class="uf-badge uf-b-${spNcCls(kind)}">${spNcLabel(kind)}</span>`+
+        (miss.length?`<span class="uf-sch ng">${escapeHtml(miss.join(" · "))} 없음</span>`:"")+
+        (extra.length?`<span class="uf-sch ad">${escapeHtml(extra.join(" · "))} 추가</span>`:"")+
+        (diff?'<span class="uf-dmark">다름</span>':"")+`</div>`+
       `<div class="uf-fmeta">${escapeHtml(rng.label)}</div>`+
-      (af ? `<div class="uf-fscan">실제 ${af.n}개${af.m?" · 최근 "+ufMD(af.m):""}</div>` : "")+
-      `<div class="uf-fpath">\u2026/Update/${escapeHtml(key)}`+
-        `<button type="button" class="uf-cpy" data-ufcopy="${escapeHtml(key)}" title="${escapeHtml(UF_ROOT+key)}">경로 복사</button></div></td>`+
-      (()=>{ const pk=ufPickOf(it);
-        return pk ? `<td class="uf-pk" title="서비스 플랜 「캐릭터 픽업」에서 가져옵니다"><b>${escapeHtml(pk.text||"")}</b>`+
-                    (pk.note?`<small>${escapeHtml(pk.note)}</small>`:"")+`</td>`
-                  : '<td class="uf-pk none">—</td>'; })()+
+      (af?`<div class="uf-fscan">실제 ${af.n}개${af.m?" · 최근 "+ufMD(af.m):""}</div>`:"")+`</td>`+
+      `<td class="uf-pk">`+ tr.map(t=>
+        `<div class="uf-p2${t.text?"":" dim"}"><span class="uf-lb" style="color:${t.c}">${t.lb}</span>`+
+        `<b>${t.text?escapeHtml(t.text):"없음"}</b>${t.note?`<small>${escapeHtml(t.note)}</small>`:""}</div>`).join("")+
+      `</td>`+
       cnt.map((n,ci)=>{
-        const a=ufActOf(key, ks[ci].n);
-        let act="", tip="계획 "+n;
-        if(a){
-          tip += " · 실제 "+a.n+" (파일 "+(a.f||0)+(a.m?", 최근 "+ufMD(a.m):"")+")";
+        const kn=ks[ci].n, a=ufActOf(key,kn), has=ufHasFolder(key,kn);
+        const nofold = enough && scanned && !has && std.has(kn);
+        let mark="", act="", tip="계획 "+n;
+        if(nofold){ mark='<span class="uf-fmark miss">폴더 없음</span>'; tip+=" · 하위 폴더가 없습니다"; }
+        else if(enough && has && !std.has(kn)){ mark='<span class="uf-fmark add">＋추가</span>'; tip+=" · 다른 폴더엔 없는 종류"; }
+        if(a){ tip += " · 실제 "+a.n+" (파일 "+(a.f||0)+(a.m?", 최근 "+ufMD(a.m):"")+")";
           if(a.n>0) act=`<span class="uf-act ${n===0?"ext":(a.n>=n?"ok":"low")}">실 ${a.n}</span>`;
-          else if(n>0) act='<span class="uf-act none">실 0</span>';
-        }
-        return `<td class="uf-c" title="${escapeHtml(tip)}">`+
-          (n?`<b class="uf-n">${n}</b>`:'<b class="uf-n zero">\u2014</b>')+act+`</td>`;
+          else if(n>0 && !nofold) act='<span class="uf-act none">실 0</span>'; }
+        return `<td class="uf-c${nofold?" nofold":""}" title="${escapeHtml(tip)}">`+
+          (n?`<b class="uf-n">${n}</b>`:'<b class="uf-n zero">—</b>')+act+mark+`</td>`;
       }).join("")+
-      `<td class="uf-sum">${sum||"\u2014"}</td></tr>`;
-    if(open) h+=`<tr class="uf-det"><td colspan="${ks.length+3}">${ufDetail(key,can)}</td></tr>`;
+      `<td class="uf-sum">${sum||"—"}</td></tr>`;
   }
   const grand=ks.reduce((s,k)=>s+tot[k.n],0);
   h+='<tr class="uf-tot"><td class="uf-fcell">종류별 합계</td><td class="uf-pk"></td>'+
-     ks.map(k=>`<td>${tot[k.n]||"\u2014"}</td>`).join("")+
-     `<td>${grand||"\u2014"}</td></tr></tbody></table>`;
+     ks.map(k=>`<td>${tot[k.n]||"—"}</td>`).join("")+`<td>${grand||"—"}</td></tr></tbody></table>`;
   grid.innerHTML=h;
+  const act=ufActual();
   if(foot) foot.innerHTML=`<span>📁 <code>${escapeHtml(UF_ROOT)}</code></span><span>·</span>`+
-    `<span>폴더 ${items.length}개 · 리소스 ${grand}건</span><span>·</span>`+
-    `<span>${can?"매니저 이상 편집 가능":"읽기 전용"}</span>`;
+    `<span>폴더 ${items.length}개 · 계획 ${grand}건${act?" · 실제 "+items.reduce((s,it)=>{const f=ufActFolder(ufKey(it));return s+(f?f.n:0);},0)+"개":""}</span>`+
+    `<span>·</span><span>${can?"매니저 이상 편집 가능":"읽기 전용"}</span>`;
 }
-/* ⚠ 재그리기는 **한 틱 미룬다**. change 는 blur 도중에 떠는데 그 자리에서 그리드 innerHTML 을 갈면
-   "The node to be removed is no longer a child of this node" 예외가 난다(실측 2026-11-12). */
+
+/* ---------- 우측 패널 ---------- */
+function renderUFPanel(){
+  const el=document.getElementById("ufPanel"); if(!el) return;
+  const wrap=document.getElementById("ufSplit");
+  if(!ufSel){ el.innerHTML=""; el.classList.remove("show"); if(wrap) wrap.classList.remove("open"); return; }
+  el.classList.add("show"); if(wrap) wrap.classList.add("open");
+  const items=ufFolders(), it=items.find(x=>ufKey(x)===ufSel);
+  if(!it){ ufSel=null; el.innerHTML=""; el.classList.remove("show"); if(wrap) wrap.classList.remove("open"); return; }
+  const key=ufSel, can=ufCanEdit(), ks=ufKinds(), { std, enough }=ufStd();
+  const kind=spNcKind(it), rng=spRange(it), tr=ufTracksOf(it);
+  const list=ufItems(key), af=ufActFolder(key), scanned=ufScanned(key);
+  const fmap=(ufFiles && ufFiles[key]) || null;
+  const loose=(ufFiles && ufFiles._loose && ufFiles._loose[key]) || [];
+  let bytes=0; if(fmap) for(const k of Object.keys(fmap)) bytes += Number(fmap[k]._sz)||0;
+
+  /* 머리 */
+  let h=`<div class="uf-ph"><div class="uf-ph-t">${escapeHtml(key)}`+
+    `<span class="uf-badge uf-b-${spNcCls(kind)}">${spNcLabel(kind)}</span>`+
+    `<button type="button" class="uf-ph-x" data-ufclose>✕</button></div>`+
+    `<div class="uf-ph-m"><span>${escapeHtml(rng.label)}</span></div>`+
+    `<div class="uf-ph-tr">`+ tr.map(t=>
+      `<div class="uf-p2${t.text?"":" dim"}"><span class="uf-lb" style="color:${t.c}">${t.lb}</span>`+
+      `<b>${t.text?escapeHtml(t.text):"없음"}</b>${t.note?`<small>${escapeHtml(t.note)}</small>`:""}</div>`).join("")+`</div>`+
+    `<div class="uf-ph-p">…/Update/${escapeHtml(key)}`+
+      `<button type="button" class="uf-cpy" data-ufcopy="${escapeHtml(key)}">경로 복사</button></div></div>`;
+
+  /* 요약 네 칸 */
+  const plan=ks.reduce((s,k)=>s+ufCount(key,k.n),0);
+  const warns=[];
+  ks.forEach(k=>{ const has=ufHasFolder(key,k.n);
+    if(enough && scanned && std.has(k.n) && !has) warns.push(`<b>${escapeHtml(k.n)}</b> 폴더가 없습니다 — 다른 업데이트 폴더에는 있습니다`);
+    if(enough && has && !std.has(k.n)) warns.push(`<b>${escapeHtml(k.n)}</b> 폴더가 추가됐습니다 — 다른 업데이트 폴더에는 없습니다`);
+    const a=ufActOf(key,k.n), n=ufCount(key,k.n);
+    if(a && a.n>0 && n===0) warns.push(`<b>${escapeHtml(k.n)}</b> 에 기재 안 된 에셋 ${a.n}개 — 미출시 스펙이 섞였는지 확인`); });
+  if(loose.length) warns.push(`<code>${escapeHtml(key)}/</code> 바로 아래에 파일 ${loose.length}개 — 종류 폴더 밖입니다`);
+  h+=`<div class="uf-strip">`+
+     `<div class="uf-st"><b>${plan||"—"}</b><span>계획</span></div>`+
+     `<div class="uf-st ok"><b>${af?af.n:"—"}</b><span>실제</span></div>`+
+     `<div class="uf-st"><b>${bytes?ufMB(bytes):"—"}</b><span>용량</span></div>`+
+     `<div class="uf-st ${warns.length?"warn":""}"><b>${warns.length||"—"}</b><span>확인 필요</span></div></div>`;
+
+  h+=`<div class="uf-psc">`;
+  /* 계획 ↔ 실제 */
+  h+=`<div class="uf-ph2">계획 ↔ 실제</div>`;
+  if(!list.length) h+='<div class="uf-none">아직 기재된 리소스가 없습니다.</div>';
+  const seen={};
+  for(const x of list){
+    if(!x || !x.id) continue;
+    const ref=escapeHtml(key)+"|"+escapeHtml(x.id);
+    const a=ufActOf(key,x.k); seen[x.k]=true;
+    const want=Number(x.n)||0, got=a?a.n:null;
+    const cls = got===null ? "" : (got>=want ? "g" : (got>0 ? "a" : "a"));
+    h+=`<div class="uf-mrow">`+
+       (got===null?'<i class="uf-dot"></i>':`<i class="uf-dot ${cls}"></i>`);
+    if(can){
+      h+=`<input class="uf-mk" list="ufKindList" data-ufk="${ref}" value="${escapeHtml(x.k||"")}" maxlength="24" placeholder="종류">`+
+         `<input class="uf-mn" data-ufn="${ref}" value="${escapeHtml(x.name||"")}" maxlength="120" placeholder="무엇이 들어가는지">`+
+         `<input class="uf-mc" type="number" min="0" max="999" data-ufc="${ref}" value="${want}">`+
+         `<span class="uf-mv">/ <b class="${cls}">${got===null?"—":got}</b></span>`+
+         `<button type="button" class="uf-dx" data-ufdel="${ref}">✕</button>`;
+    }else{
+      h+=`<span class="uf-mk ro">${escapeHtml(x.k||"")}</span>`+
+         `<span class="uf-mn ro">${escapeHtml(x.name||"")||"<i style='opacity:.4'>(내용 없음)</i>"}</span>`+
+         `<span class="uf-mv"><span class="p">${want}</span> / <b class="${cls}">${got===null?"—":got}</b></span>`;
+    }
+    h+=`</div>`;
+  }
+  /* 기재 없는데 들어 있는 것 */
+  ks.forEach(k=>{ const a=ufActOf(key,k.n); if(a && a.n>0 && !seen[k.n] && ufCount(key,k.n)===0)
+    h+=`<div class="uf-mrow"><i class="uf-dot b"></i><span class="uf-mk ro">${escapeHtml(k.n)}</span>`+
+       `<span class="uf-mn ro" style="color:#60a5fa">기재 없는데 들어 있음</span>`+
+       `<span class="uf-mv"><span class="p">—</span> / <b class="b">${a.n}</b></span></div>`; });
+  if(can) h+=`<button type="button" class="uf-add" data-ufadd="${escapeHtml(key)}">＋ 리소스 추가</button>`+
+    `<datalist id="ufKindList">`+ks.map(k=>`<option value="${escapeHtml(k.n)}">`).join("")+`</datalist>`;
+
+  /* 확인 필요 */
+  if(warns.length) h+=`<div class="uf-ph2">⚠ 확인 필요</div><div class="uf-warn">`+
+    warns.map(w=>"· "+w).join("<br>")+`</div>`;
+
+  /* 실제 파일 */
+  h+=`<div class="uf-ph2">실제 파일`;
+  if(!scanned) h+=` <span class="uf-sub">· 아직 스캔하지 않았습니다</span>`;
+  else if(!fmap) h+=` <span class="uf-sub">· 이 브라우저에서 스캔하면 목록이 보입니다</span>`;
+  h+=`</div>`;
+  if(fmap){
+    for(const k of ks){
+      const fl=fmap[k.n]; if(!fl) continue;
+      const open=ufOpenKind.has(k.n);
+      h+=`<div class="uf-grp"><div class="uf-grp-h" data-ufkind="${escapeHtml(k.n)}">`+
+         `${open?"▼":"▶"} <i class="uf-dot" style="background:${escapeHtml(k.c)}"></i> ${escapeHtml(k.n)}`+
+         `<span class="uf-ct">${fl.length}개${fl._sz?" · "+ufMB(fl._sz):""}</span></div>`;
+      if(open){
+        h+=`<div class="uf-grp-b">`;
+        if(!fl.length) h+='<div class="uf-none">비어 있습니다.</div>';
+        fl.slice(0,120).forEach(f=>{
+          const isNew = ufPrev && ufPrev.size && !ufPrev.has(key+"/"+k.n+"/"+f.n);
+          h+=`<div class="uf-frow${isNew?" new":""}"><span class="uf-fnm">${escapeHtml(f.n)}</span>`+
+             `<span class="uf-fsz">${ufMB(f.s)}</span><span class="uf-fdt">${ufMD(f.m)}</span></div>`; });
+        if(fl.length>120) h+=`<div class="uf-none">… ${fl.length-120}개 더</div>`;
+        h+=`</div>`;
+      }
+      h+=`</div>`;
+    }
+    if(loose.length){
+      h+=`<div class="uf-grp"><div class="uf-grp-h" data-ufkind="__loose">`+
+         `${ufOpenKind.has("__loose")?"▼":"▶"} <i class="uf-dot" style="background:#f87171"></i> 종류 폴더 밖`+
+         `<span class="uf-ct">${loose.length}개</span></div>`;
+      if(ufOpenKind.has("__loose")) h+=`<div class="uf-grp-b">`+
+        loose.slice(0,60).map(f=>`<div class="uf-frow"><span class="uf-fnm">${escapeHtml(f.n)}</span>`+
+          `<span class="uf-fsz">${ufMB(f.s)}</span><span class="uf-fdt">${ufMD(f.m)}</span></div>`).join("")+`</div>`;
+      h+=`</div>`;
+    }
+  }
+  h+=`</div>`;
+  el.innerHTML=h;
+}
+
 let _ufT=0;
 function ufRedraw(){ clearTimeout(_ufT); _ufT=setTimeout(renderUF, 0); }
 function openUF(){ planState(); ufKinds(); renderUF(); ufModal.classList.add("show"); }
+
 (function ufWire(){
   const g=document.getElementById("ufGrid"); if(!g) return;
   g.addEventListener("click", e=>{
     const cp=e.target.closest("[data-ufcopy]");
-    if(cp){ e.stopPropagation(); const path=UF_ROOT+cp.dataset.ufcopy;
-      const done=()=>{ const o=cp.textContent; cp.textContent="\u2713 복사됨";
-        setTimeout(()=>{ try{ cp.textContent=o; }catch(_){} }, 1500); };
-      if(navigator.clipboard && navigator.clipboard.writeText)
-        navigator.clipboard.writeText(path).then(done).catch(()=>fallbackCopyText(path,done));
-      else fallbackCopyText(path, done);
-      return; }
-    const ad=e.target.closest("[data-ufadd]");
-    if(ad){ e.stopPropagation(); if(!ufCanEdit()) return;
-      const list=ufItems(ad.dataset.ufadd);
-      if(list.length>=UF_MAX){ flashNote("폴더 하나에 "+UF_MAX+"줄까지만 적을 수 있습니다."); return; }
-      list.push({ id:ufNewId(), k:(ufKinds()[0]||{}).n||"", name:"", n:1 });
-      save(); ufRedraw(); return; }
-    const dl=e.target.closest("[data-ufdel]");
-    if(dl){ e.stopPropagation(); if(!ufCanEdit()) return;
-      const r=ufRef(dl.dataset.ufdel); if(!r.it) return;
-      r.list.splice(r.list.indexOf(r.it),1); save(); ufRedraw(); return; }
-    /* 상세 줄 안의 입력란은 .uf-det 행이라 [data-uffold] 가 안 잡힌다 — 접힘 사고 없음 */
+    if(cp){ e.stopPropagation(); ufCopyPath(cp); return; }
     const fr=e.target.closest("[data-uffold]");
-    if(fr){ const k=fr.dataset.uffold;
-      if(ufOpenSet.has(k)) ufOpenSet.delete(k); else ufOpenSet.add(k);
-      ufRedraw(); }
+    if(fr){ const k=fr.dataset.uffold; ufSel = (ufSel===k) ? null : k; ufOpenKind.clear(); ufRedraw(); }
   });
-  /* change 는 blur 에 떠므로 다시 그려도 포커스가 날아가지 않는다(합계를 갱신해야 하므로 필요). */
-  g.addEventListener("change", e=>{
+  const p=document.getElementById("ufPanel"); if(!p) return;
+  p.addEventListener("click", e=>{
+    if(e.target.closest("[data-ufclose]")){ ufSel=null; ufRedraw(); return; }
+    const cp=e.target.closest("[data-ufcopy]"); if(cp){ ufCopyPath(cp); return; }
+    const gk=e.target.closest("[data-ufkind]");
+    if(gk){ const k=gk.dataset.ufkind; if(ufOpenKind.has(k)) ufOpenKind.delete(k); else ufOpenKind.add(k); ufRedraw(); return; }
+    if(!ufCanEdit()) return;
+    const ad=e.target.closest("[data-ufadd]");
+    if(ad){ const l=ufItems(ad.dataset.ufadd);
+      if(l.length>=UF_MAX){ flashNote("폴더 하나에 "+UF_MAX+"줄까지만 적을 수 있습니다."); return; }
+      l.push({ id:ufNewId(), k:(ufKinds()[0]||{}).n||"", name:"", n:1 }); save(); ufRedraw(); return; }
+    const dl=e.target.closest("[data-ufdel]");
+    if(dl){ const r=ufRef(dl.dataset.ufdel); if(!r.it) return;
+      r.list.splice(r.list.indexOf(r.it),1); save(); ufRedraw(); return; }
+  });
+  p.addEventListener("change", e=>{
     if(!ufCanEdit()) return;
     const t=e.target;
-    if(t.matches("[data-ufk]")){ const r=ufRef(t.dataset.ufk); if(r.it){ r.it.k=t.value; save(); ufRedraw(); } return; }
-    if(t.matches("[data-ufn]")){ const r=ufRef(t.dataset.ufn); if(r.it){ r.it.name=String(t.value||"").slice(0,120); save(); } return; }
+    if(t.matches("[data-ufk]")){ const r=ufRef(t.dataset.ufk);
+      if(r.it){ r.it.k=String(t.value||"").trim().slice(0,24); save(); ufRedraw(); } return; }
+    if(t.matches("[data-ufn]")){ const r=ufRef(t.dataset.ufn);
+      if(r.it){ r.it.name=String(t.value||"").slice(0,120); save(); } return; }
     if(t.matches("[data-ufc]")){ const r=ufRef(t.dataset.ufc);
-      if(r.it){ r.it.n=Math.max(0, Math.min(999, Math.round(Number(t.value)||0))); save(); ufRedraw(); } return; }
+      if(r.it){ r.it.n=Math.max(0,Math.min(999,Math.round(Number(t.value)||0))); save(); ufRedraw(); } return; }
   });
-
-  /* ----- 「리소스 종류 편집」 패널 ----- */
   const tl=document.getElementById("ufTools"); if(!tl) return;
-  tl.addEventListener("click", e=>{
-    if(e.target.closest("[data-ufkedit]")){ ufKOpen=!ufKOpen; renderUFTools(); return; }
-    const sc=e.target.closest("[data-ufscan]");
-    if(sc){ ufScan(sc); return; }
-    if(!ufCanEdit()) return;
-    const ks=ufKinds();
-    const up=e.target.closest("[data-ufkup]");
-    if(up){ const i=Number(up.dataset.ufkup); if(i>0){ const t=ks[i]; ks[i]=ks[i-1]; ks[i-1]=t; save(); ufRedraw(); } return; }
-    const dn=e.target.closest("[data-ufkdn]");
-    if(dn){ const i=Number(dn.dataset.ufkdn); if(i<ks.length-1){ const t=ks[i]; ks[i]=ks[i+1]; ks[i+1]=t; save(); ufRedraw(); } return; }
-    const de=e.target.closest("[data-ufkdel]");
-    if(de){ const i=Number(de.dataset.ufkdel), k=ks[i]; if(!k) return;
-      const use=ufKindUse(k.n);
-      if(use){ flashNote("「"+k.n+"」로 기재된 것이 "+use+"줄 있습니다. 먼저 그 줄들을 다른 종류로 옮기거나 지우세요."); return; }
-      if(ks.length<=1){ flashNote("종류는 최소 하나는 있어야 합니다."); return; }
-      ks.splice(i,1); save(); ufRedraw(); return; }
-    if(e.target.closest("[data-ufkadd]")){
-      if(ks.length>=UF_KIND_MAX){ flashNote("종류는 "+UF_KIND_MAX+"개까지만 만들 수 있습니다."); return; }
-      let base="새 종류", n=base, i=2;
-      while(ks.some(x=>x.n===n)) n=base+" "+(i++);
-      /* 이미 쓰는 색을 피해서 고른다 — index % 로 놓으면 종류를 지우고 더했을 때 색이 겹친다(실측). */
-      const used=new Set(ks.map(x=>x.c));
-      ks.push({ n, c: UF_PALETTE.find(c=>!used.has(c)) || UF_PALETTE[ks.length % UF_PALETTE.length] });
-      save(); ufRedraw(); return; }
-  });
-  tl.addEventListener("change", e=>{
-    if(!ufCanEdit()) return;
-    const t=e.target; if(!t.matches("[data-ufkn]")) return;
-    const ks=ufKinds(), i=Number(t.dataset.ufkn), k=ks[i]; if(!k) return;
-    const was=k.n, now=String(t.value||"").trim().slice(0,UF_KIND_LEN);
-    if(!now){ flashNote("종류 이름은 비울 수 없습니다."); ufRedraw(); return; }
-    if(now===was) return;
-    if(ks.some((x,j)=>j!==i && x.n===now)){ flashNote("「"+now+"」는 이미 있는 종류입니다."); ufRedraw(); return; }
-    k.n=now;
-    /* 기재된 항목의 k 도 같이 옮긴다 — 안 그러면 숫자가 통째로 사라진다. */
-    const a=ufAll();
-    for(const key of Object.keys(a)) (a[key]||[]).forEach(x=>{ if(x&&x.k===was) x.k=now; });
-    save(); ufRedraw();
-  });
+  tl.addEventListener("click", e=>{ const sc=e.target.closest("[data-ufscan]"); if(sc) ufScan(sc); });
 })();
+function ufRef(ds){ const p=String(ds||"").split("|"), key=p[0], id=p[1], list=ufItems(key);
+  return { key, id, list, it:list.find(x=>x&&x.id===id)||null }; }
+function ufCopyPath(btn){
+  const path=UF_ROOT+btn.dataset.ufcopy;
+  const done=()=>{ const o=btn.textContent; btn.textContent="✓ 복사됨";
+    setTimeout(()=>{ try{ btn.textContent=o; }catch(_){} },1500); };
+  if(navigator.clipboard && navigator.clipboard.writeText)
+    navigator.clipboard.writeText(path).then(done).catch(()=>fallbackCopyText(path,done));
+  else fallbackCopyText(path, done);
+}
+
 
 /* 발주 로드맵(런칭 이전) ↔ 서비스 플랜(런칭 이후) 바로 이동 (2026-10-20 사용자 요청).
    **반드시 closeModals() 를 거친다** — 두 모달이 동시에 떠 있으면 뒤쪽 모달의 배경 클릭·ESC 가
