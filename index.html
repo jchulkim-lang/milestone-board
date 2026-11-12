@@ -739,6 +739,14 @@
   .uf-kbtn-top:hover{ color:var(--text); border-color:var(--accent); }
   .uf-kbtn-top.hl{ color:var(--text); border-color:var(--accent); }
   .uf-kbtn-top:disabled{ opacity:.5; cursor:default; }
+  label.uf-kbtn-top{ display:inline-block; }
+  .uf-kedit{ border:1px solid var(--accent); border-radius:10px; background:var(--panel2);
+     padding:11px 13px 13px; margin:0 0 10px; max-width:760px; }
+  .uf-kh{ font-size:11px; color:var(--muted); line-height:1.65; margin-bottom:9px; }
+  .uf-krow{ display:flex; align-items:center; gap:7px; }
+  #ufModal textarea.uf-ta{ width:100%; height:110px; resize:vertical; background:var(--bg);
+     border:1px solid var(--line); color:var(--text); border-radius:8px; padding:8px 10px;
+     font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11px; line-height:1.5; }
 
   /* ---- 표 ---- */
   .uf-tbl{ width:100%; border-collapse:separate; border-spacing:0; font-size:12.5px; }
@@ -5779,6 +5787,7 @@ const UF_TRACKS = [
   { lb:"이벤트", c:"#60a5fa", re:/프리미엄\s*코스튬\s*이벤트/ },
 ];
 let ufSel = null;                 // 선택한 폴더 키 (우측 패널)
+let ufPasteOpen = false;          // 「현황 붙여넣기」 칸이 열려 있나
 let ufFiles = null;               // { 폴더: { 종류: [{n,s,m}], "":[느슨한 파일] } } — 저장 안 함
 let ufPrev  = null;               // 직전 스캔의 파일 이름 Set (NEW 표시용) — 저장 안 함
 let ufOpenKind = new Set();       // 패널에서 펼친 종류
@@ -5872,6 +5881,50 @@ async function ufScanDir(dh, out){
   }
   return { n, f, m, sz };
 }
+/* 스캔 결과를 보드에 적용한다. **입구가 셋**이라 한 군데로 모았다(2026-11-12, build 2026111206):
+     ① 브라우저 폴더 스캔  ② 「현황 붙여넣기」  ③ 「파일 불러오기」
+   사내 방화벽(Waterwall)이 브라우저의 폴더 읽기를 막는 PC 가 있어서 ②③ 을 뚫었다.
+   ⚠ `f`(집계)만 state 에 저장한다. `files`/`loose`(파일 목록)는 **브라우저에만** 둔다 — 비용 0 원칙. */
+function ufApplyScan(o, who){
+  if(!o || typeof o!=="object" || !o.f || typeof o.f!=="object") throw new Error("형식이 올바르지 않습니다 (f 가 없습니다)");
+  const out={}; let folders=0;
+  for(const fk of Object.keys(o.f)){
+    const src=o.f[fk]; if(!src || typeof src!=="object") continue;
+    const rec={};
+    for(const kk of Object.keys(src)){ const v=src[kk]||{};
+      rec[kk]={ n:Math.max(0,Number(v.n)||0), f:Math.max(0,Number(v.f)||0), m:Math.max(0,Number(v.m)||0) }; }
+    out[fk]=rec; folders++;
+  }
+  if(!folders) throw new Error("폴더가 하나도 없습니다");
+  /* 열 = 스캔 순서 ∪ 기재에만 있는 종류 */
+  let order = Array.isArray(o.order) ? o.order.slice() : [];
+  if(!order.length) for(const fk of Object.keys(out)) for(const kk of Object.keys(out[fk])) if(order.indexOf(kk)<0) order.push(kk);
+  const used=new Set(), a=ufAll();
+  for(const key of Object.keys(a)) for(const x of (a[key]||[])) if(x&&x.k) used.add(x.k);
+  const list=[...order]; used.forEach(k=>{ if(list.indexOf(k)<0) list.push(k); });
+  const old=new Map((state.ufKinds||[]).map(x=>[x.n,x.c]));
+  state.ufKinds = list.map((n,i)=>({ n, c: old.get(n) || UF_PALETTE[i % UF_PALETTE.length] }));
+  state.ufActual = { at:Number(o.at)||Date.now(), by:who||(window.APP_USER&&window.APP_USER.name)||"",
+                     root:String(o.root||"Update"), f:out };
+  /* 직전 목록을 기억해 NEW 를 표시 */
+  const prev=new Set();
+  if(ufFiles) for(const fk of Object.keys(ufFiles)){ if(fk==="_loose") continue;
+    for(const kk of Object.keys(ufFiles[fk]||{})) (ufFiles[fk][kk]||[]).forEach(x=>prev.add(fk+"/"+kk+"/"+x.n)); }
+  if(prev.size) ufPrev=prev;
+  if(o.files && typeof o.files==="object"){
+    const fm={};
+    for(const fk of Object.keys(o.files)){ const rec={};
+      for(const kk of Object.keys(o.files[fk]||{})){
+        const arr=(o.files[fk][kk]||[]).map(x=>({ n:String(x.n||""), s:Number(x.s)||0, m:Number(x.m)||0 }));
+        arr._sz=arr.reduce((t,x)=>t+x.s,0); rec[kk]=arr; }
+      fm[fk]=rec; }
+    fm._loose = (o.loose && typeof o.loose==="object") ? o.loose : {};
+    ufFiles = fm;
+  }
+  save(); renderUF();
+  flashNote("폴더 "+folders+"개를 읽었습니다. 열 "+list.length+"종.");
+  return folders;
+}
 async function ufScan(btn){
   if(!ufCanEdit()) return;
   if(!window.showDirectoryPicker){ flashNote("이 브라우저는 폴더 읽기를 지원하지 않습니다. 크롬이나 엣지에서 열어 주세요."); return; }
@@ -5914,16 +5967,7 @@ async function ufScan(btn){
       }
       out[e.name]=rec; files[e.name]=frec; loose[e.name]=lo; folders++;
     }
-    /* 열 = 스캔 순서 ∪ 기재에만 있는 종류 */
-    const used=new Set(); const a=ufAll();
-    for(const key of Object.keys(a)) for(const x of (a[key]||[])) if(x&&x.k) used.add(x.k);
-    const list=[...order]; used.forEach(k=>{ if(list.indexOf(k)<0) list.push(k); });
-    const old=new Map((state.ufKinds||[]).map(x=>[x.n,x.c]));
-    state.ufKinds = list.map((n,i)=>({ n, c: old.get(n) || UF_PALETTE[i % UF_PALETTE.length] }));
-    state.ufActual = { at:Date.now(), by:(window.APP_USER&&window.APP_USER.name)||"", root:dh.name||"Update", f:out };
-    ufFiles = files; ufFiles._loose = loose;
-    save(); renderUF();
-    flashNote("폴더 "+folders+"개를 읽었습니다. 열 "+list.length+"종.");
+    ufApplyScan({ root:dh.name||"Update", order, f:out, files, loose });
   }catch(err){ flashNote("폴더를 읽지 못했습니다 — "+(err&&err.message||err)); }
   finally{ if(btn){ btn.textContent=label||"📂 폴더 스캔"; btn.disabled=false; } }
 }
@@ -5936,10 +5980,20 @@ function renderUFTools(){
   let h='<div class="uf-bar">';
   if(can) h+=`<button type="button" class="uf-kbtn-top hl" data-ufscan data-again="${ufDirHandle?"1":"0"}" `+
     `title="Update 폴더를 읽어 실제 에셋을 셉니다 (크롬·엣지)">${ufDirHandle?"↻ 다시 스캔":"📂 폴더 스캔"}</button>`;
+  if(can) h+=`<button type="button" class="uf-kbtn-top" data-ufpaste title="스캔 결과(JSON)를 붙여넣습니다 — 브라우저 폴더 읽기가 막힌 PC 용">📋 현황 붙여넣기</button>`;
+  if(can) h+=`<label class="uf-kbtn-top" title="스캔 결과 파일(ufscan.json)을 불러옵니다">📄 파일 불러오기`+
+     `<input type="file" accept=".json,application/json" data-uffile hidden></label>`;
   h+=`<span class="uf-barnote">`+
      (a ? `스캔 ${escapeHtml(ufWhen(a.at))}${a.by?" · "+escapeHtml(a.by):""} · 열과 순서는 스캔한 폴더 그대로`
         : `아직 스캔하지 않았습니다 — SVN 업데이트 뒤 눌러 주세요`)+`</span>`;
   h+='</div>';
+  if(can && ufPasteOpen){
+    h+='<div class="uf-kedit"><div class="uf-kh">스캔 결과 JSON 을 붙여넣고 「적용」을 누르세요. '+
+       '브라우저가 폴더를 못 읽는 PC 에서 쓰는 길입니다 — 파일 목록이 같이 들어 있으면 패널에도 보입니다.</div>'+
+       '<textarea class="uf-ta" data-ufjson placeholder=\'{"root":"Update","f":{"1_1_a":{"Unit":{"n":2,"f":3,"m":0}}}}\'></textarea>'+
+       '<div class="uf-krow" style="margin-top:8px"><button type="button" class="uf-kbtn-top hl" data-ufapply>적용</button>'+
+       '<button type="button" class="uf-kbtn-top" data-ufpaste>취소</button></div></div>';
+  }
   el.innerHTML=h;
 }
 
@@ -6163,7 +6217,24 @@ function openUF(){ planState(); ufKinds(); renderUF(); ufModal.classList.add("sh
       if(r.it){ r.it.n=Math.max(0,Math.min(999,Math.round(Number(t.value)||0))); save(); ufRedraw(); } return; }
   });
   const tl=document.getElementById("ufTools"); if(!tl) return;
-  tl.addEventListener("click", e=>{ const sc=e.target.closest("[data-ufscan]"); if(sc) ufScan(sc); });
+  tl.addEventListener("click", e=>{
+    const sc=e.target.closest("[data-ufscan]"); if(sc){ ufScan(sc); return; }
+    if(e.target.closest("[data-ufpaste]")){ ufPasteOpen=!ufPasteOpen; renderUFTools(); return; }
+    if(e.target.closest("[data-ufapply]")){
+      const ta=tl.querySelector("[data-ufjson]"); if(!ta) return;
+      try{ ufApplyScan(JSON.parse(ta.value), (window.APP_USER&&window.APP_USER.name)||""); ufPasteOpen=false; renderUF(); }
+      catch(err){ flashNote("붙여넣은 내용을 읽지 못했습니다 — "+(err&&err.message||err)); }
+    }
+  });
+  tl.addEventListener("change", e=>{
+    const fi=e.target.closest("[data-uffile]"); if(!fi || !fi.files || !fi.files[0]) return;
+    const f=fi.files[0]; fi.value="";
+    const r=new FileReader();
+    r.onload=()=>{ try{ ufApplyScan(JSON.parse(String(r.result||"")), (window.APP_USER&&window.APP_USER.name)||""); }
+      catch(err){ flashNote("파일을 읽지 못했습니다 — "+(err&&err.message||err)); } };
+    r.onerror=()=>flashNote("파일을 읽지 못했습니다.");
+    r.readAsText(f);
+  });
 })();
 function ufRef(ds){ const p=String(ds||"").split("|"), key=p[0], id=p[1], list=ufItems(key);
   return { key, id, list, it:list.find(x=>x&&x.id===id)||null }; }
