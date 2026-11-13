@@ -24,15 +24,71 @@
     return null;
   }
 
+  /* ===== 입장 화면 (2026-11-13, build 2026111301) ==============================
+     사용자 요청: "입장 페이지 이쁘게 변경해줘 / 위 이미지를 배경으로 해줘" → 키 아트를 깔았다.
+     시안 가안 채택 — **좌측 패널**. 왼쪽에서 오른쪽으로 어두워지다 풀려서
+     그림의 핵심(둘로 갈린 얼굴·붉은 반쪽)을 하나도 안 가린다.
+     ⚠ 배경은 **로그인 화면에서만** 쓴다. 보드 안쪽에 깔면 간트 막대와 숫자를 읽을 때 눈이 피로하다.
+     ⚠ 이미지는 deploy/ 의 정적 파일(bg.jpg 209KB / 좁은 화면용 bg-sm.jpg 91KB)이라
+       Workers 요청에 안 잡히고 한 번 받으면 캐시된다. 무료 한도 영향 없음.
+     ⚠ 구글 버튼은 theme:"outline"(흰 버튼) — 어두운 아트 위에서 filled_blue 는 묻힌다. */
   function showLogin(cfg){
     document.body.insertAdjacentHTML("beforeend",
-      `<div id="loginOverlay" style="position:fixed;inset:0;background:#0e1014;display:flex;
-        flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:99999;
-        color:#e7eaf0;font-family:-apple-system,'Malgun Gothic',sans-serif">
-        <div style="font-size:18px;font-weight:700">브레이커스 마일스톤 관리</div>
-        <div style="font-size:13px;color:#8b93a3">회사 구글 계정으로 로그인하세요</div>
-        <div id="gbtn"></div>
-        <div id="loginErr" style="color:#ff7a7a;font-size:12px;max-width:340px;text-align:center"></div>
+      `<style>
+        #loginOverlay{position:fixed;inset:0;z-index:99999;overflow:hidden;
+          font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',sans-serif;
+          color:#e7eaf0;background:#08090e;}
+        #loginOverlay .lo-art{position:absolute;inset:0;background:#08090e url("/bg.jpg") center/cover no-repeat;}
+        #loginOverlay .lo-scrim{position:absolute;inset:0;background:linear-gradient(100deg,
+          rgba(8,9,14,.96) 0%, rgba(8,9,14,.90) 26%, rgba(8,9,14,.55) 44%,
+          rgba(8,9,14,.12) 62%, rgba(8,9,14,.35) 100%);}
+        #loginOverlay .lo-box{position:absolute;left:clamp(24px,6vw,76px);top:50%;transform:translateY(-50%);
+          width:min(420px,calc(100% - 48px));display:flex;flex-direction:column;}
+        #loginOverlay .lo-logo{display:flex;flex-direction:column;gap:4px;margin-bottom:20px;}
+        #loginOverlay .lo-logo i{display:block;height:6px;border-radius:3px;}
+        #loginOverlay .lo-kick{font-size:11px;font-weight:800;letter-spacing:3.4px;color:#cdd3ff;
+          text-shadow:0 2px 10px rgba(0,0,0,.85);margin-bottom:10px;}
+        #loginOverlay .lo-ttl{font-size:clamp(23px,3.2vw,30px);font-weight:800;letter-spacing:-.8px;
+          text-shadow:0 3px 18px rgba(0,0,0,.9);}
+        #loginOverlay .lo-sub{font-size:13px;color:#cdd3e0;margin-top:10px;margin-bottom:26px;
+          text-shadow:0 2px 10px rgba(0,0,0,.9);}
+        #loginOverlay #gbtn{min-height:44px;}
+        #loginOverlay .lo-foot{margin-top:24px;font-size:11px;color:#9aa3b5;line-height:1.9;
+          text-shadow:0 2px 8px rgba(0,0,0,.9);}
+        #loginOverlay .lo-foot b{color:#cdd3e0;font-weight:600;}
+        #loginOverlay .lo-err{color:#ff8a8a;font-size:12px;max-width:360px;margin-top:14px;line-height:1.6;}
+        /* 좁은 화면 — 가벼운 이미지로 바꾸고 가운데 정렬 */
+        @media (max-width:900px){
+          #loginOverlay .lo-art{background-image:url("/bg-sm.jpg");}
+          #loginOverlay .lo-scrim{background:linear-gradient(180deg,
+            rgba(8,9,14,.55) 0%, rgba(8,9,14,.25) 28%, rgba(8,9,14,.82) 62%, rgba(8,9,14,.97) 100%);}
+          #loginOverlay .lo-box{left:0;right:0;top:auto;bottom:clamp(28px,8vh,64px);transform:none;
+            width:auto;padding:0 24px;align-items:center;text-align:center;}
+          #loginOverlay .lo-logo{align-items:center;}
+        }
+        @media (prefers-reduced-motion:no-preference){
+          #loginOverlay .lo-box{animation:loUp .5s cubic-bezier(.2,.7,.3,1) both;}
+          @keyframes loUp{from{opacity:0;transform:translateY(calc(-50% + 14px))}to{opacity:1}}
+          @media (max-width:900px){ @keyframes loUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}} }
+        }
+      </style>
+      <div id="loginOverlay">
+        <div class="lo-art"></div>
+        <div class="lo-scrim"></div>
+        <div class="lo-box">
+          <div class="lo-logo">
+            <i style="width:40px;background:#6366f1"></i>
+            <i style="width:26px;background:#38bdf8"></i>
+            <i style="width:33px;background:#22c55e"></i>
+          </div>
+          <div class="lo-kick">LIMIT ZERO BREAKERS</div>
+          <div class="lo-ttl">마일스톤 관리</div>
+          <div class="lo-sub">부서별 일정과 담당자를 한눈에</div>
+          <div id="gbtn"></div>
+          <div class="lo-foot">회사 구글 계정으로만 들어올 수 있습니다<br>
+            <b>처음 로그인하면 열람 권한으로 시작하고, 편집은 승인 후 열립니다</b></div>
+          <div id="loginErr" class="lo-err"></div>
+        </div>
       </div>`);
     const s = document.createElement("script");
     s.src = "https://accounts.google.com/gsi/client"; s.async = true;
@@ -48,8 +104,11 @@
           }catch(_){ document.getElementById("loginErr").textContent = "네트워크 오류"; }
         }
       });
-      google.accounts.id.renderButton(document.getElementById("gbtn"), { theme:"filled_blue", size:"large", text:"signin_with" });
+      google.accounts.id.renderButton(document.getElementById("gbtn"),
+        { theme:"outline", size:"large", text:"signin_with", shape:"rectangular", width:300 });
     };
+    s.onerror = () => { document.getElementById("loginErr").textContent =
+      "구글 로그인 스크립트를 불러오지 못했습니다. 네트워크(방화벽)를 확인해 주세요."; };
     document.head.appendChild(s);
   }
 
