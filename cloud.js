@@ -44,8 +44,10 @@
           rgba(8,9,14,.12) 62%, rgba(8,9,14,.35) 100%);}
         #loginOverlay .lo-box{position:absolute;left:clamp(24px,6vw,76px);top:50%;transform:translateY(-50%);
           width:min(420px,calc(100% - 48px));display:flex;flex-direction:column;}
-        #loginOverlay .lo-logo{display:flex;flex-direction:column;gap:4px;margin-bottom:20px;}
-        #loginOverlay .lo-logo i{display:block;height:6px;border-radius:3px;}
+        /* 로고 = SD 캐릭터. 간트 막대에서 교체(2026-11-13) — 홈 화면 아이콘과 같은 그림을 쓴다 */
+        #loginOverlay .lo-logo{width:76px;height:76px;border-radius:20px;margin-bottom:20px;
+          background:#11131b url("/icon.png") center/cover no-repeat;
+          box-shadow:0 10px 28px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.1) inset;}
         #loginOverlay .lo-kick{font-size:11px;font-weight:800;letter-spacing:3.4px;color:#cdd3ff;
           text-shadow:0 2px 10px rgba(0,0,0,.85);margin-bottom:10px;}
         #loginOverlay .lo-ttl{font-size:clamp(23px,3.2vw,30px);font-weight:800;letter-spacing:-.8px;
@@ -76,11 +78,7 @@
         <div class="lo-art"></div>
         <div class="lo-scrim"></div>
         <div class="lo-box">
-          <div class="lo-logo">
-            <i style="width:40px;background:#6366f1"></i>
-            <i style="width:26px;background:#38bdf8"></i>
-            <i style="width:33px;background:#22c55e"></i>
-          </div>
+          <div class="lo-logo" role="img" aria-label="LIMIT ZERO BREAKERS"></div>
           <div class="lo-kick">LIMIT ZERO BREAKERS</div>
           <div class="lo-ttl">마일스톤 관리</div>
           <div class="lo-sub">부서별 일정과 담당자를 한눈에</div>
