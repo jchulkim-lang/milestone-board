@@ -15,7 +15,7 @@ const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 �
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026111303;
+const APP_BUILD = 2026111304;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -882,6 +882,35 @@ async function trelloAudit(env){
      · Task 에 묶이지 않은 카드도 읽어야 해서 /api/trello/card(taskId 필요) 와 따로 둔다.
      · 기본은 **제목만** (호출 1회, 60초 캐시). `comments=1` 일 때만 코멘트 10개를 같이 읽는다
        — 사용자 선택 「나+다」: 제목은 붙여넣을 때 1회, 코멘트는 **누를 때만**. [[free-tier-budget]] */
+  /* ===== 카드 여러 장 한 번에 (2026-11-13, build 2026111304) ====================
+     NC 제출 엑셀이 마일스톤의 개발 일감 전부를 훑어야 한다. 낱개로 부르면 130회라
+     트렐로 제한(10초에 100회)에 걸린다 → **트렐로 배치 API 로 10장씩** 묶어 13회로 줄인다.
+     ⚠ 배치는 `urls=` 를 쉼표로 가른다. 각 라우트 안의 `fields=a,b` 쉼표는 **%2C 로 인코딩**해야
+       라우트 구분자와 섞이지 않는다.
+     ⚠ 코멘트는 읽지 않는다 — 사외 제출물이라 사내 대화가 섞이면 안 된다(사용자 지시). */
+  if(p === "/api/trello/batch" && request.method === "GET"){
+    if(!trelloReady(env)) return json({ error:"trello not configured", reason:"not-configured" }, 400);
+    if(!isManager(await effectiveRole(env, user.email))) return json({ error:"forbidden" }, 403);
+    const ids = String(url.searchParams.get("ids")||"").split(",")
+      .map(x=>trelloCardKey(x.trim())).filter(Boolean).slice(0, 10);
+    if(!ids.length) return json({ ok:true, cards:[] });
+    const out = [], need = [];
+    for(const id of ids){ const hit = cardCacheGet("b:"+id); if(hit) out.push(hit); else need.push(id); }
+    if(need.length){
+      const routes = need.map(id=>`/cards/${encodeURIComponent(id)}?fields=name%2Cdesc%2CshortUrl%2Cclosed%2CdateLastActivity`);
+      let raw;
+      try{ raw = await trelloFetch(env, `/batch?urls=${routes.join(",")}`); }
+      catch(e){ return json({ error:String(e&&e.message||e), reason:"trello-error" }, 502); }
+      (Array.isArray(raw)?raw:[]).forEach((slot,i)=>{
+        const c = slot && (slot["200"] || slot[200]);
+        if(!c || !c.id){ out.push({ id:need[i], miss:true }); return; }
+        const card = { id:c.id, name:c.name||"", desc:c.desc||"", url:c.shortUrl||"",
+                       closed:!!c.closed, at:c.dateLastActivity||"" };
+        cardCachePut("b:"+need[i], card); out.push(card);
+      });
+    }
+    return json({ ok:true, cards: out });
+  }
   if(p === "/api/trello/cardinfo" && request.method === "GET"){
     if(!trelloReady(env)) return json({ error:"trello not configured", reason:"not-configured" }, 400);
     if(!canEdit(await effectiveRole(env, user.email))) return json({ error:"forbidden" }, 403);

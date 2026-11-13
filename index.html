@@ -723,6 +723,54 @@
      display:flex; flex-direction:column; overflow:hidden; }
   #roadmapModal .modal > *, #planModal .modal > *, #msModal .modal > *{ flex:0 0 auto; }
   #roadmapModal .rm-scroll, #planModal .sp-scroll{ flex:1 1 0; max-height:none; min-height:0; }
+  /* === NC 제출 엑셀 (2026-11-13) — 보드에 아무것도 안 띄운다. 이 모달 안에서만 산다 === */
+  #ncxModal .modal{ width:min(1180px,96vw); max-width:96vw; height:86vh; max-height:86vh;
+     display:flex; flex-direction:column; overflow:hidden; }
+  #ncxModal .modal > *{ flex:0 0 auto; }
+  #ncxModal .ncx-scroll{ flex:1 1 0; min-height:0; overflow:auto;
+     border:1px solid var(--line); border-radius:10px; background:var(--bg); }
+  .ncx-bar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:4px 0 9px; }
+  .ncx-sp{ flex:1; }
+  .ncx-fld{ display:flex; align-items:center; gap:7px; font-size:12px; color:var(--muted); }
+  /* ⚠ `.modal input,.modal select{width:100%}` 가 이긴다 — 폭을 반드시 명시 */
+  #ncxModal .ncx-fld select{ width:auto; min-width:120px; background:var(--panel2);
+     border:1px solid var(--line); color:var(--text); border-radius:7px; padding:5px 9px; font:inherit; font-size:12.5px; }
+  .ncx-chip{ font-size:11px; font-weight:700; padding:4px 9px; border-radius:7px;
+     background:var(--panel2); border:1px solid var(--line); color:var(--muted); }
+  .ncx-chip.on{ color:var(--text); border-color:var(--accent); }
+  .ncx-ck{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); cursor:pointer; }
+  #ncxModal .ncx-ck input{ width:auto; }
+  .ncx-prog{ display:none; align-items:center; gap:10px; padding:9px 12px; margin:0 0 9px;
+     background:#141828; border:1px solid var(--line); border-radius:9px; font-size:12px; color:var(--muted); }
+  .ncx-pbar{ flex:1; max-width:380px; height:6px; background:var(--panel2); border-radius:4px; overflow:hidden; }
+  .ncx-pbar i{ display:block; height:100%; background:var(--accent); border-radius:4px; transition:width .2s; }
+  .ncx-tbl{ width:100%; border-collapse:separate; border-spacing:0; font-size:12.5px; }
+  .ncx-tbl th,.ncx-tbl td{ border-bottom:1px solid var(--line); padding:0; vertical-align:top; }
+  .ncx-tbl thead th{ position:sticky; top:0; z-index:2; background:var(--rowhead); color:var(--muted);
+     font-weight:800; font-size:11.5px; padding:8px 10px; text-align:left; white-space:nowrap; }
+  .ncx-tbl th.n,.ncx-tbl td.n{ width:40px; text-align:center; }
+  .ncx-tbl th.st,.ncx-tbl td.st{ width:90px; }
+  .ncx-tbl th.dt,.ncx-tbl td.dt{ width:122px; }
+  .ncx-tbl th.src,.ncx-tbl td.src{ width:88px; text-align:center; }
+  .ncx-tbl td{ padding:9px 10px; line-height:1.6; }
+  .ncx-tbl td.n{ color:var(--muted); font-size:11.5px; padding-top:12px; }
+  .ncx-tbl td.nm{ font-weight:700; width:300px; }
+  .ncx-tbl td.st,.ncx-tbl td.dt{ color:var(--muted); font-size:11.5px; padding-top:12px; }
+  #ncxModal .ncx-tbl td.sum input{ width:100%; background:transparent; border:1px solid transparent;
+     border-radius:6px; color:#c7cedd; font:inherit; font-size:12.5px; padding:3px 6px; line-height:1.5; }
+  #ncxModal .ncx-tbl td.sum input:hover{ border-color:var(--line); background:var(--panel2); }
+  #ncxModal .ncx-tbl td.sum input:focus{ border-color:var(--accent); background:var(--panel2); outline:none; }
+  .ncx-b{ font-size:9.5px; font-weight:800; padding:2px 7px; border-radius:5px; white-space:nowrap; }
+  .ncx-b.p{ background:rgba(52,211,153,.14); color:#34d399; }
+  .ncx-b.o{ background:rgba(96,165,250,.14); color:#60a5fa; }
+  .ncx-b.f{ background:rgba(251,191,36,.14); color:#fbbf24; }
+  .ncx-b.n{ background:rgba(248,113,113,.14); color:#f87171; }
+  .ncx-empty{ padding:46px 20px; text-align:center; color:var(--muted); font-size:13px; line-height:2; }
+  .ncx-empty b{ color:var(--text); }
+  .ncx-foot{ display:flex; align-items:center; gap:10px; font-size:12px; color:var(--muted); flex-wrap:wrap; }
+  .ncx-leg{ display:flex; gap:14px; flex-wrap:wrap; font-size:11px; color:var(--muted); margin:9px 0 2px; }
+  .ncx-leg span{ display:flex; align-items:center; gap:5px; }
+
   /* === 「업데이트 폴더」 (2026-11-12, build 2026111205) ========================
      레이아웃 B안 — 왼쪽 매트릭스 + 오른쪽 패널. 행을 펼치지 않는다.
      클래스는 전부 `uf-` 로 묶는다 — .badge/.sum/.det 같은 일반명은 다른 데와 부딪힌다. */
@@ -1882,6 +1930,7 @@
       <button class="btn ghost sm" id="roadmapBtn">🗺 발주 로드맵</button>
       <button class="btn ghost sm" id="planBtn">📅 서비스 플랜</button>
       <button class="btn ghost sm" id="ufBtn" title="업데이트 폴더에 들어갈 리소스 목록">📦 업데이트 폴더</button>
+      <button class="btn ghost sm" id="ncxBtn" title="마일스톤의 개발 일감을 엑셀로 — NC 제출용" style="display:none">📤 NC 제출</button>
       <button class="btn ghost sm" id="auditBtn">🔍 점검</button>
       <button class="btn ghost sm" id="trelloBtn" style="display:none">🔗 트렐로 동기화</button>
       <button class="btn ghost sm" id="historyBtn">🕘 히스토리</button>
@@ -2062,6 +2111,26 @@
       <div class="modal-actions">
         <div class="sp-foot" id="spFoot"></div>
         <div class="right"><button class="btn" data-close>닫기</button></div></div>
+    </div>
+  </div>
+  <div class="modal-bg" id="ncxModal">
+    <div class="modal">
+      <div class="hub-head"><span class="hub-tabs"><b style="font-size:14px;padding:4px 8px">📤 NC 제출 파일 만들기</b></span>
+        <button type="button" class="hub-x" data-close>✕ 닫기</button></div>
+      <div class="msub">마일스톤에 등록된 <b>개발</b> 일감을 엑셀로 내보냅니다. 요약은 트렐로 카드의 「목적」에서 가져옵니다.
+        <b>보드에는 아무것도 저장되지 않습니다.</b> 담당자·부서·트렐로 주소·카드 코멘트는 담지 않습니다.</div>
+      <div class="ncx-bar" id="ncxHead"></div>
+      <div class="ncx-prog" id="ncxProg"></div>
+      <div class="ncx-scroll scrollbar" id="ncxBody"></div>
+      <div class="ncx-leg">
+        <span><span class="ncx-b p">목적</span> 손댈 것 없음</span>
+        <span><span class="ncx-b o">개요</span> 「목적」이 없어 개요에서</span>
+        <span><span class="ncx-b f">첫줄</span> 양식이 달라 설명 앞부분에서</span>
+        <span><span class="ncx-b n">보드 · 카드없음</span> 직접 쓰는 것을 권장</span>
+      </div>
+      <div class="modal-actions">
+        <div class="ncx-foot" id="ncxFoot"></div>
+        <div class="right"><button class="btn ghost" data-close>닫기</button></div></div>
     </div>
   </div>
   <div class="modal-bg" id="ufModal">
@@ -4037,6 +4106,7 @@ const taskModal=document.getElementById("taskModal"), taskInput=document.getElem
 const roadmapModal=document.getElementById("roadmapModal"), trelloModal=document.getElementById("trelloModal");
 const planModal=document.getElementById("planModal");
 const ufModal=document.getElementById("ufModal");
+const ncxModal=document.getElementById("ncxModal");
 const holModal=document.getElementById("holModal");
 const auditModal=document.getElementById("auditModal");
 const noteModal=document.getElementById("noteModal");
@@ -4048,7 +4118,7 @@ function cancelPendingDept(){
   editing.justOn=false;
   if(sg && sg.on && sg.sched===false){ sg.on=false; save(); render(); }
 }
-function closeModals(){ cancelPendingDept(); closeRmPop(); closeSpPop(); [noteModal,taskModal,auditModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,lbMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal,askModal,ufModal].forEach(m=>m.classList.remove("show")); }
+function closeModals(){ cancelPendingDept(); closeRmPop(); closeSpPop(); [noteModal,taskModal,auditModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,lbMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal,askModal,ufModal,ncxModal].forEach(m=>m.classList.remove("show")); }
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=closeModals);
 [noteModal,taskModal,auditModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,lbMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal,askModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
 
@@ -5766,6 +5836,353 @@ function openPlan(){ const fresh=!state.plan; planState();
    ⚠ 데이터 키는 **폴더 이름 문자열**(1_1_a). 항목 id 가 아니라 이름이라, 서비스 플랜에서
      폴더 이름을 바꾸면 기재분이 떨어져 나간다 — 이름은 안 바꾸는 것이 전제다.
    ⚠ 기간·빌드/CDN 뱃지는 서비스 플랜 계산(spRange/spNcKind)을 그대로 쓴다. 중복 입력 없음. */
+/* ===== 최소 XLSX 작성기 — 외부 라이브러리 없음 (2026-11-13) =====================
+   .xlsx 는 XML 몇 장을 zip 으로 묶은 것뿐이다. **압축 없이(STORED)** 담으면
+   deflate 구현이 필요 없어서 150줄이면 끝난다. SheetJS(900KB)를 받아올 이유가 없다.
+   ⚠ 글자는 inlineStr 로 넣는다(sharedStrings 생략). 한글도 UTF-8 그대로 들어간다. */
+function ncxCrc32(u8){
+  if(!ncxCrc32.T){ const T=new Uint32Array(256);
+    for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c = (c&1) ? (0xEDB88320^(c>>>1)) : (c>>>1); T[n]=c>>>0; }
+    ncxCrc32.T=T; }
+  const T=ncxCrc32.T; let crc=0xFFFFFFFF;
+  for(let i=0;i<u8.length;i++) crc = T[(crc^u8[i])&0xFF] ^ (crc>>>8);
+  return (crc^0xFFFFFFFF)>>>0;
+}
+function ncxZip(files){
+  const enc=new TextEncoder(), parts=[], central=[];
+  const u16=v=>[v&255,(v>>8)&255], u32=v=>[v&255,(v>>8)&255,(v>>16)&255,(v>>>24)&255];
+  let off=0;
+  for(const f of files){
+    const nm=enc.encode(f.name), crc=ncxCrc32(f.data), sz=f.data.length;
+    const lh=new Uint8Array([...u32(0x04034b50),...u16(20),...u16(0),...u16(0),...u16(0),...u16(0),
+      ...u32(crc),...u32(sz),...u32(sz),...u16(nm.length),...u16(0)]);
+    parts.push(lh,nm,f.data); central.push({nm,crc,sz,off}); off += lh.length+nm.length+sz;
+  }
+  const cp=[]; let csz=0;
+  for(const c of central){
+    const ch=new Uint8Array([...u32(0x02014b50),...u16(20),...u16(20),...u16(0),...u16(0),...u16(0),...u16(0),
+      ...u32(c.crc),...u32(c.sz),...u32(c.sz),...u16(c.nm.length),...u16(0),...u16(0),...u16(0),...u16(0),
+      ...u32(0),...u32(c.off)]);
+    cp.push(ch,c.nm); csz += ch.length+c.nm.length;
+  }
+  const end=new Uint8Array([...u32(0x06054b50),...u16(0),...u16(0),...u16(central.length),...u16(central.length),
+    ...u32(csz),...u32(off),...u16(0)]);
+  return new Blob([...parts,...cp,end],
+    {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+}
+const ncxX = s => String(s==null?"":s)
+  .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+  .replace(/"/g,"&quot;").replace(/\x00-\x08|\x0b|\x0c|\x0e-\x1f/g,"");
+const ncxCol = i => { let s="",n=i+1; while(n>0){ const r=(n-1)%26; s=String.fromCharCode(65+r)+s; n=Math.floor((n-1)/26); } return s; };
+/* rows: [[{v, s}|문자열, …]] · s = 스타일 번호(0 기본 / 1 굵게 / 2 줄바꿈 / 3 가운데 / 4 머리글) */
+function ncxSheetXml(rows, widths){
+  let x='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+    '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
+    '<sheetPr><outlinePr summaryBelow="1" summaryRight="1"/></sheetPr>'+
+    '<cols>'+widths.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join("")+'</cols>'+
+    '<sheetData>';
+  rows.forEach((row,ri)=>{
+    x+=`<row r="${ri+1}">`;
+    row.forEach((c,ci)=>{
+      if(c==null) return;
+      const o = (typeof c==="object") ? c : { v:c, s:0 };
+      const ref=ncxCol(ci)+(ri+1);
+      if(typeof o.v==="number") x+=`<c r="${ref}" s="${o.s||0}"><v>${o.v}</v></c>`;
+      else x+=`<c r="${ref}" s="${o.s||0}" t="inlineStr"><is><t xml:space="preserve">${ncxX(o.v)}</t></is></c>`;
+    });
+    x+='</row>';
+  });
+  return x+'</sheetData></worksheet>';
+}
+function ncxBuildXlsx(rows, widths, sheetName){
+  const enc=new TextEncoder(), F=(name,str)=>({name, data:enc.encode(str)});
+  const styles='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+   '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
+   '<fonts count="3">'+
+     '<font><sz val="10"/><name val="맑은 고딕"/></font>'+
+     '<font><b/><sz val="10"/><name val="맑은 고딕"/></font>'+
+     '<font><b/><sz val="12"/><name val="맑은 고딕"/></font></fonts>'+
+   '<fills count="3"><fill><patternFill patternType="none"/></fill>'+
+     '<fill><patternFill patternType="gray125"/></fill>'+
+     '<fill><patternFill patternType="solid"><fgColor rgb="FFEEF1F5"/><bgColor indexed="64"/></patternFill></fill></fills>'+
+   '<borders count="2"><border/>'+
+     '<border><left style="thin"><color rgb="FFD6D9E0"/></left><right style="thin"><color rgb="FFD6D9E0"/></right>'+
+     '<top style="thin"><color rgb="FFD6D9E0"/></top><bottom style="thin"><color rgb="FFD6D9E0"/></bottom></border></borders>'+
+   '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'+
+   '<cellXfs count="5">'+
+     '<xf xfId="0" fontId="0" fillId="0" borderId="1" applyBorder="1" applyAlignment="1"><alignment vertical="top"/></xf>'+
+     '<xf xfId="0" fontId="1" fillId="2" borderId="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'+
+     '<xf xfId="0" fontId="0" fillId="0" borderId="1" applyBorder="1" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf>'+
+     '<xf xfId="0" fontId="0" fillId="0" borderId="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="top"/></xf>'+
+     '<xf xfId="0" fontId="2" fillId="0" borderId="0" applyFont="1" applyAlignment="1"><alignment vertical="center"/></xf>'+
+   '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+  return ncxZip([
+    F("[Content_Types].xml",'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+      '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'+
+      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'+
+      '<Default Extension="xml" ContentType="application/xml"/>'+
+      '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'+
+      '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'+
+      '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'+
+      '</Types>'),
+    F("_rels/.rels",'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'+
+      '</Relationships>'),
+    F("xl/workbook.xml",'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+      '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '+
+      'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'+
+      `<sheets><sheet name="${ncxX(sheetName||"일감목록")}" sheetId="1" r:id="rId1"/></sheets></workbook>`),
+    F("xl/_rels/workbook.xml.rels",'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'+
+      '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'+
+      '</Relationships>'),
+    F("xl/styles.xml", styles),
+    F("xl/worksheets/sheet1.xml", ncxSheetXml(rows, widths)),
+  ]);
+}
+
+/* ═══ NC 제출 엑셀 (2026-11-13, build 2026111304) ═══════════════════════════════
+   사용자 지시:
+     · "nc측에서 마일스톤에 등록된 task를 받길 희망해 / 일감명 : 일감 상세 정보 요약 / 엑셀"
+     · "**웹보드에 노출하는 것을 원하지 않습니다.** 단순히 nc에 보내는 파일을 위한 기능"
+     · "트렐로까지 뒤져가지고 어떤 내용인지 요약되었으면"
+     · 트렐로 링크 불필요(NC 접근 권한 없음) · 담당자 실명 제거 · 분류는 개발만 · 마일스톤 선택
+   ⚠ 보드에는 **아무것도 저장하지 않는다.** state 를 건드리지 않고, 고친 요약도 그 파일에만 들어간다.
+   ⚠ 사외 문서라 코멘트·`[기본 정보]`(요청자 실명/요청 일시)·담당자·부서·트렐로 주소는 안 담는다. */
+const NCX_TRACK = "개발";
+let ncxRows = null, ncxBusy = false, ncxMs = "";
+const ncxCanUse = () => !window.APP_ROLE || ASG_ROLES.includes(window.APP_ROLE);
+
+/* ---------- 요약 뽑기 ----------
+   서버가 글을 새로 써 주지는 못한다. **이미 써 둔 것 중에서 고르는 것**만 한다.
+   티켓 양식이 고정이라(「[작업 개요] · 목적:」) 그게 곧 요약이다. 네 단계로 내려간다. */
+function ncxClean(s){
+  return String(s||"").replace(/\r/g,"")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g,"")        // 이미지
+    .replace(/\[([^\]\n]+)\]\((?:https?:)?[^)]*\)/g,"$1")  // 링크 → 글자만
+    .replace(/^\s*[-=_*]{3,}\s*$/gm,"")         // 구분선
+    .replace(/[*_`>#]+/g," ")                   // 마크다운 기호
+    .replace(/[ \t]+/g," ");
+}
+const NCX_BULLET = /^[\s·•◦▪▫\-–—*+]+/;
+/* 설명을 `[제목]` 구간으로 가른다. 구간 밖의 머리말은 "_" 에 담는다. */
+function ncxSections(desc){
+  const out = { _: [] }; let cur = "_";
+  ncxClean(desc).split("\n").forEach(ln=>{
+    const t = ln.replace(NCX_BULLET,"").trim();
+    if(!t) return;
+    const m = t.match(/^\[\s*([^\]]{1,20})\s*\]\s*(.*)$/);
+    if(m){ cur = m[1].trim(); if(!out[cur]) out[cur]=[]; if(m[2].trim()) out[cur].push(m[2].trim()); return; }
+    (out[cur] = out[cur] || []).push(t);
+  });
+  return out;
+}
+const NCX_META = /^(요청자|담당자|담당|요청\s*일시|일감\s*유형|목표\s*마일스톤|작성자|등록일|기한|마감|재현|빈도|우선\s*순위)\s*[:：]/;
+/* 「목적」 값을 집는다. 두 가지 양식을 다 받는다.
+     ① `목적: 값`  또는 `목적:` 다음 줄에 하위 불릿   ② `## 목적` 처럼 **머리글 한 줄**로 떨어진 양식
+   값이 비면 다음 줄들을 이어 붙이되, 새 키(`키:`)나 새 구간(`[`)을 만나면 멈춘다. */
+function ncxKeyVal(lines, re){
+  const stop = n => /^[^:：]{1,16}\s*[:：]/.test(n) || /^\[/.test(n);
+  for(let i=0;i<lines.length;i++){
+    const ln = lines[i];
+    let v = null;
+    const m = ln.match(/^([^:：]{1,16})\s*[:：]\s*(.*)$/);
+    if(m && re.test(m[1].trim())) v = m[2].trim();
+    else if(re.test(ln.trim())) v = "";          // ② 머리글 한 줄
+    if(v===null) continue;
+    const more=[];
+    if(!v) for(let j=i+1;j<lines.length;j++){
+      const n=lines[j];
+      if(stop(n) || re.test(n.trim())) break;
+      more.push(n); if(more.length>=3) break;
+    }
+    const all=[v,...more].filter(Boolean).join(" ").trim();
+    if(all) return all;
+  }
+  return "";
+}
+const ncxCap = (s,n) => { const t=String(s||"").replace(/\s+/g," ").trim();
+  return t.length>(n||240) ? t.slice(0,(n||240)-1)+"…" : t; };
+function ncxSummary(desc){
+  if(!String(desc||"").trim()) return null;
+  const sec = ncxSections(desc);
+  const pick = k => sec[k] || [];
+  /* ① 목적 — 사람이 쓴 한 줄. 가장 좋은 요약이다 */
+  const pool = [].concat(pick("작업 개요"), pick("_"), pick("개요"), pick("작업 내용"));
+  const mok = ncxKeyVal(pool, /^목적$|^목표$/);
+  if(mok) return { text: ncxCap(mok), src: "목적" };
+  /* ② 작업 개요 — 「목적」이 없을 때. 목표 마일스톤 줄은 뺀다 */
+  const ov = pick("작업 개요").filter(x=>!NCX_META.test(x));
+  if(ov.length) return { text: ncxCap(ov.join(" / ")), src: "개요" };
+  /* ③ 첫 줄 — 양식이 다른 옛날 카드. [기본 정보] 구간은 통째로 버린다 */
+  const body=[];
+  Object.keys(sec).forEach(k=>{ if(/기본\s*정보/.test(k)) return; body.push(...sec[k]); });
+  const first = body.filter(x=>x && !NCX_META.test(x)).slice(0,3);
+  if(first.length) return { text: ncxCap(first.join(" ")), src: "첫줄" };
+  return null;
+}
+/* ④ 카드가 없거나 설명이 비었을 때 — 보드 값으로 */
+function ncxBoardLine(t, dt){
+  const ms = findMs(t.milestoneId);
+  return [NCX_TRACK, ms?ms.name:"", t.status||"", dt].filter(Boolean).join(" · ");
+}
+
+/* ---------- 대상 모으기 ---------- */
+const ncxMsList = () => (state.milestones||[]).filter(m=>!m.free);
+function ncxRange(t){
+  let a=null,b=null;
+  (activeDepts(t)||[]).forEach(d=>{ const s=t.depts&&t.depts[d.key]; if(!hasSched(s)) return;
+    if(s.sd && (!a || s.sd<a)) a=s.sd;
+    if(s.ed && (!b || s.ed>b)) b=s.ed; });
+  return {a,b};
+}
+function ncxDateTxt(r){
+  if(!r.a) return "";
+  if(!r.b || r.b===r.a) return r.a;
+  return r.a + " ~ " + (r.b.slice(0,4)===r.a.slice(0,4) ? r.b.slice(5) : r.b);
+}
+function ncxCollect(msId, withDone){
+  return (state.tasks||[]).filter(t=>t && (t.track||"개발")===NCX_TRACK
+      && t.milestoneId===msId && (withDone || !isDone(t)))
+    .map(t=>{ const r=ncxRange(t), dt=ncxDateTxt(r);
+      return { id:t.id, cid: t.trelloCardId || "", name:t.name||"", status:t.status||"",
+               dt, a:r.a||"", sum:"", src:"보드", board:ncxBoardLine(t,dt) }; })
+    .sort((x,y)=> (x.a||"9999").localeCompare(y.a||"9999") || x.name.localeCompare(y.name));
+}
+
+/* ---------- 트렐로에서 읽기 (10장씩) ---------- */
+async function ncxLoad(){
+  if(ncxBusy) return;
+  const msId = ncxMs || ((ncxMsList()[0]||{}).id || "");
+  if(!msId){ flashNote("마일스톤이 없습니다."); return; }
+  const withDone = !!(document.getElementById("ncxDone")||{}).checked;
+  ncxRows = ncxCollect(msId, withDone);
+  if(!ncxRows.length){ renderNcx(); flashNote("해당 마일스톤에 개발 일감이 없습니다."); return; }
+  const ids = ncxRows.filter(r=>r.cid).map(r=>r.cid);
+  const byId = {};
+  ncxBusy = true; renderNcx();
+  try{
+    for(let i=0;i<ids.length;i+=10){
+      const part = ids.slice(i,i+10);
+      ncxProg(Math.floor(i/10)+1, Math.ceil(ids.length/10), ids.length);
+      const r = await fetch("/api/trello/batch?ids="+encodeURIComponent(part.join(",")),
+        { credentials:"same-origin" });
+      if(!r.ok){ let m=""; try{ m=(await r.json()).error||""; }catch(_){}
+        throw new Error(m || ("트렐로 응답 "+r.status)); }
+      const j = await r.json();
+      (j.cards||[]).forEach(c=>{ if(c && c.id) byId[c.id]=c; });
+    }
+    ncxRows.forEach(row=>{
+      const c = row.cid ? byId[row.cid] : null;
+      const s = c && !c.miss ? ncxSummary(c.desc) : null;
+      if(s){ row.sum=s.text; row.src=s.src; }
+      else { row.sum=row.board; row.src=row.cid ? "보드" : "카드없음"; }
+      if(c && c.name) row.card = c.name;
+    });
+  }catch(err){
+    flashNote("트렐로에서 읽지 못했습니다 — "+(err&&err.message||err));
+    ncxRows.forEach(row=>{ if(!row.sum){ row.sum=row.board; row.src="보드"; } });
+  }finally{ ncxBusy=false; renderNcx(); }
+}
+function ncxProg(cur, total, cards){
+  const el=document.getElementById("ncxProg"); if(!el) return;
+  el.innerHTML = `<span>트렐로에서 읽는 중…</span><div class="ncx-pbar"><i style="width:${Math.round(cur/Math.max(1,total)*100)}%"></i></div>`+
+    `<b>${cur} / ${total}</b><span>묶음 · 카드 ${cards}건</span>`;
+}
+
+/* ---------- 화면 ---------- */
+const NCX_SRC = { "목적":["p","카드의 「목적」"], "개요":["o","「작업 개요」에서"],
+                  "첫줄":["f","설명 앞부분 — 확인 권장"], "보드":["n","보드 값 — 직접 쓰는 것을 권장"],
+                  "카드없음":["n","트렐로 카드 없음 — 직접 쓰는 것을 권장"] };
+function renderNcx(){
+  const head=document.getElementById("ncxHead"), body=document.getElementById("ncxBody"),
+        foot=document.getElementById("ncxFoot"), prog=document.getElementById("ncxProg");
+  if(!body) return;
+  const ms = ncxMsList();
+  if(head) head.innerHTML =
+    `<span class="ncx-fld">마일스톤 <select id="ncxMsSel">`+
+      ms.map(m=>`<option value="${escapeHtml(m.id)}" ${m.id===ncxMs?"selected":""}>${escapeHtml(m.name)}</option>`).join("")+
+    `</select></span>`+
+    `<span class="ncx-chip on">분류 · 개발 고정</span>`+
+    `<label class="ncx-ck"><input type="checkbox" id="ncxDone"> 완료된 일감도 포함</label>`+
+    `<span class="ncx-sp"></span>`+
+    `<button type="button" class="btn" data-ncxload ${ncxBusy?"disabled":""}>${ncxRows?"↻ 다시 읽기":"트렐로에서 읽어오기"}</button>`;
+  if(prog) prog.style.display = ncxBusy ? "flex" : "none";
+  if(!ncxRows){
+    body.innerHTML = '<div class="ncx-empty">마일스톤을 고르고 <b>「트렐로에서 읽어오기」</b>를 누르세요.<br>'+
+      '카드 설명의 「목적」에서 요약을 가져옵니다. 보드에는 아무것도 저장되지 않습니다.</div>';
+    if(foot) foot.innerHTML=""; return;
+  }
+  let h='<table class="ncx-tbl"><thead><tr><th class="n">#</th><th>일감명</th><th>상세 요약</th>'+
+        '<th class="st">상태</th><th class="dt">일정</th><th class="src">출처</th></tr></thead><tbody>';
+  ncxRows.forEach((r,i)=>{
+    const sm = NCX_SRC[r.src] || NCX_SRC["보드"];
+    h+=`<tr><td class="n">${i+1}</td>`+
+       `<td class="nm">${escapeHtml(r.name)}</td>`+
+       `<td class="sum"><input data-ncxsum="${i}" value="${escapeHtml(r.sum)}" placeholder="요약을 적어 주세요"></td>`+
+       `<td class="st">${escapeHtml(r.status)}</td>`+
+       `<td class="dt">${escapeHtml(r.dt||"—")}</td>`+
+       `<td class="src"><span class="ncx-b ${sm[0]}" title="${escapeHtml(sm[1])}">${escapeHtml(r.src)}</span></td></tr>`;
+  });
+  body.innerHTML = h+'</tbody></table>';
+  const warn = ncxRows.filter(r=>r.src==="첫줄"||r.src==="보드"||r.src==="카드없음").length;
+  const fromT = ncxRows.filter(r=>r.src==="목적"||r.src==="개요").length;
+  if(foot) foot.innerHTML =
+    `<span>${ncxRows.length}건 · 트렐로에서 ${fromT}건${warn?` · <b style="color:#fbbf24">확인 권장 ${warn}건</b>`:""}</span>`+
+    `<span class="ncx-sp"></span>`+
+    `<button type="button" class="btn" data-ncxdl ${ncxBusy?"disabled":""}>⬇ 엑셀 내려받기</button>`;
+}
+function openNcx(){
+  if(!ncxCanUse()){ flashNote("매니저 이상만 쓸 수 있습니다."); return; }
+  closeModals();
+  if(!ncxMs){ const m=ncxMsList()[0]; ncxMs = m?m.id:""; }
+  ncxRows=null; ncxBusy=false; renderNcx(); ncxModal.classList.add("show");
+}
+
+/* ---------- 내려받기 ---------- */
+function ncxDownload(){
+  if(!ncxRows || !ncxRows.length) return;
+  const ms = findMs(ncxMs), msName = ms?ms.name:"";
+  const d = new Date(), p=n=>String(n).padStart(2,"0");
+  const today = d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());
+  const stamp = d.getFullYear()+p(d.getMonth()+1)+p(d.getDate());
+  const rows = [
+    [{ v:`LIMIT ZERO BREAKERS · ${msName} 개발 일감 목록 · ${today} 기준 · ${ncxRows.length}건`, s:4 }],
+    [{v:"번호",s:1},{v:"일감명",s:1},{v:"상세 요약",s:1},{v:"상태",s:1},{v:"일정",s:1}],
+  ];
+  ncxRows.forEach((r,i)=>rows.push([
+    {v:i+1,s:3},{v:r.name,s:2},{v:r.sum,s:2},{v:r.status,s:3},{v:r.dt,s:3} ]));
+  const blob = ncxBuildXlsx(rows, [6,42,64,11,22], (msName||"일감")+" 개발");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=`브레이커스_${msName||"일감"}_일감목록_${stamp}.xlsx`;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+  flashNote(`${ncxRows.length}건을 내려받았습니다.`);
+}
+
+(function ncxWire(){
+  const m=document.getElementById("ncxModal"); if(!m) return;
+  m.addEventListener("click", e=>{
+    if(e.target.closest("[data-ncxload]")){ ncxLoad(); return; }
+    if(e.target.closest("[data-ncxdl]")){ ncxDownload(); return; }
+  });
+  m.addEventListener("change", e=>{
+    const t=e.target;
+    if(t.id==="ncxMsSel"){ ncxMs=t.value; ncxRows=null; renderNcx(); return; }
+    if(t.id==="ncxDone"){ if(ncxRows) ncxLoad(); return; }
+    if(t.matches("[data-ncxsum]")){ const i=Number(t.dataset.ncxsum);
+      if(ncxRows && ncxRows[i]) ncxRows[i].sum = String(t.value||""); }
+  });
+  const b=document.getElementById("ncxBtn");
+  if(b){ b.onclick=openNcx;
+    /* 클라우드를 안 쓰는 로컬 단독 실행에서는 cloud.js 가 안 돌아 버튼이 숨은 채 남는다 */
+    if(!window.APP_ROLE) b.style.display=""; }
+})();
+
+
 /* ═══ 「업데이트 폴더」 탭 — 전체 (2026-11-12, build 2026111205) ════════════════
    레이아웃 B안: **매트릭스는 그대로 두고, 폴더를 누르면 오른쪽에 패널**이 열린다.
    예전의 '행을 펼쳐 아래에 목록' 방식은 버렸다 — 파일 목록까지 넣으면 한 폴더가 화면을 다 먹는다.

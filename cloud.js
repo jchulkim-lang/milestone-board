@@ -292,6 +292,8 @@
     /* 마스터 전용: 트렐로 관리 · 강제 새로고침 (서버도 같이 막는다 — 숨김만으로는 의미가 없다) */
     const fr=document.getElementById("forceReloadBtn"); if(fr) fr.style.display = isMasterRole() ? "" : "none";
     const tb=document.getElementById("trelloBtn");      if(tb) tb.style.display = isMasterRole() ? "" : "none";
+    /* NC 제출 엑셀 — 사외 제출물이라 매니저 이상만. 서버(/api/trello/batch)도 같은 기준으로 막는다 */
+    const nx=document.getElementById("ncxBtn");         if(nx) nx.style.display = isManagerRole() ? "" : "none";
     // 마일스톤 설정(#msBtn)은 전원 열람 가능 — 편집 컨트롤만 index.html 쪽에서 관리자에게만 열어 준다
   }
   function injectReadonlyStyle(){
