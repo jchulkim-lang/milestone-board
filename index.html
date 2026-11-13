@@ -754,7 +754,15 @@
   .ncx-tbl th.src,.ncx-tbl td.src{ width:88px; text-align:center; }
   .ncx-tbl td{ padding:9px 10px; line-height:1.6; }
   .ncx-tbl td.n{ color:var(--muted); font-size:11.5px; padding-top:12px; }
-  .ncx-tbl td.nm{ font-weight:700; width:300px; }
+  .ncx-tbl td.nm{ font-weight:700; width:250px; }
+  .ncx-tbl td.sum{ width:280px; }
+  .ncx-tbl td.det{ min-width:300px; }
+  #ncxModal .ncx-tbl td.det textarea{ width:100%; background:var(--panel2); border:1px solid var(--line);
+     border-radius:6px; color:#c7cedd; font:inherit; font-size:11.5px; line-height:1.6; padding:5px 7px;
+     resize:vertical; min-height:58px; white-space:pre; overflow:auto; }
+  #ncxModal .ncx-tbl td.det textarea:focus{ border-color:var(--accent); outline:none; }
+  .ncx-dn{ display:block; font-size:10px; color:var(--muted); margin-top:3px; }
+  .ncx-dn.warn{ color:#f87171; }
   .ncx-tbl td.st,.ncx-tbl td.dt{ color:var(--muted); font-size:11.5px; padding-top:12px; }
   #ncxModal .ncx-tbl td.sum input{ width:100%; background:transparent; border:1px solid transparent;
      border-radius:6px; color:#c7cedd; font:inherit; font-size:12.5px; padding:3px 6px; line-height:1.5; }
@@ -2117,7 +2125,7 @@
     <div class="modal">
       <div class="hub-head"><span class="hub-tabs"><b style="font-size:14px;padding:4px 8px">📤 NC 제출 파일 만들기</b></span>
         <button type="button" class="hub-x" data-close>✕ 닫기</button></div>
-      <div class="msub">마일스톤에 등록된 <b>개발</b> 일감을 엑셀로 내보냅니다. 요약은 트렐로 카드의 「목적」에서 가져옵니다.
+      <div class="msub">마일스톤에 등록된 <b>개발</b> 일감을 엑셀로 내보냅니다. <b>「상세 내용」에는 트렐로 카드 설명 전문</b>이, 「요약」에는 그중 「목적」 한 줄이 들어갑니다.
         <b>보드에는 아무것도 저장되지 않습니다.</b> 담당자·부서·트렐로 주소·카드 코멘트는 담지 않습니다.</div>
       <div class="ncx-bar" id="ncxHead"></div>
       <div class="ncx-prog" id="ncxProg"></div>
@@ -6023,6 +6031,39 @@ function ncxSummary(desc){
   if(first.length) return { text: ncxCap(first.join(" ")), src: "첫줄" };
   return null;
 }
+/* ===== 「상세 내용」 — Description 전문 (2026-11-13, build 2026111305) ==========
+   사용자 피드백: "잘 뽑히는 것 까지는 좋은데 **내용이 부실하네** /
+                   상세 내용에 최소 트렐로 티켓에 기재되어 있는 Description 내용은 들어가있어야되"
+   → 한 줄 요약은 그대로 두고(훑어보기용), **카드 설명 전문**을 담는 열을 따로 뒀다.
+   ⚠ `[기본 정보]`(요청자 실명·요청 일시)는 기본으로 **뺀다** — 사외 문서라 실명을 빼기로 했었다.
+     필요하면 모달의 체크박스로 켤 수 있다.
+   ⚠ 줄 구조는 살린다(엑셀에서 줄바꿈 + 자동 줄맞춤). 불릿은 `· ` 로 통일. */
+const NCX_DET_MAX = 4000;
+/* ⚠ 여기서는 ncxClean 을 **줄 단위로** 쓴다. 통째로 넣으면 `*`·`-` 가 먼저 지워져
+   불릿과 들여쓰기가 평평해진다(실측 2026-11-13). 들여쓰기는 **원본 줄**에서 재야 한다. */
+function ncxDetail(desc, withBasic){
+  if(!String(desc||"").trim()) return "";
+  const out=[]; let skip=false;
+  String(desc).replace(/\r/g,"").split("\n").forEach(raw=>{
+    /* ① 원본에서 들여쓰기 깊이와 불릿 여부를 먼저 잰다 */
+    const lead = (raw.match(/^[ \t]*/)||[""])[0];
+    const indent = Math.min(3, Math.floor((lead.replace(/\t/g,"    ")).length / 3));
+    const body = raw.slice(lead.length);
+    const isBul = /^[-*+·•◦▪]\s/.test(body) || /^\d+[.)]\s/.test(body);
+    /* ② 그다음에 마크다운을 턴다 */
+    const t = ncxClean(body.replace(/^[-*+·•◦▪]\s+/,"").replace(/^(\d+[.)])\s+/,"$1 ")).trim();
+    const head = t.match(/^\[\s*([^\]]{1,20})\s*\]/);
+    if(head) skip = !withBasic && /기본\s*정보/.test(head[1]);
+    if(skip) return;
+    if(!t){ if(out.length && out[out.length-1]!=="") out.push(""); return; }
+    out.push("  ".repeat(indent) + (isBul && !head ? "· " : "") + t);
+  });
+  while(out.length && out[0]==="") out.shift();
+  while(out.length && out[out.length-1]==="") out.pop();
+  let txt = out.join("\n");
+  if(txt.length > NCX_DET_MAX) txt = txt.slice(0, NCX_DET_MAX-1)+"…";
+  return txt;
+}
 /* ④ 카드가 없거나 설명이 비었을 때 — 보드 값으로 */
 function ncxBoardLine(t, dt){
   const ms = findMs(t.milestoneId);
@@ -6048,7 +6089,7 @@ function ncxCollect(msId, withDone){
       && t.milestoneId===msId && (withDone || !isDone(t)))
     .map(t=>{ const r=ncxRange(t), dt=ncxDateTxt(r);
       return { id:t.id, cid: t.trelloCardId || "", name:t.name||"", status:t.status||"",
-               dt, a:r.a||"", sum:"", src:"보드", board:ncxBoardLine(t,dt) }; })
+               dt, a:r.a||"", sum:"", det:"", src:"보드", board:ncxBoardLine(t,dt) }; })
     .sort((x,y)=> (x.a||"9999").localeCompare(y.a||"9999") || x.name.localeCompare(y.name));
 }
 
@@ -6074,11 +6115,13 @@ async function ncxLoad(){
       const j = await r.json();
       (j.cards||[]).forEach(c=>{ if(c && c.id) byId[c.id]=c; });
     }
+    const basic = !!(document.getElementById("ncxBasic")||{}).checked;
     ncxRows.forEach(row=>{
       const c = row.cid ? byId[row.cid] : null;
       const s = c && !c.miss ? ncxSummary(c.desc) : null;
       if(s){ row.sum=s.text; row.src=s.src; }
       else { row.sum=row.board; row.src=row.cid ? "보드" : "카드없음"; }
+      row.det = c && !c.miss ? ncxDetail(c.desc, basic) : "";
       if(c && c.name) row.card = c.name;
     });
   }catch(err){
@@ -6107,6 +6150,8 @@ function renderNcx(){
     `</select></span>`+
     `<span class="ncx-chip on">분류 · 개발 고정</span>`+
     `<label class="ncx-ck"><input type="checkbox" id="ncxDone"> 완료된 일감도 포함</label>`+
+    `<label class="ncx-ck" title="카드 설명의 [기본 정보] 구간 — 요청자 실명·요청 일시가 들어 있습니다"><input type="checkbox" id="ncxBasic"> [기본 정보]도 포함</label>`+
+    `<label class="ncx-ck" title="끄면 「상세 내용」 한 열만 나갑니다"><input type="checkbox" id="ncxSum" checked> 요약 열 포함</label>`+
     `<span class="ncx-sp"></span>`+
     `<button type="button" class="btn" data-ncxload ${ncxBusy?"disabled":""}>${ncxRows?"↻ 다시 읽기":"트렐로에서 읽어오기"}</button>`;
   if(prog) prog.style.display = ncxBusy ? "flex" : "none";
@@ -6115,13 +6160,17 @@ function renderNcx(){
       '카드 설명의 「목적」에서 요약을 가져옵니다. 보드에는 아무것도 저장되지 않습니다.</div>';
     if(foot) foot.innerHTML=""; return;
   }
-  let h='<table class="ncx-tbl"><thead><tr><th class="n">#</th><th>일감명</th><th>상세 요약</th>'+
+  let h='<table class="ncx-tbl"><thead><tr><th class="n">#</th><th>일감명</th><th>요약</th>'+
+        '<th>상세 내용 <span style="font-weight:600;opacity:.75">· 카드 설명 전문</span></th>'+
         '<th class="st">상태</th><th class="dt">일정</th><th class="src">출처</th></tr></thead><tbody>';
   ncxRows.forEach((r,i)=>{
     const sm = NCX_SRC[r.src] || NCX_SRC["보드"];
+    const n = r.det ? r.det.split("\n").length : 0;
     h+=`<tr><td class="n">${i+1}</td>`+
        `<td class="nm">${escapeHtml(r.name)}</td>`+
        `<td class="sum"><input data-ncxsum="${i}" value="${escapeHtml(r.sum)}" placeholder="요약을 적어 주세요"></td>`+
+       `<td class="det"><textarea data-ncxdet="${i}" rows="3" placeholder="카드 설명이 비어 있습니다">${escapeHtml(r.det)}</textarea>`+
+         (n?`<span class="ncx-dn">${n}줄 · ${r.det.length}자</span>`:'<span class="ncx-dn warn">설명 없음</span>')+`</td>`+
        `<td class="st">${escapeHtml(r.status)}</td>`+
        `<td class="dt">${escapeHtml(r.dt||"—")}</td>`+
        `<td class="src"><span class="ncx-b ${sm[0]}" title="${escapeHtml(sm[1])}">${escapeHtml(r.src)}</span></td></tr>`;
@@ -6129,8 +6178,10 @@ function renderNcx(){
   body.innerHTML = h+'</tbody></table>';
   const warn = ncxRows.filter(r=>r.src==="첫줄"||r.src==="보드"||r.src==="카드없음").length;
   const fromT = ncxRows.filter(r=>r.src==="목적"||r.src==="개요").length;
+  const noDet = ncxRows.filter(r=>!r.det).length;
   if(foot) foot.innerHTML =
-    `<span>${ncxRows.length}건 · 트렐로에서 ${fromT}건${warn?` · <b style="color:#fbbf24">확인 권장 ${warn}건</b>`:""}</span>`+
+    `<span>${ncxRows.length}건 · 트렐로에서 ${fromT}건${warn?` · <b style="color:#fbbf24">확인 권장 ${warn}건</b>`:""}`+
+    `${noDet?` · <b style="color:#f87171">설명 없음 ${noDet}건</b>`:""}</span>`+
     `<span class="ncx-sp"></span>`+
     `<button type="button" class="btn" data-ncxdl ${ncxBusy?"disabled":""}>⬇ 엑셀 내려받기</button>`;
 }
@@ -6148,13 +6199,17 @@ function ncxDownload(){
   const d = new Date(), p=n=>String(n).padStart(2,"0");
   const today = d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());
   const stamp = d.getFullYear()+p(d.getMonth()+1)+p(d.getDate());
+  const wantSum = (document.getElementById("ncxSum")||{checked:true}).checked;
+  const head = ["번호","일감명"].concat(wantSum?["요약"]:[], ["상세 내용","상태","일정"]);
+  const width = [6,38].concat(wantSum?[46]:[], [72,11,22]);
   const rows = [
     [{ v:`LIMIT ZERO BREAKERS · ${msName} 개발 일감 목록 · ${today} 기준 · ${ncxRows.length}건`, s:4 }],
-    [{v:"번호",s:1},{v:"일감명",s:1},{v:"상세 요약",s:1},{v:"상태",s:1},{v:"일정",s:1}],
+    head.map(h=>({v:h,s:1})),
   ];
-  ncxRows.forEach((r,i)=>rows.push([
-    {v:i+1,s:3},{v:r.name,s:2},{v:r.sum,s:2},{v:r.status,s:3},{v:r.dt,s:3} ]));
-  const blob = ncxBuildXlsx(rows, [6,42,64,11,22], (msName||"일감")+" 개발");
+  ncxRows.forEach((r,i)=>rows.push(
+    [{v:i+1,s:3},{v:r.name,s:2}].concat(wantSum?[{v:r.sum,s:2}]:[],
+      [{v:r.det||r.sum,s:2},{v:r.status,s:3},{v:r.dt,s:3}])));
+  const blob = ncxBuildXlsx(rows, width, (msName||"일감")+" 개발");
   const a=document.createElement("a");
   a.href=URL.createObjectURL(blob);
   a.download=`브레이커스_${msName||"일감"}_일감목록_${stamp}.xlsx`;
@@ -6174,7 +6229,11 @@ function ncxDownload(){
     if(t.id==="ncxMsSel"){ ncxMs=t.value; ncxRows=null; renderNcx(); return; }
     if(t.id==="ncxDone"){ if(ncxRows) ncxLoad(); return; }
     if(t.matches("[data-ncxsum]")){ const i=Number(t.dataset.ncxsum);
-      if(ncxRows && ncxRows[i]) ncxRows[i].sum = String(t.value||""); }
+      if(ncxRows && ncxRows[i]) ncxRows[i].sum = String(t.value||""); return; }
+    if(t.matches("[data-ncxdet]")){ const i=Number(t.dataset.ncxdet);
+      if(ncxRows && ncxRows[i]) ncxRows[i].det = String(t.value||""); return; }
+    if(t.id==="ncxBasic"){ if(ncxRows) ncxLoad(); return; }
+    if(t.id==="ncxSum"){ return; }                    // 열 포함 여부는 내려받을 때만 본다
   });
   const b=document.getElementById("ncxBtn");
   if(b){ b.onclick=openNcx;
