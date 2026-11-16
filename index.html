@@ -1482,6 +1482,34 @@
     --panel:#121418; --panel2:#22262f; --line:#2c313b; --text:#eef1f6; --muted:#9aa3b2;
     background:#121418; border-color:#2c313b; color:#eef1f6; }
   body.light .topbar .btn, body.light .ctxbar .btn, body.light .footbar .btn{ border-color:#2c313b; }
+
+  /* ===== 라이트에서 글자가 안 보이던 것들 (2026-11-16, build 2026111603) ==================
+     사용자 제보: **"화이트톤일때 글자가 하나도 안보여"**.
+     원인: 담당자 매트릭스·지연 칩·간트 머리글이 **다크 전용 색을 하드코딩**하고 있었고
+     (`.mx.has{color:#d7deec}`, `.mx.none{color:rgba(255,255,255,.14)}` …) **라이트 대응이 아예 없었다.**
+     바탕이 #eff1f5 일 때도 이미 안 보였는데 순백이 되면서 드러났다.
+     ⚠ 새 칩을 만들 때 **흰 글자·흰 알파를 하드코딩하면 라이트에서 반드시 사라진다.**
+        색을 고정해야 하면 여기에 라이트 짝을 같이 적을 것. 검증: `/tmp/rt/contrast.js` 대비 감사. */
+  body.light .mx.has{ background:rgba(17,24,39,.035); border-color:var(--line); color:#374151; }
+  body.light .mx.has:hover{ background:rgba(17,24,39,.075); }
+  body.light .mx.has:hover .dnb{ background:rgba(17,24,39,.12); color:rgba(17,24,39,.75); }
+  body.light .mx .dt.nod{ color:rgba(17,24,39,.34); }
+  body.light .mx.none{ color:rgba(17,24,39,.26); }
+  body.light .mx.und{ border-color:#d9950f; color:#92610a; }
+  body.light .mx.und:hover{ background:rgba(245,158,11,.14); }
+  body.light .mx.dn{ background:rgba(5,150,105,.10); border-color:#059669; color:#046c4e; }
+  body.light .mx.dn:hover{ background:rgba(5,150,105,.18); }
+  body.light .mx.focus{ box-shadow:inset 0 0 0 2px rgba(17,24,39,.30); }
+  body.light .late-chip{ color:#b91c1c; background:rgba(239,68,68,.10); border-color:rgba(239,68,68,.45); }
+  body.light .day-cell.today{ color:#312e81; }
+  body.light .day-cell.hol, body.light .day-cell.hol .dow,
+  body.light .hol-note, body.light .hol-row .d{ color:#b91c1c; }
+  body.light .filter-btn.active{ color:#1e3a8a; }
+  body.light .rm-msc-d{ color:#374151; }
+  body.light .rm-msc-d.soon{ color:#92610a; }
+  body.light .rm-msc-d.none{ color:rgba(17,24,39,.30); }
+  body.light .ms-sval{ color:#374151; }
+  body.light .ms-sval.none{ color:rgba(17,24,39,.28); }
   html,body{ font-family:'Pretendard Variable','Pretendard',-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',sans-serif; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
   body{ background:
       radial-gradient(1100px 560px at 10% -12%, rgba(99,102,241,.10), transparent 60%),
