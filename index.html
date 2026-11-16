@@ -6419,7 +6419,9 @@ async function ncxLoad(){
   const byId = {};
   /* 카드 1장을 두 이름으로 넣는다 — 보드에 저장된 값(shortLink 일 수 있다)과 트렐로 정식 id 둘 다 */
   const put = c => { if(!c) return; if(c.key) byId[c.key]=c; if(c.id) byId[c.id]=c; };
-  const got = r => { const c = r.cid ? byId[r.cid] : null; return (c && !c.miss) ? c : null; };
+  /* partial = 카드는 찾았는데 **설명을 못 받은 것**(배치 fields 가 안 먹은 경우).
+     못 찾은 것과 똑같이 취급해 낱개로 다시 읽는다 — 안 그러면 「설명 없음」으로 조용히 넘어간다. */
+  const got = r => { const c = r.cid ? byId[r.cid] : null; return (c && !c.miss && !c.partial) ? c : null; };
   let failed = 0;
   ncxBusy = true; renderNcx();
   try{
