@@ -19,7 +19,7 @@
      favicon.png 은 **머리 전체**를 담은 크롭 — 16px 에서 뿔+분홍 머리 실루엣으로 알아본다.
      얼굴을 더 바짝 당기면 16px 에서 분홍 덩어리가 된다(실측). -->
 <link rel="icon" type="image/png" href="/favicon.png">
-<link rel="apple-touch-icon" href="/icon.png">
+<link rel="apple-touch-icon" href="/icon-ios.png"><!-- ⚠ 투명 PNG 를 홈 화면에 올리면 iOS 가 뒤를 검정으로 채운다 → 여기만 불투명 파일 -->
 <style>
   :root{
     --bg:#0e1014; --panel:#161922; --panel2:#1d2129; --line:#272c36; --grid:#1b1f27;
@@ -1466,12 +1466,12 @@
      카드 면은 원안(#FFFFFF, 밝기 100%)에서 **#EFF1F5(88%)로 더 내렸다** — 사용자 요청.
      ⚠ 더 올리려면 panel #F4F6F8(92%), 더 내리려면 #E9ECF1(84%). bg 도 같은 폭으로 같이 움직일 것. */
   body.light{
-    --bg:#e5e8ee; --panel:#eff1f5; --panel2:#e3e7ed; --line:#d5dae3; --grid:#e8ebf0;
-    --text:#23262d; --muted:#636a76; --accent:#3c5fd0; --accent2:#3c5fd0;
-    --rowhead:#ebeef3; --rowhead-h:#e1e5ec; --mon:#c4cad4; --scroll:#b6bdc8;
-    --grad:linear-gradient(135deg,#3c5fd0 0%,#3c5fd0 100%);
-    --grad-soft:linear-gradient(135deg,rgba(60,95,208,.12),rgba(60,95,208,.09));
-    --glow:0 2px 8px rgba(35,40,60,.16);
+    --bg:#f7f8f9; --panel:#ffffff; --panel2:#f4f5f7; --line:#dde1e8; --grid:#eef0f4;
+    --text:#1b1f27; --muted:#6b7280; --accent:#2b59e8; --accent2:#2b59e8;
+    --rowhead:#fafbfc; --rowhead-h:#f1f3f6; --mon:#ccd2dc; --scroll:#c3c9d3;
+    --grad:linear-gradient(135deg,#2b59e8 0%,#2b59e8 100%);
+    --grad-soft:linear-gradient(135deg,rgba(43,89,232,.12),rgba(43,89,232,.09));
+    --glow:0 2px 8px rgba(27,31,39,.14);
     --qa-c:#0e7490; --qa-c-dim:rgba(14,116,144,.26);
     --qa-c-bg:rgba(14,116,144,.11); --qa-c-bd:rgba(14,116,144,.42);
   }
@@ -1479,9 +1479,9 @@
      그래야 그 안의 부서 칩·버튼·드롭다운이 전부 알아서 따라온다.
      (덮어씌우기로 했다가 부서 칩이 묻히는 것을 시안에서 확인하고 이 방식으로 바꿨다.) */
   body.light .topbar, body.light .ctxbar, body.light .footbar{
-    --panel:#343858; --panel2:#3e4368; --line:#474c77; --text:#edeff5; --muted:#aeb6c6;
-    background:#343858; border-color:#474c77; color:#edeff5; }
-  body.light .topbar .btn, body.light .ctxbar .btn, body.light .footbar .btn{ border-color:#474c77; }
+    --panel:#121418; --panel2:#22262f; --line:#2c313b; --text:#eef1f6; --muted:#9aa3b2;
+    background:#121418; border-color:#2c313b; color:#eef1f6; }
+  body.light .topbar .btn, body.light .ctxbar .btn, body.light .footbar .btn{ border-color:#2c313b; }
   html,body{ font-family:'Pretendard Variable','Pretendard',-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',sans-serif; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
   body{ background:
       radial-gradient(1100px 560px at 10% -12%, rgba(99,102,241,.10), transparent 60%),
