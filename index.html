@@ -770,6 +770,13 @@
   .ncx-tbl thead th{ position:sticky; top:0; z-index:2; background:var(--rowhead); color:var(--muted);
      font-weight:800; font-size:11.5px; padding:8px 10px; text-align:left; white-space:nowrap; }
   .ncx-tbl th.n,.ncx-tbl td.n{ width:40px; text-align:center; }
+  .ncx-tbl th.pr,.ncx-tbl td.pr{ width:52px; text-align:center; }
+  /* 우선순위 배지 — 보드의 PRIOS 색을 그대로 쓴다 */
+  .ncx-p{ display:inline-block; min-width:20px; padding:1px 5px; border-radius:5px; font-size:11px;
+          font-weight:800; color:#fff; margin-top:9px; }
+  .ncx-p.pS{ background:#a855f7; } .ncx-p.p1{ background:#ef4444; } .ncx-p.p2{ background:#f59e0b; }
+  .ncx-p.p3{ background:#3b82f6; } .ncx-p.p4{ background:#14b8a6; }
+  .ncx-p.none{ background:none; color:var(--muted); font-weight:600; }
   .ncx-tbl th.st,.ncx-tbl td.st{ width:90px; }
   .ncx-tbl th.dt,.ncx-tbl td.dt{ width:122px; }
   .ncx-tbl th.src,.ncx-tbl td.src{ width:88px; text-align:center; }
@@ -6310,6 +6317,12 @@ function ncxBuildXlsx(rows, widths, sheetName){
    ⚠ 사외 문서라 코멘트·`[기본 정보]`(요청자 실명/요청 일시)·담당자·부서·트렐로 주소는 안 담는다. */
 const NCX_TRACK = "개발";
 let ncxRows = null, ncxBusy = false, ncxMs = "", ncxErr = "";
+/* NC 제출용 우선순위 필터 — 비어 있으면 전체. 보드의 prioFilter 와 **따로 둔다**
+   (보드 화면 필터가 제출물에 새어 들어가면 안 된다). 저장 안 함, 창을 열 때마다 비운다. */
+let ncxPrio = new Set();
+const NCX_PRIO_KEYS = PRIOS.map(p=>p.k).concat("__none");
+const ncxPrioLabel = k => k==="__none" ? "없음" : k;
+const ncxPrioSort = k => { const i=PRIOS.findIndex(p=>p.k===k); return i<0 ? 99 : i; };
 const ncxCanUse = () => !window.APP_ROLE || ASG_ROLES.includes(window.APP_ROLE);
 
 /* ---------- 요약 뽑기 ----------
@@ -6439,11 +6452,14 @@ function ncxDateTxt(r){
 }
 function ncxCollect(msId, withDone){
   return (state.tasks||[]).filter(t=>t && (t.track||"개발")===NCX_TRACK
-      && t.milestoneId===msId && (withDone || !isDone(t)))
-    .map(t=>{ const r=ncxRange(t), dt=ncxDateTxt(r);
+      && t.milestoneId===msId && (withDone || !isDone(t))
+      && (!ncxPrio.size || ncxPrio.has(prioKey(t))))
+    .map(t=>{ const r=ncxRange(t), dt=ncxDateTxt(r), pk=prioKey(t);
       return { id:t.id, cid: t.trelloCardId || "", name:t.name||"", status:t.status||"",
+               prio: pk==="__none" ? "" : pk, po: ncxPrioSort(pk),
                dt, a:r.a||"", det:"", sum:"", src:"보드", board:ncxBoardLine(t,dt) }; })
-    .sort((x,y)=> (x.a||"9999").localeCompare(y.a||"9999") || x.name.localeCompare(y.name));
+    /* 우선순위 먼저, 같으면 시작일, 그다음 이름 — NC 가 그대로 위에서부터 읽을 수 있게 */
+    .sort((x,y)=> x.po-y.po || (x.a||"9999").localeCompare(y.a||"9999") || x.name.localeCompare(y.name));
 }
 
 /* ---------- 트렐로에서 읽기 (10장씩) ---------- */
@@ -6532,6 +6548,10 @@ function renderNcx(){
       ms.map(m=>`<option value="${escapeHtml(m.id)}" ${m.id===ncxMs?"selected":""}>${escapeHtml(m.name)}</option>`).join("")+
     `</select></span>`+
     `<span class="ncx-chip on">분류 · 개발 고정</span>`+
+    `<span class="ncx-fld" style="gap:4px">우선순위 `+
+      NCX_PRIO_KEYS.map(k=>`<span class="ncx-chip ${ncxPrio.has(k)?"on":""}" data-ncxprio="${k}" `+
+        `title="${k==="__none"?"우선순위를 안 정한 일감":"우선순위 "+k}">${escapeHtml(ncxPrioLabel(k))}</span>`).join("")+
+      `<span class="ncx-chip ${ncxPrio.size?"":"on"}" data-ncxprio="__all" title="전부 포함">전체</span></span>`+
     `<label class="ncx-ck"><input type="checkbox" id="ncxDone"> 완료된 일감도 포함</label>`+
     `<label class="ncx-ck" title="카드 설명의 [기본 정보] 구간 — 요청자 실명·요청 일시가 들어 있습니다"><input type="checkbox" id="ncxBasic"> [기본 정보]도 포함</label>`+
     `<span class="ncx-sp"></span>`+
@@ -6542,7 +6562,7 @@ function renderNcx(){
       '카드의 <b>설명 전문</b>을 그대로 가져옵니다. 보드에는 아무것도 저장되지 않습니다.</div>';
     if(foot) foot.innerHTML=""; return;
   }
-  let h='<table class="ncx-tbl"><thead><tr><th class="n">#</th><th>일감명</th>'+
+  let h='<table class="ncx-tbl"><thead><tr><th class="n">#</th><th class="pr">우선</th><th>일감명</th>'+
         '<th class="sum">요약 <span style="font-weight:600;opacity:.75">· 목적·목표</span></th>'+
         '<th>내용 <span style="font-weight:600;opacity:.75">· 트렐로 카드 설명 전문</span></th>'+
         '<th class="st">상태</th><th class="dt">일정</th><th class="src">출처</th></tr></thead><tbody>';
@@ -6550,6 +6570,7 @@ function renderNcx(){
     const sm = NCX_SRC[r.src] || NCX_SRC["카드없음"];   // ⚠ 없는 키여도 죽지 않게
     const n = r.det ? r.det.split("\n").length : 0;
     h+=`<tr><td class="n">${i+1}</td>`+
+       `<td class="pr">${r.prio?`<span class="ncx-p p${escapeHtml(r.prio)}">${escapeHtml(r.prio)}</span>`:`<span class="ncx-p none">–</span>`}</td>`+
        `<td class="nm">${escapeHtml(r.name)}</td>`+
        `<td class="sum"><textarea data-ncxsum="${i}" rows="3" placeholder="설명에서 목적·목표를 못 찾았습니다">${escapeHtml(r.sum||"")}</textarea></td>`+
        `<td class="det"><textarea data-ncxdet="${i}" rows="5" placeholder="카드 설명이 비어 있습니다">${escapeHtml(r.det)}</textarea>`+
@@ -6576,7 +6597,7 @@ function openNcx(){
   if(!ncxCanUse()){ flashNote("매니저 이상만 쓸 수 있습니다."); return; }
   closeModals();
   if(!ncxMs){ const m=ncxMsList()[0]; ncxMs = m?m.id:""; }
-  ncxRows=null; ncxBusy=false; renderNcx(); ncxModal.classList.add("show");
+  ncxRows=null; ncxBusy=false; ncxPrio.clear(); renderNcx(); ncxModal.classList.add("show");
 }
 
 /* ---------- 구글 시트용 복사 (2026-11-16, build 2026111609) ----------------------------
@@ -6588,8 +6609,8 @@ function openNcx(){
 const NCX_SHEET_URL = "";          /* 시트 주소를 넣으면 바닥에 「시트 열기」 버튼이 같이 뜬다 */
 function ncxSheetRows(){
   const ms=findMs(ncxMs), msName=ms?ms.name:"";
-  const head=["번호","일감명","요약","내용","상태","일정","마일스톤"];
-  const rows=ncxRows.map((r,i)=>[String(i+1), r.name||"", r.sum||"", r.det||"", r.status||"", r.dt||"", msName]);
+  const head=["번호","우선순위","일감명","요약","내용","상태","일정","마일스톤"];
+  const rows=ncxRows.map((r,i)=>[String(i+1), r.prio||"", r.name||"", r.sum||"", r.det||"", r.status||"", r.dt||"", msName]);
   return { head, rows };
 }
 function ncxCopySheet(){
@@ -6626,14 +6647,14 @@ function ncxDownload(){
   const d = new Date(), p=n=>String(n).padStart(2,"0");
   const today = d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());
   const stamp = d.getFullYear()+p(d.getMonth()+1)+p(d.getDate());
-  const head  = ["번호","일감명","요약","내용","상태","일정"];
-  const width = [6,34,44,72,11,22];
+  const head  = ["번호","우선순위","일감명","요약","내용","상태","일정"];
+  const width = [6,10,32,42,70,11,22];
   const rows = [
     [{ v:`LIMIT ZERO BREAKERS · ${msName} 개발 일감 목록 · ${today} 기준 · ${ncxRows.length}건`, s:4 }],
     head.map(h=>({v:h,s:1})),
   ];
   ncxRows.forEach((r,i)=>rows.push(
-    [{v:i+1,s:3},{v:r.name,s:2},{v:r.sum||"",s:2},{v:r.det,s:2},{v:r.status,s:3},{v:r.dt,s:3}]));
+    [{v:i+1,s:3},{v:r.prio||"",s:3},{v:r.name,s:2},{v:r.sum||"",s:2},{v:r.det,s:2},{v:r.status,s:3},{v:r.dt,s:3}]));
   const blob = ncxBuildXlsx(rows, width, (msName||"일감")+" 개발");
   const a=document.createElement("a");
   a.href=URL.createObjectURL(blob);
@@ -6649,6 +6670,13 @@ function ncxDownload(){
     if(e.target.closest("[data-ncxload]")){ ncxLoad(); return; }
     if(e.target.closest("[data-ncxdl]")){ ncxDownload(); return; }
     if(e.target.closest("[data-ncxcopy]")){ ncxCopySheet(); return; }
+    const pc=e.target.closest("[data-ncxprio]");
+    if(pc){ const k=pc.dataset.ncxprio;
+      if(k==="__all") ncxPrio.clear();
+      else { if(ncxPrio.has(k)) ncxPrio.delete(k); else ncxPrio.add(k); }
+      /* 이미 읽어 온 뒤라면 다시 읽는다 — 거른 결과가 바로 보여야 한다 */
+      if(ncxRows) ncxLoad(); else renderNcx();
+      return; }
   });
   m.addEventListener("change", e=>{
     const t=e.target;
