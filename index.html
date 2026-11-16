@@ -776,7 +776,7 @@
   .ncx-tbl td{ padding:9px 10px; line-height:1.6; }
   .ncx-tbl td.n{ color:var(--muted); font-size:11.5px; padding-top:12px; }
   .ncx-tbl td.nm{ font-weight:700; width:250px; }
-  .ncx-tbl td.sum{ width:230px; }
+  .ncx-tbl th.sum,.ncx-tbl td.sum{ width:240px; }
   #ncxModal .ncx-tbl td.sum textarea{ width:100%; background:var(--panel2); border:1px solid var(--line);
      border-radius:6px; color:#c7cedd; font:inherit; font-size:11.5px; line-height:1.6; padding:5px 7px;
      resize:vertical; min-height:44px; }
@@ -2265,7 +2265,7 @@
     <div class="modal">
       <div class="hub-head"><span class="hub-tabs"><b style="font-size:14px;padding:4px 8px">📤 NC 제출 파일 만들기</b></span>
         <button type="button" class="hub-x" data-close>✕ 닫기</button></div>
-      <div class="msub">마일스톤에 등록된 <b>개발</b> 일감을 엑셀로 내보냅니다. <b>「내용」</b>은 <b>트렐로 카드의 설명을 그대로</b> 담습니다 — 요약하거나 추려내지 않습니다.
+      <div class="msub">마일스톤에 등록된 <b>개발</b> 일감을 엑셀로 내보냅니다. <b>「내용」</b>은 <b>트렐로 카드의 설명을 그대로</b> 담고, <b>「요약」</b>은 거기서 <b>목적·목표 줄</b>을 한 줄로 뽑습니다. 둘 다 표에서 바로 고칠 수 있습니다.
         <b>보드에는 아무것도 저장되지 않습니다.</b> 담당자·부서·트렐로 주소·카드 코멘트는 담지 않습니다.</div>
       <div class="ncx-bar" id="ncxHead"></div>
       <div class="ncx-prog" id="ncxProg"></div>
@@ -6337,7 +6337,47 @@ function ncxSections(desc){
   return out;
 }
 const NCX_META = /^(요청자|담당자|담당|요청\s*일시|일감\s*유형|목표\s*마일스톤|작성자|등록일|기한|마감|재현|빈도|우선\s*순위)\s*[:：]/;
-/* ===== 요약을 **추측하지 않는다** (2026-11-16, build 2026111605) =====================
+/* ===== 「요약」 한 줄 — 목적·목표 줄 우선 (2026-11-16, build 2026111609) ==================
+   [stated] 사용자: "설명을 받아서 출력하고 있잖아. 그것을 **요약한 컬럼**도 추가해줘" → 선택: **목적·목표 줄 우선**
+   ⚠ 예전에 이걸 두 번 반려당했는데(2026111306·1605), 그때는 **배치 버그로 desc 가 아예 비어 있었다.**
+     요약 규칙이 나빴던 게 아니라 재료가 없었던 것이다 — 2026111608 에서 원인을 잡았다.
+   ⚠ 「내용」(설명 전문) 열은 **그대로 둔다.** 요약이 빗나가도 옆 칸에 원문이 있으니 바로 보인다.
+   순서: ① 목적/목표 계열 줄 → ② [작업 개요] 구간 첫 항목 → ③ 설명 첫 문장. 전부 한 줄로 눌러 담는다. */
+const NCX_AIM = [/^목적$/, /^목표$/, /^작업\s*목적/, /^개선\s*방향/, /^기대\s*효과/, /^요구\s*사항/, /^방향성?$/];
+const NCX_SUM_MAX = 200;
+/* 혼자 한 줄을 차지하는 머리글 낱말 — 요약으로 집으면 안 된다 */
+const NCX_HEADWORD = /^(업무|작업|요청)?\s*(개요|내용|배경|목적|목표|현황|제약|문제점|이슈|회의록|비고|참고|상세|요약|결론|일정|범위)\s*$/;
+function ncxOneLine(s){ return String(s||"").replace(/\s+/g," ").trim(); }
+function ncxSummary(desc){
+  if(!String(desc||"").trim()) return "";
+  const sec = ncxSections(desc);
+  const pick = k => sec[k] || [];
+  const body = [].concat(pick("작업 개요"), pick("개요"), pick("_"), pick("작업 내용"), pick("상세"))
+                 .filter(x=>x && !NCX_META.test(x));
+  /* ① `목적: 값` · `목적` 머리글 다음 줄 — 둘 다 받는다 */
+  for(let i=0;i<body.length;i++){
+    const ln=body[i];
+    const kv=ln.match(/^([^:：]{1,20})\s*[:：]\s*(.*)$/);
+    const key=kv ? kv[1].trim() : ln.trim();
+    if(!NCX_AIM.some(r=>r.test(key))) continue;
+    let v = kv ? kv[2].trim() : "";
+    if(!v){ for(let j=i+1;j<body.length;j++){
+      const n=body[j]; if(/^[^:：]{1,20}\s*[:：]/.test(n) || NCX_AIM.some(r=>r.test(n.trim()))) break;
+      v = n.trim(); break; } }
+    if(v) return ncxCut(ncxOneLine(v));
+  }
+  /* ② [작업 개요] 구간의 첫 항목 */
+  const ov = pick("작업 개요").filter(x=>x && !NCX_META.test(x));
+  if(ov.length) return ncxCut(ncxOneLine(ov[0]));
+  /* ③ 설명 첫 문장. ⚠ `#### *업무 개요` 같은 **머리글만 있는 줄**을 집으면
+        요약이 "업무 개요" 가 된다(실측) — 머리글 낱말은 건너뛰고 실제 내용 줄을 집는다. */
+  const first = body.find(x=>x && !NCX_HEADWORD.test(ncxOneLine(x))) || body.find(Boolean) || "";
+  const sent = (ncxOneLine(first).match(/^[^.!?。]{5,}[.!?。]?/)||[""])[0] || ncxOneLine(first);
+  return ncxCut(sent);
+}
+function ncxCut(t){ return t.length>NCX_SUM_MAX ? t.slice(0,NCX_SUM_MAX-1)+"…" : t; }
+
+/* ===== 설명 전문은 **추측하지 않는다** (2026-11-16, build 2026111605) =====================
    [stated] 사용자: "일감별로 **위 표시된 이미지의 내용**을 가져오고 싶은거야.. 뭔가 잘못 개발되고 있는 것 같네."
    → 카드 패널에 보이는 **설명 그대로**를 원한다. 「발생 사유」/「작업 내용」을 양식에서 뽑아
      채우던 로직(NCX_WHY/NCX_WHAT/ncxPickAll/ncxExtract)은 **전부 지웠다.**
@@ -6402,7 +6442,7 @@ function ncxCollect(msId, withDone){
       && t.milestoneId===msId && (withDone || !isDone(t)))
     .map(t=>{ const r=ncxRange(t), dt=ncxDateTxt(r);
       return { id:t.id, cid: t.trelloCardId || "", name:t.name||"", status:t.status||"",
-               dt, a:r.a||"", det:"", src:"보드", board:ncxBoardLine(t,dt) }; })
+               dt, a:r.a||"", det:"", sum:"", src:"보드", board:ncxBoardLine(t,dt) }; })
     .sort((x,y)=> (x.a||"9999").localeCompare(y.a||"9999") || x.name.localeCompare(y.name));
 }
 
@@ -6457,7 +6497,9 @@ async function ncxLoad(){
   ncxRows.forEach(row=>{
     const c = got(row);
     row.det = c ? ncxDetail(c.desc, basic) : "";
-    if(!row.det){ row.det = row.board; row.src = c ? "설명 없음" : (row.cid ? "못 읽음" : "카드없음"); }
+    row.sum = c ? ncxSummary(c.desc) : "";
+    if(!row.det){ row.det = row.board; row.sum = row.sum || row.board;
+                  row.src = c ? "설명 없음" : (row.cid ? "못 읽음" : "카드없음"); }
     else row.src = "카드";
     if(c && c.name) row.card = c.name;
   });
@@ -6465,7 +6507,7 @@ async function ncxLoad(){
   }catch(e){
     /* 여기까지 오면 코드 버그다 — 조용히 삼키지 말고 화면에 남긴다 */
     ncxErr = (ncxErr? ncxErr+" / " : "") + String(e&&e.message||e);
-    ncxRows.forEach(row=>{ if(!row.det){ row.det=row.board; row.src = row.cid ? "못 읽음" : "카드없음"; } });
+    ncxRows.forEach(row=>{ if(!row.det){ row.det=row.board; row.sum=row.sum||row.board; row.src = row.cid ? "못 읽음" : "카드없음"; } });
   }finally{ ncxBusy=false; renderNcx(); }
 }
 function ncxProg(cur, total, cards, label){
@@ -6501,6 +6543,7 @@ function renderNcx(){
     if(foot) foot.innerHTML=""; return;
   }
   let h='<table class="ncx-tbl"><thead><tr><th class="n">#</th><th>일감명</th>'+
+        '<th class="sum">요약 <span style="font-weight:600;opacity:.75">· 목적·목표</span></th>'+
         '<th>내용 <span style="font-weight:600;opacity:.75">· 트렐로 카드 설명 전문</span></th>'+
         '<th class="st">상태</th><th class="dt">일정</th><th class="src">출처</th></tr></thead><tbody>';
   ncxRows.forEach((r,i)=>{
@@ -6508,6 +6551,7 @@ function renderNcx(){
     const n = r.det ? r.det.split("\n").length : 0;
     h+=`<tr><td class="n">${i+1}</td>`+
        `<td class="nm">${escapeHtml(r.name)}</td>`+
+       `<td class="sum"><textarea data-ncxsum="${i}" rows="3" placeholder="설명에서 목적·목표를 못 찾았습니다">${escapeHtml(r.sum||"")}</textarea></td>`+
        `<td class="det"><textarea data-ncxdet="${i}" rows="5" placeholder="카드 설명이 비어 있습니다">${escapeHtml(r.det)}</textarea>`+
          (n?`<span class="ncx-dn">${n}줄 · ${r.det.length}자</span>`:'<span class="ncx-dn warn">설명 없음</span>')+`</td>`+
        `<td class="st">${escapeHtml(r.status)}</td>`+
@@ -6524,6 +6568,8 @@ function renderNcx(){
     `${warn?` · <b style="color:#fbbf24">직접 써야 하는 것 ${warn}건</b>`:""}`+
     `${ncxErr?`<br><b style="color:#f87171">트렐로 오류: ${escapeHtml(ncxErr)}</b>`:""}</span>`+
     `<span class="ncx-sp"></span>`+
+    `<button type="button" class="btn ghost" data-ncxcopy ${ncxBusy?"disabled":""} title="구글 시트에 그대로 붙여넣을 수 있게 복사합니다 (Ctrl+V)">📋 시트용 복사</button>`+
+    (NCX_SHEET_URL ? `<a class="btn ghost" href="${escapeHtml(NCX_SHEET_URL)}" target="_blank" rel="noopener" style="text-decoration:none">↗ 시트 열기</a>` : "")+
     `<button type="button" class="btn" data-ncxdl ${ncxBusy?"disabled":""}>⬇ 엑셀 내려받기</button>`;
 }
 function openNcx(){
@@ -6533,6 +6579,46 @@ function openNcx(){
   ncxRows=null; ncxBusy=false; renderNcx(); ncxModal.classList.add("show");
 }
 
+/* ---------- 구글 시트용 복사 (2026-11-16, build 2026111609) ----------------------------
+   [stated] "엑셀로 내려 받기 말고, **정해진 구글시트 링크로 복붙**해줄 수 있을까?" → 선택: **클립보드 복사**
+   ⚠ 설명 전문에는 **줄바꿈이 들어 있다.** TSV 만 넣으면 시트가 그 줄바꿈을 **행 구분으로 읽어** 표가 산산조각 난다.
+     → `text/html` 로 `<table>` 을 같이 실어 보낸다. 시트는 HTML 을 먼저 보고 **한 칸 안의 줄바꿈을 지킨다**.
+       `text/plain` 은 못 받는 곳을 위한 보조(줄바꿈은 따옴표로 감싼다).
+   ⚠ 비용 0 — 서버를 안 거친다. 클립보드만 쓴다. */
+const NCX_SHEET_URL = "";          /* 시트 주소를 넣으면 바닥에 「시트 열기」 버튼이 같이 뜬다 */
+function ncxSheetRows(){
+  const ms=findMs(ncxMs), msName=ms?ms.name:"";
+  const head=["번호","일감명","요약","내용","상태","일정","마일스톤"];
+  const rows=ncxRows.map((r,i)=>[String(i+1), r.name||"", r.sum||"", r.det||"", r.status||"", r.dt||"", msName]);
+  return { head, rows };
+}
+function ncxCopySheet(){
+  if(!ncxRows || !ncxRows.length) return;
+  const { head, rows } = ncxSheetRows();
+  const td = v => `<td>${escapeHtml(String(v)).replace(/\n/g,"<br>")}</td>`;
+  const html = `<table><thead><tr>${head.map(h=>`<th>${escapeHtml(h)}</th>`).join("")}</tr></thead>`+
+    `<tbody>${rows.map(r=>`<tr>${r.map(td).join("")}</tr>`).join("")}</tbody></table>`;
+  const q = v => { const t=String(v); return /[\t\n"]/.test(t) ? '"'+t.replace(/"/g,'""')+'"' : t; };
+  const tsv = [head, ...rows].map(r=>r.map(q).join("\t")).join("\n");
+  const done = ()=> flashNote(`${rows.length}건을 복사했습니다 — 구글 시트에서 Ctrl+V 하세요.`);
+  const fallback = ()=>{ /* 보안 컨텍스트가 아니거나 권한이 막힌 경우 */
+    const ta=document.createElement("textarea"); ta.value=tsv;
+    ta.style.cssText="position:fixed;left:-9999px;top:0"; document.body.appendChild(ta);
+    ta.select(); let ok=false; try{ ok=document.execCommand("copy"); }catch(_){}
+    document.body.removeChild(ta);
+    ok ? done() : flashNote("복사가 막혔습니다 — 표에서 직접 끌어 복사해 주세요.");
+  };
+  try{
+    if(navigator.clipboard && window.ClipboardItem){
+      navigator.clipboard.write([ new ClipboardItem({
+        "text/html": new Blob([html], {type:"text/html"}),
+        "text/plain": new Blob([tsv], {type:"text/plain"}) }) ]).then(done, fallback);
+    } else if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(tsv).then(done, fallback);
+    } else fallback();
+  }catch(_){ fallback(); }
+}
+
 /* ---------- 내려받기 ---------- */
 function ncxDownload(){
   if(!ncxRows || !ncxRows.length) return;
@@ -6540,14 +6626,14 @@ function ncxDownload(){
   const d = new Date(), p=n=>String(n).padStart(2,"0");
   const today = d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());
   const stamp = d.getFullYear()+p(d.getMonth()+1)+p(d.getDate());
-  const head  = ["번호","일감명","내용","상태","일정"];
-  const width = [6,38,86,11,22];
+  const head  = ["번호","일감명","요약","내용","상태","일정"];
+  const width = [6,34,44,72,11,22];
   const rows = [
     [{ v:`LIMIT ZERO BREAKERS · ${msName} 개발 일감 목록 · ${today} 기준 · ${ncxRows.length}건`, s:4 }],
     head.map(h=>({v:h,s:1})),
   ];
   ncxRows.forEach((r,i)=>rows.push(
-    [{v:i+1,s:3},{v:r.name,s:2},{v:r.det,s:2},{v:r.status,s:3},{v:r.dt,s:3}]));
+    [{v:i+1,s:3},{v:r.name,s:2},{v:r.sum||"",s:2},{v:r.det,s:2},{v:r.status,s:3},{v:r.dt,s:3}]));
   const blob = ncxBuildXlsx(rows, width, (msName||"일감")+" 개발");
   const a=document.createElement("a");
   a.href=URL.createObjectURL(blob);
@@ -6562,11 +6648,14 @@ function ncxDownload(){
   m.addEventListener("click", e=>{
     if(e.target.closest("[data-ncxload]")){ ncxLoad(); return; }
     if(e.target.closest("[data-ncxdl]")){ ncxDownload(); return; }
+    if(e.target.closest("[data-ncxcopy]")){ ncxCopySheet(); return; }
   });
   m.addEventListener("change", e=>{
     const t=e.target;
     if(t.id==="ncxMsSel"){ ncxMs=t.value; ncxRows=null; renderNcx(); return; }
     if(t.id==="ncxDone"){ if(ncxRows) ncxLoad(); return; }
+    if(t.matches("[data-ncxsum]")){ const i=Number(t.dataset.ncxsum);
+      if(ncxRows && ncxRows[i]) ncxRows[i].sum = String(t.value||""); return; }
     if(t.matches("[data-ncxdet]")){ const i=Number(t.dataset.ncxdet);
       if(ncxRows && ncxRows[i]) ncxRows[i].det = String(t.value||""); return; }
     if(t.id==="ncxBasic"){ if(ncxRows) ncxLoad(); return; }
