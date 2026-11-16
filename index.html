@@ -68,6 +68,26 @@
   .dbar-done{height:100%;border-radius:5px 0 0 5px;}
   .topbar .sub{font-size:12px;color:var(--muted);}
   .topbar .spacer{flex:1;}
+  /* 상단바 외부 링크 버튼 — 트렐로 Dev/QA + 회의실 예약 (2026-11-16).
+     state 에 아무것도 저장하지 않는 그냥 <a href>. 전원에게 보인다. */
+  .tb{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:7px;
+      font-size:11px;font-weight:800;letter-spacing:-.1px;text-decoration:none;cursor:pointer;
+      border:1px solid var(--line);background:var(--panel2);color:var(--muted);
+      white-space:nowrap;flex:0 0 auto;}
+  .tb svg{flex:0 0 auto;}
+  .tb .lb{font-weight:900;letter-spacing:.2px;}
+  .tb:hover{filter:brightness(1.2);}
+  .tb.dev{border-color:#2f5fae;color:#8db6f5;background:rgba(24,104,219,.10);}
+  .tb.qa {border-color:#2a7a5a;color:#6ee7b7;background:rgba(31,157,107,.10);}
+  .tb.mr {border-color:#8a6422;color:#fcd34d;background:rgba(245,158,11,.10);}
+  /* ⚠ 라이트에서도 **상단바는 짙은 레일**이다(카카오워크 3톤). 밝은 바탕용 색으로 덮으면
+     글자가 어두워져 안 읽힌다 — 실측으로 확인. 색은 두 테마에서 같은 값을 쓴다. */
+  .tb-gap{width:1px;height:14px;background:var(--line);margin:0 1px;flex:0 0 auto;}
+  /* 창이 좁으면 글자를 빼고 아이콘만 — 부서 칩이 밀리지 않게 */
+  @media (max-width:1100px){
+    .tb .lb{display:none;}
+    .tb{padding:0 7px;}
+  }
   .dday{display:flex;align-items:center;gap:7px;font-size:12px;white-space:nowrap;}
   .dday-badge{font-weight:800;font-size:12px;letter-spacing:.3px;padding:3px 9px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);color:var(--text);}
   .dday-badge.urgent{background:#ef4444;border-color:#ef4444;color:#fff;}
@@ -1831,6 +1851,7 @@
   .topbar h1{ font-size:13.5px; white-space:nowrap; flex:0 0 auto; }
   .topbar .sub{ font-size:11px; white-space:nowrap; flex:0 1 auto; overflow:hidden; text-overflow:ellipsis; }
   .topbar .title-edit,.topbar .status-dot{ flex:0 0 auto; white-space:nowrap; }
+  .topbar .tb{ flex:0 0 auto; }
   .topbar .spacer{ flex:1 1 0; min-width:0; }
   /* 부서가 많은 분류(아트 등)에서도 잘리지 않게 — 넘치면 가로 스크롤(스크롤바는 숨김) */
   .dfocus{ flex:0 1 auto; min-width:0; max-width:100%; overflow-x:auto; scrollbar-width:none; }
@@ -1907,6 +1928,10 @@
     <h1 id="appTitle">본부 마일스톤 관리</h1>
     <button class="title-edit" id="titleEditBtn" title="제목 편집">✎</button>
     <span class="sub">영업일 기준 · 부서별 일정</span>
+    <a class="tb dev" href="https://trello.com/b/NfAsSWHN" target="_blank" rel="noopener" title="트렐로 Dev 보드 (projectr)"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px" aria-hidden="true"><rect width="24" height="24" rx="4" fill="currentColor" fill-opacity=".9"/><rect x="4.5" y="4.5" width="6" height="13" rx="1.5" fill="#0e1014" fill-opacity=".85"/><rect x="13.5" y="4.5" width="6" height="8" rx="1.5" fill="#0e1014" fill-opacity=".85"/></svg><span class="lb">Dev</span></a>
+    <a class="tb qa" href="https://trello.com/b/NqVTDdgX/projectr-qa" target="_blank" rel="noopener" title="트렐로 QA 보드 (PROJECT R QA)"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px" aria-hidden="true"><rect width="24" height="24" rx="4" fill="currentColor" fill-opacity=".9"/><rect x="4.5" y="4.5" width="6" height="13" rx="1.5" fill="#0e1014" fill-opacity=".85"/><rect x="13.5" y="4.5" width="6" height="8" rx="1.5" fill="#0e1014" fill-opacity=".85"/></svg><span class="lb">QA</span></a>
+    <span class="tb-gap"></span>
+    <a class="tb mr" href="https://meeting-room-evz.pages.dev" target="_blank" rel="noopener" title="회의실 예약"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px" aria-hidden="true"><rect width="24" height="24" rx="4" fill="currentColor" fill-opacity=".9"/><rect x="4.8" y="6.2" width="14.4" height="13" rx="2" fill="#0e1014" fill-opacity=".85"/><rect x="4.8" y="6.2" width="14.4" height="3.4" rx="1.6" fill="currentColor" fill-opacity=".9"/><rect x="7.2" y="3.4" width="2" height="4" rx="1" fill="currentColor" fill-opacity=".9"/><rect x="14.8" y="3.4" width="2" height="4" rx="1" fill="currentColor" fill-opacity=".9"/><path d="M8.6 14.4l2.2 2.2 4.4-4.4" stroke="currentColor" stroke-width="2.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lb">회의실</span></a>
     <span class="spacer" style="flex:1"></span>
     <span class="dfocus" id="deptFocus"></span>
     <span class="spacer" style="flex:1"></span>
