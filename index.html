@@ -1511,6 +1511,74 @@
   body.light .rm-msc-d.none{ color:rgba(17,24,39,.30); }
   body.light .ms-sval{ color:#374151; }
   body.light .ms-sval.none{ color:rgba(17,24,39,.28); }
+
+  /* ===== 회사 명부(카카오워크 조직도) 선택 팝업 — 2026-11-16, build 2026111607 ==============
+     회의실 예약([[meeting-room]])의 「참석자 초대」 창을 그대로 옮기고 보드 토큰만 입혔다.
+     ⚠ 이 창은 **다른 모달 위에** 뜬다 → z-index 는 .modal-bg(50)보다 높아야 한다. */
+  .pick{position:fixed;inset:0;z-index:90;background:rgba(8,10,16,.62);backdrop-filter:blur(6px);
+        -webkit-backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:16px;}
+  .pick.show{display:flex;}
+  .pk{width:900px;max-width:100%;height:min(640px,88vh);background:var(--panel);border:1px solid var(--line);
+      border-radius:14px;box-shadow:0 30px 80px rgba(0,0,0,.5);display:flex;flex-direction:column;overflow:hidden;}
+  .pk-h{display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--line);}
+  .pk-h b{font-size:15px;white-space:nowrap;}
+  .pk-h .src{font-size:11.5px;color:var(--muted);white-space:nowrap;}
+  .pk-search{flex:1;display:flex;align-items:center;gap:8px;height:34px;border:1px solid var(--line);
+             border-radius:9px;padding:0 10px;background:var(--panel2);min-width:0;}
+  .pk-search input{border:0;outline:none;flex:1;background:transparent;color:var(--text);font-size:13px;
+                   font-family:inherit;width:auto;min-width:0;}
+  .pk-search:focus-within{border-color:var(--accent);}
+  .pk-x{background:none;border:0;color:var(--muted);cursor:pointer;font-size:14px;padding:4px 7px;border-radius:6px;}
+  .pk-x:hover{color:var(--text);background:var(--panel2);}
+  .pk-b{flex:1;display:flex;min-height:0;}
+  .pk-tree{width:262px;flex:none;border-right:1px solid var(--line);overflow:auto;padding:8px 6px;
+           background:var(--panel2);font-size:12.5px;}
+  .tn{display:flex;align-items:center;gap:4px;height:28px;border-radius:6px;cursor:pointer;padding-right:6px;white-space:nowrap;}
+  .tn:hover{background:rgba(127,140,170,.14);}
+  .tn.sel{background:var(--grad-soft);color:var(--text);font-weight:700;}
+  .tn .tg2{width:18px;height:18px;display:grid;place-items:center;color:var(--muted);font-size:9px;flex:0 0 auto;border-radius:4px;}
+  .tn .tg2:hover{background:rgba(127,140,170,.22);}
+  .tn .nm{overflow:hidden;text-overflow:ellipsis;}
+  .tn .ct{color:var(--muted);font-weight:400;font-size:11.5px;flex:0 0 auto;}
+  .tn .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none;margin-left:auto;}
+  .pk-main{flex:1;overflow:auto;padding:14px 18px;min-width:0;}
+  .pk-crumb{font-size:12px;color:var(--muted);margin-bottom:4px;}
+  .pk-crumb a{color:var(--muted);cursor:pointer;text-decoration:underline;}
+  .pk-crumb a:hover{color:var(--accent);}
+  .pk-dh{display:flex;align-items:center;gap:10px;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:6px;}
+  .pk-dh h4{margin:0;font-size:17px;} .pk-dh h4 span{color:var(--muted);font-weight:400;font-size:14px;}
+  .pk-dh .btn{margin-left:auto;}
+  .prow{display:flex;align-items:center;gap:12px;padding:8px 6px;border-radius:8px;cursor:pointer;}
+  .prow:hover{background:rgba(127,140,170,.12);}
+  .prow.on{background:var(--grad-soft);}
+  .prow .av{width:34px;height:34px;border-radius:50%;background:var(--panel2);color:var(--muted);display:grid;
+            place-items:center;font-weight:700;font-size:13px;flex:none;border:1px solid var(--line);}
+  .prow .av.grp{border-radius:10px;font-size:15px;}
+  .prow .tx{flex:1;min-width:0;} .prow .tx b{font-size:13.5px;}
+  .prow .tx small{display:block;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .prow .lead{font-size:10px;font-weight:800;background:var(--text);color:var(--panel);border-radius:4px;
+              padding:1px 5px;margin-right:5px;vertical-align:1px;}
+  .pk-ck{width:20px;height:20px;border-radius:6px;border:1.5px solid var(--line);display:grid;place-items:center;
+         flex:none;color:#fff;font-size:12px;background:var(--panel);}
+  .pk-ck.on{background:var(--accent);border-color:var(--accent);}
+  .pk-ck.part{background:var(--accent);border-color:var(--accent);}
+  .pk-ck.part::after{content:"";width:9px;height:2px;background:#fff;border-radius:1px;}
+  .prow .go{color:var(--muted);font-size:15px;}
+  .pk-f{display:flex;align-items:center;gap:10px;padding:11px 16px;border-top:1px solid var(--line);background:var(--panel2);}
+  .pk-f .cnt{font-size:12.5px;color:var(--muted);white-space:nowrap;}
+  .pk-f .sel{flex:1;display:flex;gap:5px;overflow-x:auto;align-items:center;min-height:30px;scrollbar-width:thin;}
+  .pk-f .sel .a{display:inline-flex;align-items:center;gap:4px;background:var(--panel);border:1px solid var(--line);
+                border-radius:14px;padding:3px 4px 3px 10px;font-size:12.5px;white-space:nowrap;}
+  .pk-f .sel .a button{width:18px;height:18px;border-radius:50%;color:var(--muted);background:none;border:0;cursor:pointer;}
+  .pk-f .sel .a button:hover{background:var(--panel2);color:var(--text);}
+  .pk-msg{padding:28px 10px;text-align:center;color:var(--muted);font-size:12.5px;line-height:1.9;}
+  .pk-msg b{color:var(--text);}
+  /* 모달 안에서 팝업을 여는 버튼 */
+  .dirbtn{height:26px;padding:0 10px;border-radius:7px;border:1px solid var(--line);background:var(--panel2);
+          color:var(--text);font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;flex:0 0 auto;font-family:inherit;}
+  .dirbtn:hover{border-color:var(--accent);color:var(--accent);}
+  .asg-row{display:flex;align-items:center;gap:8px;}
+  .asg-row .asg-search{flex:1;min-width:0;}
   html,body{ font-family:'Pretendard Variable','Pretendard',-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',sans-serif; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
   body{ background:
       radial-gradient(1100px 560px at 10% -12%, rgba(99,102,241,.10), transparent 60%),
@@ -2045,13 +2113,27 @@
       <label>종료일</label><input type="date" id="schedEnd" />
       <div class="dur" id="schedDur"></div>
       <label>담당자 (이 부서) <span class="asg-count" id="schedAsgCount"></span></label>
-      <input type="text" id="schedAsgSearch" class="asg-search" placeholder="이름 검색 — 초성도 됩니다 (예: ㄱㅎㄱ)" autocomplete="off" spellcheck="false">
+      <div class="asg-row">
+        <input type="text" id="schedAsgSearch" class="asg-search" placeholder="이름 검색 — 초성도 됩니다 (예: ㄱㅎㄱ)" autocomplete="off" spellcheck="false">
+        <button type="button" class="dirbtn" id="schedDirBtn" title="카카오워크 조직도에서 고릅니다 — 이 부서 명단에 없는 사람도 넣을 수 있습니다">🏢 회사 명부</button>
+      </div>
       <div class="pickgrid" id="schedAssignees"></div>
       <label class="sd-done" id="schedDoneRow"><input type="checkbox" id="schedDone" /><span>이 부서 작업 완료</span><i id="schedDoneHint"></i></label>
       <div class="modal-actions">
         <button class="linkrow" id="schedRemove" title="이 Task에서 이 부서를 아예 빼냅니다 (일정·담당자도 함께 사라집니다)">✕ 이 Task에서 부서 빼기</button>
         <div class="right"><button class="btn ghost" data-close>취소</button><button class="btn ghost" id="schedUnset" title="부서는 그대로 두고 날짜만 비워 둡니다 (목록에 ‘일정 미정’으로 표시)">일정 미정</button><button class="btn" id="schedSaveOk">저장</button></div></div></div>
   </div>
+  <!-- 회사 명부(조직도) 선택 — 회의실 예약의 「참석자 초대」를 그대로 옮겼다 (2026-11-16) -->
+  <div class="pick" id="pickModal"><div class="pk">
+    <div class="pk-h"><b>담당자 선택</b>
+      <div class="pk-search">🔍<input id="pkQ" placeholder="이름, 초성(ㄱㅈㅊ), 부서, 직책으로 검색" autocomplete="off" spellcheck="false"></div>
+      <span class="src" id="pkSrc"></span><button type="button" class="pk-x" id="pkX" title="닫기">✕</button></div>
+    <div class="pk-b"><div class="pk-tree" id="pkTree"></div><div class="pk-main" id="pkMain"></div></div>
+    <div class="pk-f"><span class="cnt" id="pkCnt"></span><div class="sel" id="pkSel"></div>
+      <button type="button" class="btn ghost" id="pkCancel">취소</button>
+      <button type="button" class="btn" id="pkOk">확인</button></div>
+  </div></div>
+
   <div class="modal-bg" id="noteModal">
     <div class="modal"><h3>📝 메모</h3><div class="msub" id="ntSub"></div>
       <textarea class="nt-ta" id="ntText" placeholder="메모를 입력하세요. 완료를 눌러야 저장됩니다." maxlength="1200"></textarea>
@@ -4491,6 +4573,214 @@ function syncAsgCount(key){
 function toggleDeptAssignee(t, key, name){ if(!asgCanEdit()){ noticeAsgLock(); return; }
   const seg=t.depts[key]; if(!seg) return; if(!Array.isArray(seg.assignees)) seg.assignees=[]; const i=seg.assignees.indexOf(name); if(i>=0) seg.assignees.splice(i,1); else seg.assignees.push(name); }
 
+/* ===== 회사 명부(카카오워크 조직도) 선택 팝업 — 2026-11-16, build 2026111607 ================
+   [stated] "담당자 배정할 때, 위 팝업 기능을 사용하고 싶어" (회의실 예약의 「참석자 초대」)
+   [stated] 결정: 조직도는 deploy/org.json 정적 파일 · 전사에서 아무나 · 고르면 그 부서 명단에 자동 추가
+                 · 저장은 지금처럼 이름만, 같은 이름이 둘 이상일 때만 소속을 붙인다
+   ⚠ org.json 은 **팝업을 처음 열 때만** 받는다(지연 로딩). 안 쓰는 사람에겐 요청 0건.
+     한 번 받으면 세션 내내 메모리에 둔다. 조직이 바뀌면 파일을 새로 받아 deploy/ 에 덮어쓰면 된다.
+   ⚠ depts[].members 는 **직속 인원만** 담는다. 트리에 보이는 숫자는 하위까지 누적해서 센다.
+     users 에 없는 id(관리자 제외분 5명)는 고를 수 없으므로 **숫자에서도 뺀다** — 안 그러면
+     "16명인데 15명만 보인다"가 된다. */
+let ORG=null, _orgP=null, orgErr="";
+function orgIndex(j){
+  const users={}; (j.users||[]).forEach(u=>{ if(u&&u.id) users[u.id]=u; });
+  const nameCnt={}; Object.keys(users).forEach(k=>{ const n=users[k].name||""; nameCnt[n]=(nameCnt[n]||0)+1; });
+  const byId={}, kids={};
+  (j.depts||[]).forEach(d=>{ if(!d||!d.id) return; byId[d.id]=d; const p=d.parentId||"";
+    (kids[p]=kids[p]||[]).push(d); });
+  Object.keys(kids).forEach(k=>kids[k].sort((a,b)=>(a.order||0)-(b.order||0)));
+  const root = ((kids[""]||[])[0]||{}).id || Object.keys(byId)[0] || "";
+  const memo={};
+  function sub(id){ if(memo[id]) return memo[id];
+    const out=new Set((byId[id]&&byId[id].members||[]).filter(m=>users[m]));
+    (kids[id]||[]).forEach(k=>sub(k.id).forEach(x=>out.add(x)));
+    memo[id]=out; return out; }
+  Object.keys(byId).forEach(sub);
+  const pathOf=id=>{ const o=[]; let c=byId[id], g=0; while(c && g++<20){ o.unshift(c); c=byId[c.parentId]; } return o; };
+  /* 같은 이름이 둘 이상일 때만 소속 꼬리를 붙인다 — 지금 명부엔 동명이인이 없어 평소엔 안 붙는다 */
+  const disp=u=>{ const n=u.name||""; if((nameCnt[n]||0)<=1) return n;
+    const tail=String(u.dept||"").split(/\s+/).filter(Boolean).pop()||"?"; return n+"("+tail+")"; };
+  const leadOf=id=>new Set((byId[id]&&byId[id].leaders)||[]);
+  return { users, byId, kids, root, sub, pathOf, disp, leadOf,
+           count:Object.keys(users).length, at:j.at||"" };
+}
+async function orgLoad(){
+  if(ORG) return ORG;
+  if(_orgP) return _orgP;
+  orgErr="";
+  _orgP = (async()=>{
+    const r = await fetch("/org.json?v="+(window.APP_VERSION||0), { credentials:"same-origin" });
+    if(!r.ok) throw new Error("org.json 을 못 읽었습니다 (응답 "+r.status+")");
+    ORG = orgIndex(await r.json()); return ORG;
+  })();
+  try{ return await _orgP; }
+  catch(e){ orgErr=String(e&&e.message||e); _orgP=null; throw e; }
+}
+/* 이름·초성·부서·직책을 한 번에 훑는다 */
+function orgHit(u, q){
+  if(!q) return true;
+  const lq=q.toLowerCase();
+  return nameHit(u.name, q) || String(u.dept||"").toLowerCase().includes(lq)
+      || String(u.resp||u.position||"").toLowerCase().includes(lq)
+      || String(u.email||"").toLowerCase().startsWith(lq);
+}
+const PK_MAX = 300;                                  /* 검색 결과 상한 — 207명이라 사실상 전부 */
+let pk={ tid:"", dep:"", node:"", q:"", sel:new Set(), exp:new Set() };
+const pickModal=document.getElementById("pickModal");
+function pkUserIds(deptId){ return (ORG.byId[deptId]&&ORG.byId[deptId].members||[]).filter(m=>ORG.users[m]); }
+function pkTreeHtml(){
+  const walk=(pid,depth)=>(ORG.kids[pid]||[]).map(d=>{
+    const n=ORG.sub(d.id).size; if(!n) return "";
+    const has=(ORG.kids[d.id]||[]).some(k=>ORG.sub(k.id).size);
+    const open=pk.exp.has(d.id), on=pk.node===d.id;
+    const any=[...ORG.sub(d.id)].some(id=>pk.sel.has(ORG.disp(ORG.users[id])));
+    return `<div class="tn ${on?'sel':''}" data-pknode="${escapeHtml(d.id)}" style="padding-left:${6+depth*13}px">`+
+      `<span class="tg2" data-pktg="${escapeHtml(d.id)}">${has?(open?'▾':'▸'):''}</span>`+
+      `<span class="nm">${escapeHtml(d.name||"")}</span><span class="ct">${n}</span>`+
+      `${any?'<span class="dot"></span>':''}</div>` + (open?walk(d.id,depth+1):"");
+  }).join("");
+  return walk("",0);
+}
+function pkRowUser(u){
+  const nm=ORG.disp(u), on=pk.sel.has(nm);
+  const lead=(ORG.byId[pk.node]&&(ORG.byId[pk.node].leaders||[]).indexOf(u.id)>=0);
+  const sub=[u.dept||"", u.resp||u.position||""].filter(Boolean).join(" · ");
+  return `<div class="prow ${on?'on':''}" data-pkuser="${escapeHtml(nm)}">`+
+    `<div class="pk-ck ${on?'on':''}">${on?'✓':''}</div>`+
+    `<div class="av">${escapeHtml(String(u.name||"?").slice(0,1))}</div>`+
+    `<div class="tx"><b>${lead?'<span class="lead">Lead</span>':''}${escapeHtml(nm)}</b><small>${escapeHtml(sub)}</small></div></div>`;
+}
+function pkMainHtml(){
+  if(pk.q){
+    const hit=Object.keys(ORG.users).map(k=>ORG.users[k]).filter(u=>orgHit(u,pk.q))
+      .sort((a,b)=>String(a.name).localeCompare(String(b.name),"ko")).slice(0,PK_MAX);
+    if(!hit.length) return `<div class="pk-msg">‘<b>${escapeHtml(pk.q)}</b>’ 와 맞는 사람이 없습니다.</div>`;
+    return `<div class="pk-dh"><h4>검색 결과 <span>${hit.length}명</span></h4></div>` + hit.map(pkRowUser).join("");
+  }
+  const d=ORG.byId[pk.node]; if(!d) return `<div class="pk-msg">부서를 고르세요.</div>`;
+  const crumb=ORG.pathOf(pk.node).slice(0,-1)
+    .map(x=>`<a data-pknode="${escapeHtml(x.id)}">${escapeHtml(x.name||"")}</a>`).join(" › ");
+  const subs=(ORG.kids[pk.node]||[]).filter(k=>ORG.sub(k.id).size).map(k=>{
+    const ids=[...ORG.sub(k.id)], names=ids.map(i=>ORG.disp(ORG.users[i]));
+    const hit=names.filter(n=>pk.sel.has(n)).length;
+    const cls = hit===0 ? "" : (hit===names.length ? "on" : "part");
+    return `<div class="prow" data-pkdept="${escapeHtml(k.id)}">`+
+      `<div class="pk-ck ${cls}" data-pkdeptck="${escapeHtml(k.id)}">${cls==="on"?'✓':''}</div>`+
+      `<div class="av grp">👥</div><div class="tx"><b>${escapeHtml(k.name||"")}</b><small>${ids.length}명</small></div>`+
+      `<span class="go">›</span></div>`;
+  }).join("");
+  const own=pkUserIds(pk.node).map(i=>ORG.users[i])
+    .sort((a,b)=>String(a.name).localeCompare(String(b.name),"ko")).map(pkRowUser).join("");
+  return `<div class="pk-crumb">${crumb||"&nbsp;"}</div>`+
+    `<div class="pk-dh"><h4>${escapeHtml(d.name||"")} <span>${ORG.sub(pk.node).size}</span></h4>`+
+    `<button type="button" class="btn ghost" data-pkall="1">부서 전체 선택</button></div>`+
+    (subs+own || `<div class="pk-msg">이 부서에 인원이 없습니다.</div>`);
+}
+function renderPick(){
+  const tree=document.getElementById("pkTree"), main=document.getElementById("pkMain"),
+        cnt=document.getElementById("pkCnt"), sel=document.getElementById("pkSel"),
+        src=document.getElementById("pkSrc");
+  if(!ORG){
+    if(tree) tree.innerHTML="";
+    if(main) main.innerHTML = orgErr
+      ? `<div class="pk-msg"><b>조직도를 읽지 못했습니다.</b><br>${escapeHtml(orgErr)}<br>deploy/org.json 이 올라가 있는지 확인해 주세요.</div>`
+      : `<div class="pk-msg">조직도를 불러오는 중…</div>`;
+    if(cnt) cnt.textContent=""; if(sel) sel.innerHTML=""; if(src) src.textContent="";
+    return;
+  }
+  if(src) src.textContent = `카카오워크 조직도 · ${ORG.count}명`;
+  if(tree) tree.innerHTML = pkTreeHtml();
+  if(main) main.innerHTML = pkMainHtml();
+  if(cnt) cnt.textContent = `선택 ${pk.sel.size}명`;
+  if(sel) sel.innerHTML = [...pk.sel].map(n=>
+    `<span class="a">${escapeHtml(n)}<button type="button" data-pkdrop="${escapeHtml(n)}">✕</button></span>`).join("");
+}
+function openPick(tid, dep){
+  if(!asgCanEdit()){ noticeAsgLock(); return; }
+  const t=findTask(tid); if(!t||!dep) return;
+  const seg=t.depts[dep];
+  pk={ tid, dep, node:"", q:"", sel:new Set((seg&&seg.assignees)||[]), exp:new Set() };
+  const q=document.getElementById("pkQ"); if(q) q.value="";
+  const h=pickModal.querySelector(".pk-h b"); if(h) h.textContent = `담당자 선택 — ${dep}`;
+  pickModal.classList.add("show");
+  renderPick();
+  orgLoad().then(()=>{
+    pk.node = ORG.root;
+    /* 그 부서에 이미 있는 사람이 속한 곳을 펼쳐 둔다 — 없으면 루트만 */
+    pk.exp = new Set([ORG.root]);
+    const first=[...pk.sel][0];
+    if(first){ const u=Object.keys(ORG.users).map(k=>ORG.users[k]).find(x=>ORG.disp(x)===first);
+      if(u){ const dd=Object.keys(ORG.byId).find(id=>(ORG.byId[id].members||[]).indexOf(u.id)>=0);
+        if(dd){ ORG.pathOf(dd).forEach(x=>pk.exp.add(x.id)); pk.node=dd; } } }
+    (ORG.kids[ORG.root]||[]).forEach(k=>pk.exp.add(k.id));
+    renderPick();
+    if(q) q.focus();
+  }).catch(()=>renderPick());
+}
+function pkToggleName(n){ if(pk.sel.has(n)) pk.sel.delete(n); else pk.sel.add(n); renderPick(); }
+function pkSetDept(id, on){
+  [...ORG.sub(id)].forEach(i=>{ const n=ORG.disp(ORG.users[i]); if(on) pk.sel.add(n); else pk.sel.delete(n); });
+  renderPick();
+}
+/* 확인 — 고른 사람을 이 부서 담당자로 넣고, 부서 명단(owners)에 없으면 같이 넣는다 */
+function pkApply(){
+  if(!asgCanEdit()){ noticeAsgLock(); return; }
+  const t=findTask(pk.tid); if(!t||!pk.dep){ pickModal.classList.remove("show"); return; }
+  const seg=t.depts[pk.dep]; if(!seg){ pickModal.classList.remove("show"); return; }
+  const names=[...pk.sel];
+  const d=state.departments.find(x=>x.key===pk.dep);
+  if(d){ if(!Array.isArray(d.owners)) d.owners=[];
+    names.forEach(n=>{ if(d.owners.indexOf(n)<0) d.owners.push(n); }); }
+  seg.assignees = names;
+  save();
+  pickModal.classList.remove("show");
+  /* 열려 있던 모달을 그 자리에서 다시 그린다 */
+  const sa=document.getElementById("schedAssignees");
+  if(schedModal.classList.contains("show") && sa && editing && editing.dep===pk.dep){
+    sa.innerHTML=deptAssigneeChips(t, pk.dep); syncAsgCount(pk.dep); syncSchedDone();
+  }
+  const da=document.getElementById("deptAssignArea");
+  if(deptModal.classList.contains("show") && da) da.innerHTML=deptAssignAreaHtml(t);
+  render();
+}
+(function pkWire(){
+  if(!pickModal) return;
+  pickModal.addEventListener("click", e=>{
+    if(e.target===pickModal){ pickModal.classList.remove("show"); return; }
+    const t=e.target;
+    if(t.closest("#pkX")||t.closest("#pkCancel")){ pickModal.classList.remove("show"); return; }
+    if(t.closest("#pkOk")){ pkApply(); return; }
+    const drop=t.closest("[data-pkdrop]");
+    if(drop){ pk.sel.delete(drop.dataset.pkdrop); renderPick(); return; }
+    if(!ORG) return;
+    if(t.closest("[data-pkall]")){
+      const ids=[...ORG.sub(pk.node)], names=ids.map(i=>ORG.disp(ORG.users[i]));
+      const all=names.every(n=>pk.sel.has(n));
+      pkSetDept(pk.node, !all); return;
+    }
+    const ck=t.closest("[data-pkdeptck]");
+    if(ck){ e.stopPropagation(); const id=ck.dataset.pkdeptck;
+      const names=[...ORG.sub(id)].map(i=>ORG.disp(ORG.users[i]));
+      pkSetDept(id, !names.every(n=>pk.sel.has(n))); return; }
+    const u=t.closest("[data-pkuser]"); if(u){ pkToggleName(u.dataset.pkuser); return; }
+    const nd=t.closest("[data-pktg]");
+    if(nd){ e.stopPropagation(); const id=nd.dataset.pktg;
+      if(pk.exp.has(id)) pk.exp.delete(id); else pk.exp.add(id); renderPick(); return; }
+    const go=t.closest("[data-pkdept]")||t.closest("[data-pknode]");
+    if(go){ const id=go.dataset.pkdept||go.dataset.pknode;
+      pk.node=id; pk.q=""; const q=document.getElementById("pkQ"); if(q) q.value="";
+      ORG.pathOf(id).forEach(x=>pk.exp.add(x.id)); pk.exp.add(id); renderPick(); return; }
+  });
+  const q=document.getElementById("pkQ");
+  if(q) q.addEventListener("input", e=>{ pk.q=(e.target.value||"").trim(); renderPick(); });
+  const sdb=document.getElementById("schedDirBtn");
+  if(sdb) sdb.onclick=()=>{ if(editing&&editing.tid&&editing.dep) openPick(editing.tid, editing.dep); };
+  const da=document.getElementById("deptAssignArea");
+  if(da) da.addEventListener("click", e=>{ const b=e.target.closest("[data-dirpick]"); if(!b) return;
+    e.stopPropagation(); openPick(editing&&editing.tid, b.dataset.dirpick); });
+})();
+
 function fillTaskMs(track, keep){ const cur=keep||taskMs.value; taskMs.innerHTML=msFor(track).map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join(""); if(cur && msFor(track).some(m=>m.id===cur)) taskMs.value=cur; }
 function openTaskModal(){ taskInput.value=""; { const _p=document.getElementById("taskPlan"),_t=document.getElementById("taskTrello"); if(_p)_p.value=""; if(_t)_t.value=""; } const tt=document.getElementById("taskTrack"); let trk=TRACKS.includes(trackFilter)?trackFilter:"개발";
   const selT = selectedId && findTask(selectedId);   // 선택한 Task 기준: 같은 마일스톤·분류로 시작
@@ -4791,7 +5081,9 @@ function deptAssignAreaHtml(t){
   const rows=act.map(d=>{
     const chips=deptAssigneeChips(t,d.key,false);
     if(asgQuery && chips.indexOf("data-aname")<0) return "";
-    return `<div class="da-row"><div class="da-dept"><i style="background:${d.color}"></i>${escapeHtml(d.key)}</div><div class="da-chips">${chips}</div></div>`;
+    return `<div class="da-row"><div class="da-dept"><i style="background:${d.color}"></i>${escapeHtml(d.key)}`+
+      `<button type="button" class="dirbtn" data-dirpick="${escapeHtml(d.key)}" style="margin-left:6px;height:22px;padding:0 7px;font-size:10.5px" title="카카오워크 조직도에서 고르기">🏢</button></div>`+
+      `<div class="da-chips">${chips}</div></div>`;
   }).join("");
   return `<label style="margin-top:14px">부서별 담당자</label>`+
     (rows || `<span class="asg-none">‘${escapeHtml(asgQuery)}’ 와 맞는 담당자가 없습니다.</span>`);
