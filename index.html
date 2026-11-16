@@ -6017,7 +6017,7 @@ function ncxBuildXlsx(rows, widths, sheetName){
    ⚠ 보드에는 **아무것도 저장하지 않는다.** state 를 건드리지 않고, 고친 요약도 그 파일에만 들어간다.
    ⚠ 사외 문서라 코멘트·`[기본 정보]`(요청자 실명/요청 일시)·담당자·부서·트렐로 주소는 안 담는다. */
 const NCX_TRACK = "개발";
-let ncxRows = null, ncxBusy = false, ncxMs = "";
+let ncxRows = null, ncxBusy = false, ncxMs = "", ncxErr = "";
 const ncxCanUse = () => !window.APP_ROLE || ASG_ROLES.includes(window.APP_ROLE);
 
 /* ---------- 요약 뽑기 ----------
@@ -6121,45 +6121,70 @@ async function ncxLoad(){
   if(!msId){ flashNote("마일스톤이 없습니다."); return; }
   const withDone = !!(document.getElementById("ncxDone")||{}).checked;
   ncxRows = ncxCollect(msId, withDone);
+  ncxErr = "";
   if(!ncxRows.length){ renderNcx(); flashNote("해당 마일스톤에 개발 일감이 없습니다."); return; }
   const ids = ncxRows.filter(r=>r.cid).map(r=>r.cid);
   const byId = {};
+  /* 카드 1장을 두 이름으로 넣는다 — 보드에 저장된 값(shortLink 일 수 있다)과 트렐로 정식 id 둘 다 */
+  const put = c => { if(!c) return; if(c.key) byId[c.key]=c; if(c.id) byId[c.id]=c; };
+  const got = r => { const c = r.cid ? byId[r.cid] : null; return (c && !c.miss) ? c : null; };
+  let failed = 0;
   ncxBusy = true; renderNcx();
   try{
-    for(let i=0;i<ids.length;i+=10){
-      const part = ids.slice(i,i+10);
-      ncxProg(Math.floor(i/10)+1, Math.ceil(ids.length/10), ids.length);
+  /* ===== ① 배치 (10장씩) — 싸다. 한 묶음이 실패해도 **나머지는 계속 간다**.
+     예전엔 throw 로 통째로 빠져나와 79건이 전부 빈 칸이 됐다(2026-11-16 제보). ===== */
+  for(let i=0;i<ids.length;i+=10){
+    const part = ids.slice(i,i+10);
+    ncxProg(Math.floor(i/10)+1, Math.ceil(ids.length/10), ids.length);
+    try{
       const r = await fetch("/api/trello/batch?ids="+encodeURIComponent(part.join(",")),
         { credentials:"same-origin" });
       if(!r.ok){ let m=""; try{ m=(await r.json()).error||""; }catch(_){}
-        throw new Error(m || ("트렐로 응답 "+r.status)); }
+        throw new Error(m || ("응답 "+r.status)); }
       const j = await r.json();
-      (j.cards||[]).forEach(c=>{ if(c && c.id) byId[c.id]=c; });
-    }
-    const basic = !!(document.getElementById("ncxBasic")||{}).checked;
-    ncxRows.forEach(row=>{
-      const c = row.cid ? byId[row.cid] : null;
-      row.det = c && !c.miss ? ncxDetail(c.desc, basic) : "";
-      /* 설명이 비었으면 보드 값(분류·마일스톤·상태·일정)이라도 넣어 빈 칸을 안 남긴다 */
-      if(!row.det){ row.det = row.board; row.src = row.cid ? (c && !c.miss ? "설명 없음" : "카드없음") : "카드없음"; }
-      else row.src = "카드";
-      if(c && c.name) row.card = c.name;
-    });
-  }catch(err){
-    flashNote("트렐로에서 읽지 못했습니다 — "+(err&&err.message||err));
-    ncxRows.forEach(row=>{ if(!row.det){ row.det=row.board; row.src="보드"; } });
+      (j.cards||[]).forEach(put);
+    }catch(e){ failed++; if(!ncxErr) ncxErr = String(e&&e.message||e); }
+  }
+  /* ===== ② 배치로 못 붙은 건 낱개로 다시 — 카드 패널이 쓰는 엔드포인트라 확실히 동작한다.
+     배치가 멀쩡하면 여기는 0건이라 **요청이 늘지 않는다**. [[free-tier-budget]] ===== */
+  const miss = ncxRows.filter(r=>r.cid && !got(r));
+  for(let i=0;i<miss.length;i++){
+    ncxProg(i+1, miss.length, miss.length, "낱개로 다시 읽는 중…");
+    try{
+      const r = await fetch("/api/trello/card?taskId="+encodeURIComponent(miss[i].id),
+        { credentials:"same-origin" });
+      const j = await r.json().catch(()=>({}));
+      if(r.ok && j.ok && j.card) put({ key:miss[i].cid, id:j.card.id, name:j.card.name||"", desc:j.card.desc||"" });
+      else if(!ncxErr && j.error) ncxErr = String(j.error);
+    }catch(e){ if(!ncxErr) ncxErr = String(e&&e.message||e); }
+  }
+  /* ===== ③ 행 채우기 ===== */
+  const basic = !!(document.getElementById("ncxBasic")||{}).checked;
+  ncxRows.forEach(row=>{
+    const c = got(row);
+    row.det = c ? ncxDetail(c.desc, basic) : "";
+    if(!row.det){ row.det = row.board; row.src = c ? "설명 없음" : (row.cid ? "못 읽음" : "카드없음"); }
+    else row.src = "카드";
+    if(c && c.name) row.card = c.name;
+  });
+  if(failed) ncxErr = (ncxErr||"") + ` (배치 ${failed}묶음 실패)`;
+  }catch(e){
+    /* 여기까지 오면 코드 버그다 — 조용히 삼키지 말고 화면에 남긴다 */
+    ncxErr = (ncxErr? ncxErr+" / " : "") + String(e&&e.message||e);
+    ncxRows.forEach(row=>{ if(!row.det){ row.det=row.board; row.src = row.cid ? "못 읽음" : "카드없음"; } });
   }finally{ ncxBusy=false; renderNcx(); }
 }
-function ncxProg(cur, total, cards){
+function ncxProg(cur, total, cards, label){
   const el=document.getElementById("ncxProg"); if(!el) return;
-  el.innerHTML = `<span>트렐로에서 읽는 중…</span><div class="ncx-pbar"><i style="width:${Math.round(cur/Math.max(1,total)*100)}%"></i></div>`+
-    `<b>${cur} / ${total}</b><span>묶음 · 카드 ${cards}건</span>`;
+  el.innerHTML = `<span>${escapeHtml(label||"트렐로에서 읽는 중…")}</span>`+
+    `<div class="ncx-pbar"><i style="width:${Math.round(cur/Math.max(1,total)*100)}%"></i></div>`+
+    `<b>${cur} / ${total}</b><span>카드 ${cards}건</span>`;
 }
 
 /* ---------- 화면 ---------- */
 const NCX_SRC = { "카드":["p","트렐로 카드 설명을 그대로 가져왔습니다"],
                   "설명 없음":["n","카드에 설명이 없어 보드 값을 넣었습니다 — 직접 쓰는 것을 권장"],
-                  "보드":["n","트렐로를 못 읽어 보드 값을 넣었습니다"],
+                  "못 읽음":["o","카드는 연결돼 있는데 트렐로에서 못 읽었습니다 — ↻ 다시 읽기"],
                   "카드없음":["n","트렐로 카드가 연결돼 있지 않습니다 — 직접 쓰는 것을 권장"] };
 function renderNcx(){
   const head=document.getElementById("ncxHead"), body=document.getElementById("ncxBody"),
@@ -6185,7 +6210,7 @@ function renderNcx(){
         '<th>내용 <span style="font-weight:600;opacity:.75">· 트렐로 카드 설명 전문</span></th>'+
         '<th class="st">상태</th><th class="dt">일정</th><th class="src">출처</th></tr></thead><tbody>';
   ncxRows.forEach((r,i)=>{
-    const sm = NCX_SRC[r.src] || NCX_SRC["보드"];
+    const sm = NCX_SRC[r.src] || NCX_SRC["카드없음"];   // ⚠ 없는 키여도 죽지 않게
     const n = r.det ? r.det.split("\n").length : 0;
     h+=`<tr><td class="n">${i+1}</td>`+
        `<td class="nm">${escapeHtml(r.name)}</td>`+
@@ -6197,10 +6222,13 @@ function renderNcx(){
   });
   body.innerHTML = h+'</tbody></table>';
   const fromT = ncxRows.filter(r=>r.src==="카드").length;
-  const warn  = ncxRows.length - fromT;
+  const bad   = ncxRows.filter(r=>r.src==="못 읽음").length;
+  const warn  = ncxRows.length - fromT - bad;
   if(foot) foot.innerHTML =
     `<span>${ncxRows.length}건 · 카드에서 ${fromT}건`+
-    `${warn?` · <b style="color:#fbbf24">직접 써야 하는 것 ${warn}건</b>`:""}</span>`+
+    `${bad?` · <b style="color:#f87171">못 읽음 ${bad}건</b>`:""}`+
+    `${warn?` · <b style="color:#fbbf24">직접 써야 하는 것 ${warn}건</b>`:""}`+
+    `${ncxErr?`<br><b style="color:#f87171">트렐로 오류: ${escapeHtml(ncxErr)}</b>`:""}</span>`+
     `<span class="ncx-sp"></span>`+
     `<button type="button" class="btn" data-ncxdl ${ncxBusy?"disabled":""}>⬇ 엑셀 내려받기</button>`;
 }
