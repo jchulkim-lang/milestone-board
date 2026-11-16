@@ -122,16 +122,47 @@
 
   const APPVER = () => String((typeof APP_VERSION!=="undefined" && APP_VERSION) || (window.APP_VERSION||0));
   let _blocked = false;
+  /* ===== 전면 안내판 (새 버전 / 세션 만료) — 2026-11-16, build 2026111605 ==================
+     [stated] 사용자: "버전이 상승하거나 git을 통해 재배포될 때 「새로 고침」 팝업을 노출하고 있잖아.
+                       **그 배경을 입장 화면 위에서 노출**하고 싶어."
+     → 밋밋한 `rgba(8,11,20,.96)` 단색을 걷어내고 **입장 화면과 똑같은 키 아트 + 스크림**을 깐다.
+     ⚠ `bg.jpg` 는 입장 화면에서 이미 받아 둔 정적 파일이라 **추가 요청이 사실상 0건**이다(캐시 적중).
+       못 받아도 밑에 깔린 `#08090e` 가 그대로 보이므로 안내문은 항상 읽힌다.
+     ⚠ 좁은 화면은 입장 화면과 같은 기준(900px)으로 `bg-sm.jpg` 를 쓴다. */
+  function blockBoard(id, title, body, btnText, onClick){
+    const small = Math.min(innerWidth, innerHeight) <= 900;
+    const art = (small ? "/bg-sm.jpg" : "/bg.jpg") + "?v=" + (window.APP_VERSION||0);
+    const o = document.createElement("div"); o.id = id;
+    o.style.cssText = "position:fixed;inset:0;z-index:2147483647;overflow:hidden;color:#fff;"+
+      "font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',sans-serif;background:#08090e";
+    o.innerHTML =
+      '<div style="position:absolute;inset:0;background:#08090e url(\''+art+'\') center/cover no-repeat"></div>'+
+      '<div style="position:absolute;inset:0;background:linear-gradient(100deg,'+
+        'rgba(8,9,14,.96) 0%, rgba(8,9,14,.90) 26%, rgba(8,9,14,.62) 46%,'+
+        'rgba(8,9,14,.30) 64%, rgba(8,9,14,.50) 100%)"></div>'+
+      '<div data-bb-box style="position:absolute;left:clamp(24px,6vw,76px);top:50%;transform:translateY(-50%);'+
+        'width:min(430px,calc(100% - 48px));display:flex;flex-direction:column;align-items:flex-start;text-align:left">'+
+        '<div style="width:84px;height:84px;margin-bottom:18px;background:url(\'/icon.png?v='+(window.APP_VERSION||0)+'\') center/contain no-repeat;'+
+          'filter:drop-shadow(0 10px 22px rgba(0,0,0,.75)) drop-shadow(0 0 10px rgba(0,0,0,.5))"></div>'+
+        '<div style="font-size:11px;font-weight:800;letter-spacing:3.4px;color:#cdd3ff;text-shadow:0 2px 10px rgba(0,0,0,.85);margin-bottom:10px">LIMIT ZERO BREAKERS</div>'+
+        '<div style="font-size:clamp(21px,2.9vw,27px);font-weight:800;letter-spacing:-.6px;text-shadow:0 3px 18px rgba(0,0,0,.9)">'+title+'</div>'+
+        '<div style="font-size:13.5px;color:#cdd3e0;line-height:1.8;margin-top:12px;text-shadow:0 2px 10px rgba(0,0,0,.9)">'+body+'</div>'+
+      '</div>';
+    const b = document.createElement("button"); b.textContent = btnText;
+    b.style.cssText = "margin-top:22px;background:#2563eb;color:#fff;border:0;border-radius:10px;padding:11px 20px;"+
+      "font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 8px 22px rgba(0,0,0,.5)";
+    b.onclick = onClick;
+    o.querySelector("[data-bb-box]").appendChild(b);
+    document.body.appendChild(o);
+    return o;
+  }
   function reloadFresh(){ try{ const u=new URL(location.href); u.searchParams.set("v", String(Date.now())); location.replace(u.toString()); }catch(_){ location.reload(); } }
   function blockOldVersion(){
     if(_blocked) return; _blocked = true;
     try{ remote.active = false; }catch(_){}
-    const o = document.createElement("div"); o.id = "oldVersionBlock";
-    o.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:rgba(8,11,20,.96);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;font-family:'Pretendard',-apple-system,sans-serif;padding:24px";
-    o.innerHTML = '<div style="font-size:20px;font-weight:800">새 버전이 배포되었습니다</div><div style="font-size:14px;color:#c7cfdf;line-height:1.7">구버전에서는 데이터 보호를 위해 접속이 제한됩니다.<br>잠시 후 자동으로 최신 버전으로 새로고침됩니다.</div>';
-    const b = document.createElement("button"); b.textContent = "지금 새로고침";
-    b.style.cssText = "background:#2563eb;color:#fff;border:0;border-radius:9px;padding:10px 18px;font-weight:800;font-size:14px;cursor:pointer";
-    b.onclick = reloadFresh; o.appendChild(b); document.body.appendChild(o);
+    blockBoard("oldVersionBlock", "새 버전이 배포되었습니다",
+      "구버전에서는 데이터 보호를 위해 접속이 제한됩니다.<br>잠시 후 자동으로 최신 버전으로 새로고침됩니다.",
+      "지금 새로고침", reloadFresh);
     setTimeout(reloadFresh, 4000);
   }
 
@@ -140,12 +171,9 @@
   function blockSessionExpired(){
     if(_blocked) return; _blocked = true;
     try{ remote.active = false; }catch(_){}
-    const o = document.createElement("div"); o.id = "sessionExpiredBlock";
-    o.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:rgba(8,11,20,.96);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;font-family:'Pretendard',-apple-system,sans-serif;padding:24px";
-    o.innerHTML = '<div style="font-size:20px;font-weight:800">로그인이 만료되었습니다</div><div style="font-size:14px;color:#c7cfdf;line-height:1.7">화면의 내용이 최신이 아닐 수 있습니다.<br>다시 로그인하면 이어서 사용할 수 있습니다.</div>';
-    const b = document.createElement("button"); b.textContent = "다시 로그인";
-    b.style.cssText = "background:#2563eb;color:#fff;border:0;border-radius:9px;padding:10px 18px;font-weight:800;font-size:14px;cursor:pointer";
-    b.onclick = ()=>location.reload(); o.appendChild(b); document.body.appendChild(o);
+    blockBoard("sessionExpiredBlock", "로그인이 만료되었습니다",
+      "화면의 내용이 최신이 아닐 수 있습니다.<br>다시 로그인하면 이어서 사용할 수 있습니다.",
+      "다시 로그인", ()=>location.reload());
   }
 
   function setupSync(){
