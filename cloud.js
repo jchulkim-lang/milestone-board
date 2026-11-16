@@ -45,9 +45,12 @@
         #loginOverlay .lo-box{position:absolute;left:clamp(24px,6vw,76px);top:50%;transform:translateY(-50%);
           width:min(420px,calc(100% - 48px));display:flex;flex-direction:column;}
         /* 로고 = SD 캐릭터. 간트 막대에서 교체(2026-11-13) — 홈 화면 아이콘과 같은 그림을 쓴다 */
-        #loginOverlay .lo-logo{width:76px;height:76px;border-radius:20px;margin-bottom:20px;
-          background:#11131b url("/icon.png") center/cover no-repeat;
-          box-shadow:0 10px 28px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.1) inset;}
+        /* ⚠ 아이콘이 투명 PNG 라 둥근 사각 틀과 안쪽 흰 링을 두면 **빈 상자**가 보인다(2026-11-16).
+           틀 없이 캐릭터만 띄우고 drop-shadow 로 어두운 아트 위에서 떨어뜨린다.
+           ⚠ ?v= 는 캐시 때문에 필요하다 — cloud.js 는 서버가 __APP_BUILD__ 를 주입하지 않으므로 APP_VERSION 을 쓴다. */
+        #loginOverlay .lo-logo{width:84px;height:84px;margin-bottom:18px;
+          background:url("/icon.png?v=${window.APP_VERSION||0}") center/contain no-repeat;
+          filter:drop-shadow(0 10px 22px rgba(0,0,0,.75)) drop-shadow(0 0 10px rgba(0,0,0,.5));}
         #loginOverlay .lo-kick{font-size:11px;font-weight:800;letter-spacing:3.4px;color:#cdd3ff;
           text-shadow:0 2px 10px rgba(0,0,0,.85);margin-bottom:10px;}
         #loginOverlay .lo-ttl{font-size:clamp(23px,3.2vw,30px);font-weight:800;letter-spacing:-.8px;

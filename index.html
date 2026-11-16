@@ -18,8 +18,9 @@
 <!-- 파비콘·홈 화면 아이콘 모두 SD 캐릭터 (2026-11-13, build 2026111303).
      favicon.png 은 **머리 전체**를 담은 크롭 — 16px 에서 뿔+분홍 머리 실루엣으로 알아본다.
      얼굴을 더 바짝 당기면 16px 에서 분홍 덩어리가 된다(실측). -->
-<link rel="icon" type="image/png" href="/favicon.png">
-<link rel="apple-touch-icon" href="/icon-ios.png"><!-- ⚠ 투명 PNG 를 홈 화면에 올리면 iOS 가 뒤를 검정으로 채운다 → 여기만 불투명 파일 -->
+<!-- ⚠ ?v= 를 빼지 말 것. 크롬은 파비콘을 별도 캐시에 두어 파일만 바꾸면 Ctrl+Shift+R 로도 안 바뀐다(2026-11-16 실측) -->
+<link rel="icon" type="image/png" href="/favicon.png?v=__APP_BUILD__">
+<link rel="apple-touch-icon" href="/icon-ios.png?v=__APP_BUILD__"><!-- ⚠ 투명 PNG 를 홈 화면에 올리면 iOS 가 뒤를 검정으로 채운다 → 여기만 불투명 파일 -->
 <style>
   :root{
     --bg:#0e1014; --panel:#161922; --panel2:#1d2129; --line:#272c36; --grid:#1b1f27;
