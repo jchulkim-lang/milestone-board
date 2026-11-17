@@ -1880,6 +1880,30 @@
   .foot-spacer{ flex:1 1 auto; min-width:8px; }
   .foot-tools{ display:flex; align-items:center; gap:8px; flex:0 0 auto; margin-left:14px; }
 
+  /* ===== 통합 메뉴 팝업 (2026-11-17, build 2026111701) ==================================
+     하단 바에는 「☰ 메뉴」 하나만 남기고 나머지는 전부 이 창 안으로 들어왔다.
+     ⚠ 안에 든 묶음은 **원래 하단 바에 있던 그 요소들**이다 — 레이아웃만 여기서 다시 잡는다. */
+  #menuModal .modal{ width:min(760px,94vw); max-width:94vw; max-height:88vh; overflow:auto; }
+  #menuModal .mn-sec{ margin-top:14px; }
+  #menuModal .mn-h{ font-size:11px; font-weight:800; letter-spacing:.3px; color:var(--muted);
+     padding-bottom:6px; margin-bottom:9px; border-bottom:1px solid var(--line); }
+  /* 하단 바용 가로 배치를 **타일 그리드**로 갈아끼운다 */
+  #menuModal .foot-apps, #menuModal .foot-tools, #menuModal .foot-legend{
+     display:grid; grid-template-columns:repeat(auto-fill, minmax(168px,1fr)); gap:8px;
+     margin:0; flex:none; align-items:stretch; }
+  #menuModal .foot-apps .btn, #menuModal .foot-tools .btn, #menuModal .foot-legend .legend-edit{
+     width:100%; justify-content:flex-start; text-align:left; padding:11px 13px; font-size:13px;
+     font-weight:700; border-radius:9px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #menuModal .foot-apps .btn:hover, #menuModal .foot-tools .btn:hover{ border-color:var(--accent); }
+  /* 편집 묶음은 `.lbl`(버튼 아닌 글자)이라 버튼 모양을 따로 입힌다 */
+  #menuModal .foot-legend .legend-edit{ background:var(--panel2); border:1px solid var(--line);
+     color:var(--text); cursor:pointer; font-family:inherit; }
+  #menuModal .foot-legend .legend-edit:hover{ border-color:var(--accent); color:var(--accent); }
+  /* `.grp` 는 「상태 편집」 버튼 하나만 감싼 껍데기다 → display:contents 로 껍데기를 지워
+     안의 버튼이 **다른 타일과 같은 칸**에 놓이게 한다(안 그러면 혼자 한 줄을 다 먹는다). */
+  #menuModal .foot-legend .grp{ display:contents; }
+  #menuModal .modal-actions{ margin-top:18px; }
+
   /* 부서 색상 칸 접힘(개인) — Task 헤드의 부서 점 숨김 */
   body.hide-deptgrid .task-head .dept-grid{ display:none; }
 
@@ -2022,6 +2046,7 @@
 
   /* 하단 바 38 → 30 */
   .footbar{ height:30px; padding:0 12px; gap:10px; font-size:10.5px; }
+  .footbar #menuBtn{ flex:0 0 auto; padding:4px 13px; font-size:11.5px; font-weight:800; }
   .footbar .btn.sm{ padding:3px 8px; font-size:11px; white-space:nowrap; flex:0 0 auto; }
   .footbar i{ width:9px; height:9px; }
 
@@ -2065,8 +2090,21 @@
   </div>
 
   <div class="footbar">
-    <div id="footbar" class="foot-legend"></div>
-    <div class="foot-apps" id="footApps">
+    <button class="btn sm" id="menuBtn" title="모든 기능 열기">☰ 메뉴</button>
+    <span class="foot-spacer"></span>
+    <span class="last-edit" id="lastEdit" title="마지막 수정"></span>
+  </div>
+
+  <!-- 통합 메뉴 (2026-11-17, build 2026111701)
+       [stated] "아래의 하단 기능을 「메뉴」 버튼 하나로 통합 / 팝업으로 모두 보이게 / 버튼이 많아서 정신 없네"
+       ⚠ 버튼을 **다시 만들지 않는다.** 기존 묶음(#footbar·#footApps·#footTools)을 통째로 이 안에 둔다 —
+         핸들러·id·cloud.js 의 placeBtn(#footTools append)·applyRoleUI 의 display 제어가 전부 그대로 산다. -->
+  <div class="modal-bg" id="menuModal">
+    <div class="modal">
+      <h3>☰ 메뉴</h3>
+      <div class="msub">보드의 모든 기능입니다. 권한에 따라 보이는 항목이 다를 수 있습니다.</div>
+      <div class="mn-sec"><div class="mn-h">보기 · 기능</div>
+        <div class="foot-apps" id="footApps">
       <button class="btn ghost sm" id="dashBtn">📊 대시보드</button>
       <button class="btn ghost sm" id="roadmapBtn">🗺 발주 로드맵</button>
       <button class="btn ghost sm" id="planBtn">📅 서비스 플랜</button>
@@ -2079,12 +2117,18 @@
       <button class="btn ghost sm" id="noticeBtn">📢 공지</button>
       <button class="btn ghost sm" id="askBtn" title="클라팀이 올린 기획서 요청 · 확인 요청">💬 기획 문의</button>
       <button class="btn ghost sm" id="themeBtn">☀ 라이트</button>
-    </div>
-    <span class="foot-spacer"></span>
-    <span class="last-edit" id="lastEdit" title="마지막 수정"></span>
-    <div class="foot-tools" id="footTools">
-      <button class="btn ghost sm" id="msBtn">⚙ 마일스톤 설정</button>
-      <button class="btn ghost sm" id="notifyBtn">🔔 알림 멤버</button>
+        </div>
+      </div>
+      <div class="mn-sec"><div class="mn-h">설정</div>
+        <div class="foot-tools" id="footTools">
+          <button class="btn ghost sm" id="msBtn">⚙ 마일스톤 설정</button>
+          <button class="btn ghost sm" id="notifyBtn">🔔 알림 멤버</button>
+        </div>
+      </div>
+      <div class="mn-sec"><div class="mn-h">편집</div>
+        <div id="footbar" class="foot-legend"></div>
+      </div>
+      <div class="modal-actions"><span></span><div class="right"><button class="btn ghost" data-close>닫기</button></div></div>
     </div>
   </div>
 
@@ -4261,6 +4305,7 @@ const roadmapModal=document.getElementById("roadmapModal"), trelloModal=document
 const planModal=document.getElementById("planModal");
 const ufModal=document.getElementById("ufModal");
 const ncxModal=document.getElementById("ncxModal");
+const menuModal=document.getElementById("menuModal");
 const holModal=document.getElementById("holModal");
 const auditModal=document.getElementById("auditModal");
 const noteModal=document.getElementById("noteModal");
@@ -4272,7 +4317,7 @@ function cancelPendingDept(){
   editing.justOn=false;
   if(sg && sg.on && sg.sched===false){ sg.on=false; save(); render(); }
 }
-function closeModals(){ cancelPendingDept(); closeRmPop(); closeSpPop(); [noteModal,taskModal,auditModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,lbMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal,askModal,ufModal,ncxModal].forEach(m=>m.classList.remove("show")); }
+function closeModals(){ cancelPendingDept(); closeRmPop(); closeSpPop(); [noteModal,taskModal,auditModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,lbMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal,askModal,ufModal,ncxModal,menuModal].forEach(m=>m.classList.remove("show")); }
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=closeModals);
 [noteModal,taskModal,auditModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,lbMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal,askModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
 
@@ -6688,6 +6733,13 @@ function ncxDownload(){
       if(ncxRows && ncxRows[i]) ncxRows[i].det = String(t.value||""); return; }
     if(t.id==="ncxBasic"){ if(ncxRows) ncxLoad(); return; }
   });
+  { const mb=document.getElementById("menuBtn");
+    if(mb) mb.onclick=()=>{ closeModals(); menuModal.classList.add("show"); };
+    /* 바깥을 누르면 닫는다 — 다른 모달과 같은 동작 */
+    menuModal.addEventListener("click", e=>{ if(e.target===menuModal) menuModal.classList.remove("show"); });
+    /* 메뉴에서 무엇을 고르든 창은 닫는다(그 버튼이 여는 모달만 남게) */
+    menuModal.addEventListener("click", e=>{ if(e.target.closest(".mn-sec .btn, .mn-sec .legend-edit")) menuModal.classList.remove("show"); }, true);
+  }
   const b=document.getElementById("ncxBtn");
   if(b){ b.onclick=openNcx;
     /* 클라우드를 안 쓰는 로컬 단독 실행에서는 cloud.js 가 안 돌아 버튼이 숨은 채 남는다 */
