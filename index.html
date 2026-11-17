@@ -1895,6 +1895,8 @@
      width:100%; justify-content:flex-start; text-align:left; padding:11px 13px; font-size:13px;
      font-weight:700; border-radius:9px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   #menuModal .foot-apps .btn:hover, #menuModal .foot-tools .btn:hover{ border-color:var(--accent); }
+  /* 온보딩은 <a> 다 — 밑줄을 지우고 버튼과 같은 줄맞춤으로 */
+  #menuModal .foot-apps a.btn{ text-decoration:none; display:flex; align-items:center; }
   /* 편집 묶음은 `.lbl`(버튼 아닌 글자)이라 버튼 모양을 따로 입힌다 */
   #menuModal .foot-legend .legend-edit{ background:var(--panel2); border:1px solid var(--line);
      color:var(--text); cursor:pointer; font-family:inherit; }
@@ -2116,6 +2118,8 @@
       <button class="btn ghost sm" id="forceReloadBtn" style="display:none">🔄 강제 새로고침</button>
       <button class="btn ghost sm" id="noticeBtn">📢 공지</button>
       <button class="btn ghost sm" id="askBtn" title="클라팀이 올린 기획서 요청 · 확인 요청">💬 기획 문의</button>
+      <a class="btn ghost sm" id="onbBtn" href="https://claude.ai/artifact/J9DAFq3BkXsheq3qmJivon"
+         target="_blank" rel="noopener" title="보드 사용법 안내 (새 탭)">🎓 온보딩</a>
       <button class="btn ghost sm" id="themeBtn">☀ 라이트</button>
         </div>
       </div>
