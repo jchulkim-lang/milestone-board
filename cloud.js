@@ -367,80 +367,128 @@
      비용: 쓰기는 사람당 하루 1건, app_state(JSON) 와 무관 → 폴링 전송량 0 증가. */
   const ST_TD  = "padding:7px 0;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums";
   const ST_TD0 = "padding:7px 0;border-bottom:1px solid var(--line);text-align:left;font-weight:700";
-  function stHead(t){ return `<div style="font-size:12px;font-weight:800;color:var(--muted);margin:14px 0 7px">${t}</div>`; }
+  const ST_TH  = "font-size:11px;color:var(--muted);font-weight:700;padding:0 0 6px;border-bottom:1px solid var(--line)";
+  function stHead(t, sub){ return `<div style="font-size:12px;font-weight:800;color:var(--muted);margin:0 0 7px">${t}${sub?` <span style="font-weight:600;opacity:.75">${sub}</span>`:""}</div>`; }
+  function stBar(w){ return `<div style="height:6px;background:var(--panel2);border-radius:4px;overflow:hidden;margin-top:4px"><i style="display:block;height:100%;width:${w}%;background:var(--accent);border-radius:4px"></i></div>`; }
+  function stLive(at){ return (Date.now() - Date.parse(String(at||"").replace(" ","T")+"Z")) < 180000; }
   function ensureStatsModal(){
     let m = document.getElementById("statsModal"); if(m) return m;
     m = document.createElement("div"); m.id="statsModal"; m.className="modal-bg";
-    m.innerHTML = `<div class="modal" style="width:560px"><h3>접속 통계 📈</h3>
+    m.innerHTML = `<div class="modal" style="width:min(1020px,95vw);max-width:none"><h3>접속 통계 📈</h3>
       <div class="msub">관리자 전용입니다. 사람 단위로 <b>하루 1회</b>만 집계합니다 — 같은 날 여러 번 들어와도 1입니다.</div>
-      <div id="statsBody" style="max-height:62vh;overflow:auto">불러오는 중…</div>
+      <div id="statsBody" style="max-height:72vh;overflow:auto">불러오는 중…</div>
       <div class="modal-actions"><span style="font-size:11px;color:var(--muted)">한국 시간(KST) 날짜 기준</span>
-        <div class="right"><button class="btn ghost" id="statsCopy">표 복사</button><button class="btn" id="statsClose">닫기</button></div></div></div>`;
+        <div class="right"><button class="btn ghost" data-copy="months">월별 복사</button><button class="btn ghost" data-copy="people">유저별 복사</button><button class="btn" id="statsClose">닫기</button></div></div></div>`;
     document.body.appendChild(m);
     m.addEventListener("click", e=>{ if(e.target===m) m.classList.remove("show"); });
     m.querySelector("#statsClose").onclick = () => m.classList.remove("show");
-    m.querySelector("#statsCopy").onclick = copyStats;
+    m.addEventListener("click", e=>{ const c=e.target.closest("[data-copy]"); if(c) copyStats(c.dataset.copy, c); });
     return m;
   }
-  function openStats(){ ensureStatsModal().classList.add("show"); renderStats(); }
-  let STATS = null;
-  async function renderStats(){
+  function openStats(){ ensureStatsModal().classList.add("show"); loadStats(); }
+  let STATS = null, PQ = "", PSORT = "days";
+  async function loadStats(){
     const el = document.getElementById("statsBody"); if(!el) return;
     el.innerHTML = "불러오는 중…";
-    let j;
     try{
       const r = await fetch("/api/visits", { credentials:"same-origin" });
       if(!r.ok){ el.innerHTML = '<div class="dm-empty">권한이 없습니다.</div>'; return; }
-      j = await r.json();
+      STATS = await r.json();
     }catch(_){ el.innerHTML = '<div class="dm-empty">불러오기 실패</div>'; return; }
-    STATS = j;
-    const ms = j.months || [], tot = j.total || { users:0, days:0 }, rec = j.recent || [];
+    drawStats();
+  }
+  function drawStats(){
+    const el = document.getElementById("statsBody"); if(!el || !STATS) return;
+    const j = STATS, ms = j.months || [], tot = j.total || { users:0, days:0 };
     const cur = ms.find(m=>m.ym===j.ym) || { users:0, days:0 };
     const mx = Math.max(1, ...ms.map(m=>Number(m.users)||0));
-    const tile = (k,v,u) => `<div style="background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:10px 12px">
+    const tile = (k,v,u) => `<div style="background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px 11px">
       <div style="font-size:11px;color:var(--muted);font-weight:700">${k}</div>
-      <div style="font-size:22px;font-weight:800;margin-top:3px;letter-spacing:-.5px">${v}<small style="font-size:12px;font-weight:600;color:var(--muted);margin-left:2px">${u}</small></div></div>`;
-    let h = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-      ${tile("총 누적 접속자", tot.users||0, "명")}
-      ${tile(`이번 달 (${Number(String(j.ym||"").slice(5,7))||"?"}월)`, cur.users||0, "명")}
+      <div style="font-size:21px;font-weight:800;margin-top:2px;letter-spacing:-.5px">${v}<small style="font-size:12px;font-weight:600;color:var(--muted);margin-left:2px">${u}</small></div></div>`;
+
+    /* ----- 좌: 요약 + 월별 ----- */
+    let L = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:16px">
+      ${tile("총 누적", tot.users||0, "명")}
+      ${tile(`${Number(String(j.ym||"").slice(5,7))||"?"}월`, cur.users||0, "명")}
       ${tile("오늘", j.todayCount||0, "명")}</div>`;
-    h += stHead("월별 누적");
-    if(!ms.length) h += '<div class="dm-empty">아직 집계된 날이 없습니다.</div>';
+    L += stHead("월별 누적");
+    if(!ms.length) L += '<div class="dm-empty">아직 집계된 날이 없습니다.</div>';
     else{
-      const th = (t,r) => `<th style="text-align:${r?"right":"left"};font-size:11px;color:var(--muted);font-weight:700;padding:0 0 6px;border-bottom:1px solid var(--line)">${t}</th>`;
-      h += `<table style="width:100%;border-collapse:collapse;font-size:12.5px"><thead><tr>${th("월",0)}${th("접속자",1)}${th("접속 일수",1)}${th("1인 평균",1)}</tr></thead><tbody>`;
+      L += `<table style="width:100%;border-collapse:collapse;font-size:12.5px"><thead><tr>`
+        + `<th style="${ST_TH};text-align:left">월</th><th style="${ST_TH};text-align:right">접속자</th>`
+        + `<th style="${ST_TH};text-align:right">접속 일수</th><th style="${ST_TH};text-align:right">1인 평균</th></tr></thead><tbody>`;
       ms.forEach(m=>{
-        const w = Math.round((Number(m.users)||0)/mx*100);
         const avg = ((Number(m.days)||0)/(Number(m.users)||1)).toFixed(1);
-        h += `<tr><td style="${ST_TD0}">${esc(m.ym)}<div style="height:6px;background:var(--panel2);border-radius:4px;overflow:hidden;margin-top:4px"><i style="display:block;height:100%;width:${w}%;background:var(--accent);border-radius:4px"></i></div></td>`
+        L += `<tr><td style="${ST_TD0}">${esc(m.ym)}${stBar(Math.round((Number(m.users)||0)/mx*100))}</td>`
            + `<td style="${ST_TD}">${m.users}</td><td style="${ST_TD}">${m.days}</td><td style="${ST_TD};color:var(--muted)">${avg}일</td></tr>`;
       });
-      h += `<tr><td style="${ST_TD0};color:var(--muted)">합계 <span style="font-weight:400;font-size:11px">(중복 제거)</span></td>`
+      L += `<tr><td style="${ST_TD0};color:var(--muted)">합계 <span style="font-weight:400;font-size:11px">(중복 제거)</span></td>`
          + `<td style="${ST_TD}"><b>${tot.users}</b></td><td style="${ST_TD}"><b>${tot.days}</b></td><td style="${ST_TD};color:var(--muted)">—</td></tr></tbody></table>`;
     }
-    h += stHead(`최근 접속자 (${rec.length}명)`);
-    if(!rec.length) h += '<div class="dm-empty">없음</div>';
-    else h += `<div style="display:flex;flex-direction:column;gap:1px">` + rec.map((u,i)=>{
-      const live = (Date.now() - Date.parse(String(u.at||"").replace(" ","T")+"Z")) < 180000;
-      return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;font-size:12.5px${i%2?"":";background:var(--panel2)"}">`
-        + `<i style="width:6px;height:6px;border-radius:50%;flex:none;background:${live?"#22c55e":"var(--line)"}"></i>`
-        + `<b style="font-weight:700">${esc(u.name||u.email)}</b>`
-        + `<span style="margin-left:auto;color:var(--muted);font-size:11.5px;font-variant-numeric:tabular-nums" title="${esc(u.at||"")} UTC">${esc(relTime(u.at))}</span></div>`;
-    }).join("") + `</div>`;
-    h += `<div style="font-size:11px;color:var(--muted);margin-top:12px;line-height:1.6;padding-top:10px;border-top:1px dashed var(--line)">`
-      + `· 날짜 단위 집계는 <b>2026-11-18부터</b> 쌓입니다. 그 이전은 기존 「마지막 접속일」 1건만 반영되어(소급 불가) 지난 달 수치는 실제보다 작습니다.<br>`
+
+    /* ----- 우: 유저별 ----- */
+    let R = stHead("유저별 접속 기록", `(${(j.people||[]).length}명 · 머리글을 눌러 정렬)`)
+      + `<input id="stQ" placeholder="이름·이메일 검색" value="${esc(PQ)}" style="width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:7px 11px;font-size:12.5px;margin-bottom:8px">`
+      + `<div id="stPeopleWrap" style="max-height:52vh;overflow:auto"></div>`;
+
+    el.innerHTML = `<div style="display:grid;grid-template-columns:minmax(330px,0.78fr) 1fr;gap:20px;align-items:start">`
+      + `<div>${L}</div><div>${R}</div></div>`
+      + `<div style="font-size:11px;color:var(--muted);margin-top:14px;line-height:1.6;padding-top:10px;border-top:1px dashed var(--line)">`
+      + `· 날짜 단위 집계는 <b>2026-11-18부터</b> 쌓입니다. 그 이전은 기존 「마지막 접속일」 1건만 반영되어(소급 불가) 지난 달과 「총 일수」는 실제보다 작습니다.<br>`
       + `· 「접속 일수」는 \u2018사람 x 날\u2019 의 합입니다. 합계의 접속자는 전체 기간 고유 인원이라 월별 합과 다릅니다.</div>`;
-    el.innerHTML = h;
+
+    const q = el.querySelector("#stQ");
+    if(q) q.addEventListener("input", e=>{ PQ = e.target.value; drawPeople(); });
+    el.addEventListener("click", e=>{
+      const th = e.target.closest("[data-sort]"); if(!th) return;
+      PSORT = th.dataset.sort; drawPeople();
+    });
+    drawPeople();
   }
-  async function copyStats(){
+  function drawPeople(){
+    const wrap = document.getElementById("stPeopleWrap"); if(!wrap || !STATS) return;
+    const all = STATS.people || [];
+    const q = PQ.trim().toLowerCase();
+    let us = all.filter(u => !q || (u.name||"").toLowerCase().includes(q) || (u.email||"").toLowerCase().includes(q));
+    const ts = u => Date.parse(String(u.at||"").replace(" ","T")+"Z") || 0;
+    if(PSORT==="name")      us = us.slice().sort((a,b)=> (a.name||a.email).localeCompare(b.name||b.email, "ko"));
+    else if(PSORT==="cur")  us = us.slice().sort((a,b)=> (b.cur-a.cur) || (b.days-a.days));
+    else if(PSORT==="at")   us = us.slice().sort((a,b)=> ts(b)-ts(a));
+    else                    us = us.slice().sort((a,b)=> (b.days-a.days) || ts(b)-ts(a));
+    if(!us.length){ wrap.innerHTML = '<div class="dm-empty">없음</div>'; return; }
+    const mx = Math.max(1, ...all.map(u=>Number(u.days)||0));
+    const arrow = k => PSORT===k ? ' <span style="color:var(--accent)">▾</span>' : "";
+    const th = (k,t,r) => `<th data-sort="${k}" style="${ST_TH};text-align:${r?"right":"left"};cursor:pointer;user-select:none;position:sticky;top:0;background:var(--panel);z-index:1" title="이 기준으로 정렬">${t}${arrow(k)}</th>`;
+    let h = `<table style="width:100%;border-collapse:collapse;font-size:12.5px"><thead><tr>`
+      + th("name","이름",0) + th("days","총 일수",1) + th("cur","이번 달",1) + th("at","마지막 접속",1)
+      + `</tr></thead><tbody>`;
+    us.forEach(u=>{
+      const live = stLive(u.at);
+      h += `<tr><td style="${ST_TD0};padding:5px 0" title="${esc(u.email)}">`
+        + `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;vertical-align:middle;background:${live?"#22c55e":"var(--line)"}"></span>`
+        + `${esc(u.name||u.email)}${stBar(Math.round((Number(u.days)||0)/mx*100))}</td>`
+        + `<td style="${ST_TD};padding:5px 0">${u.days}</td>`
+        + `<td style="${ST_TD};padding:5px 0;color:${u.cur?"var(--text)":"var(--muted)"}">${u.cur||"-"}</td>`
+        + `<td style="${ST_TD};padding:5px 0;color:var(--muted)" title="${esc(u.at||"")} UTC">${esc(relTime(u.at))||esc(u.lastd||"")}</td></tr>`;
+    });
+    h += `</tbody></table>`;
+    wrap.innerHTML = h;
+  }
+  async function copyStats(which, btn){
     if(!STATS) return;
-    const b = document.getElementById("statsCopy"); const old = b ? b.textContent : "";
-    const rows = [["월","접속자(명)","접속 일수"]]
-      .concat((STATS.months||[]).map(m=>[m.ym, m.users, m.days]))
-      .concat([["총 누적(고유)", (STATS.total||{}).users||0, (STATS.total||{}).days||0]]);
+    const old = btn ? btn.textContent : "";
+    let rows;
+    if(which==="people"){
+      rows = [["이름","이메일","총 접속 일수","이번 달","첫 접속","마지막 접속(UTC)"]]
+        .concat((STATS.people||[]).map(u=>[u.name||"", u.email, u.days, u.cur, u.first||"", u.at||""]));
+    }else{
+      rows = [["월","접속자(명)","접속 일수"]]
+        .concat((STATS.months||[]).map(m=>[m.ym, m.users, m.days]))
+        .concat([["총 누적(고유)", (STATS.total||{}).users||0, (STATS.total||{}).days||0]]);
+    }
     const tsv = rows.map(r=>r.join("\t")).join("\n");
-    try{ await navigator.clipboard.writeText(tsv); if(b){ b.textContent="복사됨 ✓"; setTimeout(()=>{ b.textContent=old; }, 1400); } }
-    catch(_){ if(b){ b.textContent="복사 실패"; setTimeout(()=>{ b.textContent=old; }, 1400); } }
+    try{ await navigator.clipboard.writeText(tsv); if(btn){ btn.textContent="복사됨 ✓"; setTimeout(()=>{ btn.textContent=old; }, 1400); } }
+    catch(_){ if(btn){ btn.textContent="복사 실패"; setTimeout(()=>{ btn.textContent=old; }, 1400); } }
   }
 
   function ensureAccessModal(){

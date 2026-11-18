@@ -15,7 +15,7 @@ const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 �
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026111801;
+const APP_BUILD = 2026111802;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -670,10 +670,21 @@ async function handleApi(request, env, url, ctx){
     const tot = await env.DB.prepare("SELECT COUNT(DISTINCT email) AS users, COUNT(*) AS days FROM visit_days").first();
     const td  = await env.DB.prepare("SELECT COUNT(*) AS n FROM visit_days WHERE d=?").bind(today).first();
     const rc  = await env.DB.prepare("SELECT email,name,last_seen FROM users WHERE last_seen IS NOT NULL ORDER BY last_seen DESC LIMIT 60").all();
+    /* 유저별 집계(2026-11-18 추가 요청 "유저별 접속 기록 통계도 필요한거야").
+       visit_days 가 사람·하루 1건이라 COUNT(*) 가 곧 '접속한 날 수'다.
+       last_seen 은 users 쪽(시각까지) — visit_days 의 MAX(d) 는 날짜뿐이라 '방금' 표시가 안 된다. */
+    const pp  = await env.DB.prepare(
+      "SELECT v.email AS email, u.name AS name, COUNT(*) AS days," +
+      " SUM(CASE WHEN substr(v.d,1,7)=?1 THEN 1 ELSE 0 END) AS cur," +
+      " MIN(v.d) AS first, MAX(v.d) AS lastd, u.last_seen AS at, u.role AS role" +
+      " FROM visit_days v LEFT JOIN users u ON u.email=v.email" +
+      " GROUP BY v.email, u.name, u.last_seen, u.role ORDER BY days DESC, v.email LIMIT 400").bind(ym).all();
     return json({ ok:true, ym, today,
       todayCount: (td && td.n) || 0,
       total: { users: (tot && tot.users) || 0, days: (tot && tot.days) || 0 },
       months: (mr.results || []).map(m=>({ ym:m.ym, users:m.users, days:m.days })),
+      people: (pp.results || []).map(u=>({ email:u.email, name:u.name||"", days:u.days, cur:u.cur,
+                                           first:u.first, lastd:u.lastd, at:u.at||"", role:u.role||"viewer" })),
       recent: (rc.results || []).map(u=>({ email:u.email, name:u.name||"", at:u.last_seen })) });
   }
   if(p === "/api/grant" && request.method === "POST"){
