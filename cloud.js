@@ -318,7 +318,7 @@
     document.body.classList.toggle("noassign", !isManagerRole());
     if(!canEdit()){ document.body.classList.add("readonly"); injectReadonlyStyle(); injectRequestButton(); }
     /* 부관리자 이상: 권한 관리 · 히스토리 열람 */
-    if(isAdminRole()) injectAccessButton();
+    if(isAdminRole()){ injectAccessButton(); injectStatsButton(); }
     else { const hb=document.getElementById("historyBtn"); if(hb) hb.style.display="none"; }
     /* 마스터 전용: 트렐로 관리 · 강제 새로고침 (서버도 같이 막는다 — 숨김만으로는 의미가 없다) */
     const fr=document.getElementById("forceReloadBtn"); if(fr) fr.style.display = isMasterRole() ? "" : "none";
@@ -352,6 +352,97 @@
     const b = document.createElement("button"); b.id="accessBtn"; b.className="btn ghost sm"; b.style.marginLeft="6px"; b.textContent="👥 권한 관리";
     b.onclick = openAccess; placeBtn(b);
   }
+  function injectStatsButton(){
+    if(document.getElementById("statsBtn")) return;
+    const b = document.createElement("button"); b.id="statsBtn"; b.className="btn ghost sm"; b.style.marginLeft="6px"; b.textContent="📈 접속 통계";
+    b.title = "월별 · 총 누적 접속자 (관리자 전용)";
+    b.onclick = openStats; placeBtn(b);
+  }
+
+  /* ===== 접속 통계 (2026-11-18, build 2026111801) ==============================
+     [stated] "최근 접속자 수를 통계 내도록해줘. 월별 누적 총 누적 / 관리자만 볼 수 있어"
+     [stated] 열람 범위는 **부관리자 이상**, 명단은 **실명 + 마지막 접속** (2026-11-18 선택)
+     서버는 /api/visits. 집계 원부는 visit_days(email, KST 날짜) — 사람·하루 1건.
+     ⚠ 과거는 소급되지 않는다. 표를 처음 만들 때 users.last_seen 으로 1인 1건만 씨딩된다.
+     비용: 쓰기는 사람당 하루 1건, app_state(JSON) 와 무관 → 폴링 전송량 0 증가. */
+  const ST_TD  = "padding:7px 0;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums";
+  const ST_TD0 = "padding:7px 0;border-bottom:1px solid var(--line);text-align:left;font-weight:700";
+  function stHead(t){ return `<div style="font-size:12px;font-weight:800;color:var(--muted);margin:14px 0 7px">${t}</div>`; }
+  function ensureStatsModal(){
+    let m = document.getElementById("statsModal"); if(m) return m;
+    m = document.createElement("div"); m.id="statsModal"; m.className="modal-bg";
+    m.innerHTML = `<div class="modal" style="width:560px"><h3>접속 통계 📈</h3>
+      <div class="msub">관리자 전용입니다. 사람 단위로 <b>하루 1회</b>만 집계합니다 — 같은 날 여러 번 들어와도 1입니다.</div>
+      <div id="statsBody" style="max-height:62vh;overflow:auto">불러오는 중…</div>
+      <div class="modal-actions"><span style="font-size:11px;color:var(--muted)">한국 시간(KST) 날짜 기준</span>
+        <div class="right"><button class="btn ghost" id="statsCopy">표 복사</button><button class="btn" id="statsClose">닫기</button></div></div></div>`;
+    document.body.appendChild(m);
+    m.addEventListener("click", e=>{ if(e.target===m) m.classList.remove("show"); });
+    m.querySelector("#statsClose").onclick = () => m.classList.remove("show");
+    m.querySelector("#statsCopy").onclick = copyStats;
+    return m;
+  }
+  function openStats(){ ensureStatsModal().classList.add("show"); renderStats(); }
+  let STATS = null;
+  async function renderStats(){
+    const el = document.getElementById("statsBody"); if(!el) return;
+    el.innerHTML = "불러오는 중…";
+    let j;
+    try{
+      const r = await fetch("/api/visits", { credentials:"same-origin" });
+      if(!r.ok){ el.innerHTML = '<div class="dm-empty">권한이 없습니다.</div>'; return; }
+      j = await r.json();
+    }catch(_){ el.innerHTML = '<div class="dm-empty">불러오기 실패</div>'; return; }
+    STATS = j;
+    const ms = j.months || [], tot = j.total || { users:0, days:0 }, rec = j.recent || [];
+    const cur = ms.find(m=>m.ym===j.ym) || { users:0, days:0 };
+    const mx = Math.max(1, ...ms.map(m=>Number(m.users)||0));
+    const tile = (k,v,u) => `<div style="background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:10px 12px">
+      <div style="font-size:11px;color:var(--muted);font-weight:700">${k}</div>
+      <div style="font-size:22px;font-weight:800;margin-top:3px;letter-spacing:-.5px">${v}<small style="font-size:12px;font-weight:600;color:var(--muted);margin-left:2px">${u}</small></div></div>`;
+    let h = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+      ${tile("총 누적 접속자", tot.users||0, "명")}
+      ${tile(`이번 달 (${Number(String(j.ym||"").slice(5,7))||"?"}월)`, cur.users||0, "명")}
+      ${tile("오늘", j.todayCount||0, "명")}</div>`;
+    h += stHead("월별 누적");
+    if(!ms.length) h += '<div class="dm-empty">아직 집계된 날이 없습니다.</div>';
+    else{
+      const th = (t,r) => `<th style="text-align:${r?"right":"left"};font-size:11px;color:var(--muted);font-weight:700;padding:0 0 6px;border-bottom:1px solid var(--line)">${t}</th>`;
+      h += `<table style="width:100%;border-collapse:collapse;font-size:12.5px"><thead><tr>${th("월",0)}${th("접속자",1)}${th("접속 일수",1)}${th("1인 평균",1)}</tr></thead><tbody>`;
+      ms.forEach(m=>{
+        const w = Math.round((Number(m.users)||0)/mx*100);
+        const avg = ((Number(m.days)||0)/(Number(m.users)||1)).toFixed(1);
+        h += `<tr><td style="${ST_TD0}">${esc(m.ym)}<div style="height:6px;background:var(--panel2);border-radius:4px;overflow:hidden;margin-top:4px"><i style="display:block;height:100%;width:${w}%;background:var(--accent);border-radius:4px"></i></div></td>`
+           + `<td style="${ST_TD}">${m.users}</td><td style="${ST_TD}">${m.days}</td><td style="${ST_TD};color:var(--muted)">${avg}일</td></tr>`;
+      });
+      h += `<tr><td style="${ST_TD0};color:var(--muted)">합계 <span style="font-weight:400;font-size:11px">(중복 제거)</span></td>`
+         + `<td style="${ST_TD}"><b>${tot.users}</b></td><td style="${ST_TD}"><b>${tot.days}</b></td><td style="${ST_TD};color:var(--muted)">—</td></tr></tbody></table>`;
+    }
+    h += stHead(`최근 접속자 (${rec.length}명)`);
+    if(!rec.length) h += '<div class="dm-empty">없음</div>';
+    else h += `<div style="display:flex;flex-direction:column;gap:1px">` + rec.map((u,i)=>{
+      const live = (Date.now() - Date.parse(String(u.at||"").replace(" ","T")+"Z")) < 180000;
+      return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;font-size:12.5px${i%2?"":";background:var(--panel2)"}">`
+        + `<i style="width:6px;height:6px;border-radius:50%;flex:none;background:${live?"#22c55e":"var(--line)"}"></i>`
+        + `<b style="font-weight:700">${esc(u.name||u.email)}</b>`
+        + `<span style="margin-left:auto;color:var(--muted);font-size:11.5px;font-variant-numeric:tabular-nums" title="${esc(u.at||"")} UTC">${esc(relTime(u.at))}</span></div>`;
+    }).join("") + `</div>`;
+    h += `<div style="font-size:11px;color:var(--muted);margin-top:12px;line-height:1.6;padding-top:10px;border-top:1px dashed var(--line)">`
+      + `· 날짜 단위 집계는 <b>2026-11-18부터</b> 쌓입니다. 그 이전은 기존 「마지막 접속일」 1건만 반영되어(소급 불가) 지난 달 수치는 실제보다 작습니다.<br>`
+      + `· 「접속 일수」는 \u2018사람 x 날\u2019 의 합입니다. 합계의 접속자는 전체 기간 고유 인원이라 월별 합과 다릅니다.</div>`;
+    el.innerHTML = h;
+  }
+  async function copyStats(){
+    if(!STATS) return;
+    const b = document.getElementById("statsCopy"); const old = b ? b.textContent : "";
+    const rows = [["월","접속자(명)","접속 일수"]]
+      .concat((STATS.months||[]).map(m=>[m.ym, m.users, m.days]))
+      .concat([["총 누적(고유)", (STATS.total||{}).users||0, (STATS.total||{}).days||0]]);
+    const tsv = rows.map(r=>r.join("\t")).join("\n");
+    try{ await navigator.clipboard.writeText(tsv); if(b){ b.textContent="복사됨 ✓"; setTimeout(()=>{ b.textContent=old; }, 1400); } }
+    catch(_){ if(b){ b.textContent="복사 실패"; setTimeout(()=>{ b.textContent=old; }, 1400); } }
+  }
+
   function ensureAccessModal(){
     let m = document.getElementById("accessModal"); if(m) return m;
     m = document.createElement("div"); m.id="accessModal"; m.className="modal-bg";

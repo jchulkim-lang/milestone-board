@@ -15,7 +15,7 @@ const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 �
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026111703;
+const APP_BUILD = 2026111801;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -37,6 +37,10 @@ async function ensureDb(env){
   try{ await env.DB.prepare("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'viewer'").run(); }catch(_){}
   try{ await env.DB.prepare("ALTER TABLE users ADD COLUMN requested INTEGER DEFAULT 0").run(); }catch(_){}
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS history (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT NOT NULL, version INTEGER, saved_by TEXT, saved_at TEXT)").run();
+  /* 접속 집계(2026-11-18) — 사람·날짜 1건. users.last_seen 은 덮어쓰기라 과거 이력이 남지 않아
+     별도 표가 필요했다. 표를 처음 만들 때 last_seen 으로 1인 1건만 씨딩한다(소급 불가). */
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS visit_days (email TEXT NOT NULL, d TEXT NOT NULL, PRIMARY KEY (email, d))").run();
+  try{ await env.DB.prepare("INSERT OR IGNORE INTO visit_days (email,d) SELECT email, date(last_seen,'+9 hours') FROM users WHERE last_seen IS NOT NULL").run(); }catch(_){}
   DB_READY = true;
 }
 /* 표/열이 없어서 실패한 경우에만 ensureDb 후 1회 재시도 */
@@ -48,6 +52,20 @@ async function withDb(env, fn){
     DB_READY=false; await ensureDb(env); return await fn();
   }
 }
+/* ===== 접속 집계 (2026-11-18) ==========================================
+ * [stated] "최근 접속자 수를 통계 내도록해줘. 월별 누적 총 누적 / 관리자만 볼 수 있어"
+ * 날짜는 **한국 시간(KST)** 으로 묶는다 — 오전 8시 출근은 UTC 로는 전날이다.
+ * 쓰기 비용: 사람당 **하루 1건**. 하트비트(약 1분)마다 날짜만 비교하고(읽기 1건) 날이
+ * 바뀐 첫 번째에만 쓴다. app_state(JSON)와 무관한 표라 폴링 전송량은 0 증가. */
+function kstDay(ms){ return new Date((ms||Date.now()) + 9*3600*1000).toISOString().slice(0,10); }
+async function markVisit(env, email, name){
+  const today = kstDay();
+  const prev = await env.DB.prepare("SELECT date(last_seen,'+9 hours') AS d FROM users WHERE email=?").bind(email).first();
+  await env.DB.prepare("INSERT INTO users (email,name,last_seen) VALUES (?,?,datetime('now')) ON CONFLICT(email) DO UPDATE SET last_seen=datetime('now'), name=excluded.name").bind(email, name||"").run();
+  if(prev && prev.d === today) return;                 // 오늘 이미 기록됨 → 쓰기 0건
+  await env.DB.prepare("INSERT OR IGNORE INTO visit_days (email,d) VALUES (?,?)").bind(email, today).run();
+}
+
 /* ===== 권한 5단계 (2026-10-30) =========================================
  *   master   마스터 관리자 — ADMIN_EMAILS 환경변수. **1명**. 부관리자 임명/해임, 되돌리기,
  *                            트렐로 관리, 강제 새로고침은 여기만.
@@ -607,6 +625,7 @@ async function handleApi(request, env, url, ctx){
         if(isMasterEmail(env, user.email)) await env.DB.prepare("INSERT INTO users (email,name,last_seen,role) VALUES (?,?,datetime('now'),'admin') ON CONFLICT(email) DO UPDATE SET name=excluded.name, last_seen=datetime('now'), role='admin'").bind(user.email, user.name||"").run();
         else await env.DB.prepare("INSERT INTO users (email,name,last_seen) VALUES (?,?,datetime('now')) ON CONFLICT(email) DO UPDATE SET name=excluded.name, last_seen=datetime('now')").bind(user.email, user.name||"").run();
       }catch(_){}
+      try{ await env.DB.prepare("INSERT OR IGNORE INTO visit_days (email,d) VALUES (?,?)").bind(user.email, kstDay()).run(); }catch(_){}
       const tok = await createSessionToken(user, env);
       return json({ ok:true, user:{ email:user.email, name:user.name } }, 200, { "Set-Cookie": sessionCookie(tok) });
     }catch(e){ return json({ error:"auth failed", detail:String(e && e.message || e) }, 401); }
@@ -640,6 +659,23 @@ async function handleApi(request, env, url, ctx){
       role: isMasterEmail(env, u.email) ? "master" : ((u.role||"viewer")==="master" ? "admin" : (u.role||"viewer")) }));
     return json({ users: list, me, adminEmails: env.ADMIN_EMAILS || "" });
   }
+/* 접속 통계 — **부관리자 이상**(2026-11-18 사용자 선택). 숫자는 visit_days(사람·하루 1건)에서 뽑는다.
+     · 월별 '접속자' = 그 달에 한 번이라도 들어온 **고유 인원**, '접속 일수' = 행 수(인원 x 날)
+     · 합계의 '접속자' 도 전체 기간 **고유 인원**이라 월별 합과 다르다(같은 사람이 여러 달 등장).
+     집계 쿼리 4개뿐이고 열어 볼 때만 돈다 — 무료 읽기 한도(2,500만/일)에 영향 없음. */
+  if(p === "/api/visits" && request.method === "GET"){
+    if(!isAdmin(await effectiveRole(env, user.email))) return json({ error:"forbidden" }, 403);
+    const today = kstDay(), ym = today.slice(0,7);
+    const mr = await env.DB.prepare("SELECT substr(d,1,7) AS ym, COUNT(DISTINCT email) AS users, COUNT(*) AS days FROM visit_days GROUP BY 1 ORDER BY 1 DESC LIMIT 24").all();
+    const tot = await env.DB.prepare("SELECT COUNT(DISTINCT email) AS users, COUNT(*) AS days FROM visit_days").first();
+    const td  = await env.DB.prepare("SELECT COUNT(*) AS n FROM visit_days WHERE d=?").bind(today).first();
+    const rc  = await env.DB.prepare("SELECT email,name,last_seen FROM users WHERE last_seen IS NOT NULL ORDER BY last_seen DESC LIMIT 60").all();
+    return json({ ok:true, ym, today,
+      todayCount: (td && td.n) || 0,
+      total: { users: (tot && tot.users) || 0, days: (tot && tot.days) || 0 },
+      months: (mr.results || []).map(m=>({ ym:m.ym, users:m.users, days:m.days })),
+      recent: (rc.results || []).map(u=>({ email:u.email, name:u.name||"", at:u.last_seen })) });
+  }
   if(p === "/api/grant" && request.method === "POST"){
     const me = await effectiveRole(env, user.email);
     if(!isAdmin(me)) return json({ error:"forbidden" }, 403);
@@ -669,7 +705,10 @@ async function handleApi(request, env, url, ctx){
      *   ?p=1       : 접속자 목록 포함. */
     const q = url.searchParams;
     if(q.get("beat")==="1"){
-      try{ await env.DB.prepare("INSERT INTO users (email,name,last_seen) VALUES (?,?,datetime('now')) ON CONFLICT(email) DO UPDATE SET last_seen=datetime('now'), name=excluded.name").bind(user.email, user.name||"").run(); }catch(_){}
+      /* 표/열이 없는 첫 배포에서는 **일부러 다시 던진다** — withDb 가 ensureDb 후 재시도한다.
+         그 밖의 오류는 삼킨다(하트비트 때문에 보드 폴링이 죽으면 안 된다). */
+      try{ await markVisit(env, user.email, user.name); }
+      catch(e){ if(/no such table|no such column|has no column/i.test(String(e && e.message || e))) throw e; }
     }
     const row = await env.DB.prepare("SELECT data, version, updated_at, updated_by FROM app_state WHERE id='main'").first();
     let presence = undefined;
