@@ -321,6 +321,7 @@
     /* 부관리자 이상: 권한 관리 · 히스토리 열람 */
     if(isAdminRole()){ injectAccessButton(); injectStatsButton(); }
     else { const hb=document.getElementById("historyBtn"); if(hb) hb.style.display="none"; }
+    if(isMasterRole()) injectOrgButton();
     /* 마스터 전용: 트렐로 관리 · 강제 새로고침 (서버도 같이 막는다 — 숨김만으로는 의미가 없다) */
     const fr=document.getElementById("forceReloadBtn"); if(fr) fr.style.display = isMasterRole() ? "" : "none";
     const tb=document.getElementById("trelloBtn");      if(tb) tb.style.display = isMasterRole() ? "" : "none";
@@ -495,6 +496,87 @@
     const tsv = rows.map(r=>r.join("\t")).join("\n");
     try{ await navigator.clipboard.writeText(tsv); if(btn){ btn.textContent="복사됨 ✓"; setTimeout(()=>{ btn.textContent=old; }, 1400); } }
     catch(_){ if(btn){ btn.textContent="복사 실패"; setTimeout(()=>{ btn.textContent=old; }, 1400); } }
+  }
+
+  function injectOrgButton(){
+    if(document.getElementById("orgBtn")) return;
+    const b = document.createElement("button"); b.id="orgBtn"; b.className="btn ghost sm"; b.style.marginLeft="6px";
+    b.textContent="📇 명부 갱신"; b.title="카카오워크에서 회사 명부를 다시 받아 org.json 을 만듭니다 (마스터 전용)";
+    b.onclick = openOrg; placeBtn(b);
+  }
+
+  /* ===== 회사 명부(org.json) 갱신 — 마스터 전용 (2026-11-23, build 2026112312) ================
+     [stated] "회사 명부는 최신화 할려면 어떻게 해야 합니까?" → 자동화 확인 후 제작.
+     서버(/api/org/refresh)가 카카오워크 users.list 를 긁어 **기존 부서 뼈대에 사람을 다시 매달아** 돌려준다.
+     ⚠ 서버는 저장하지 않는다. 여기서 파일로 내려받아 **deploy/org.json 에 덮어쓰고 배포**해야 반영된다.
+     ⚠ 부서 트리(상위/하위)는 공개 API 에 없어서 못 바꾼다. 새 부서가 생기면 경고만 띄운다. */
+  let ORGR=null;
+  function ensureOrgModal(){
+    let m=document.getElementById("orgModal"); if(m) return m;
+    m=document.createElement("div"); m.id="orgModal"; m.className="modal-bg";
+    m.innerHTML = `<div class="modal" style="width:560px"><h3>회사 명부 갱신 📇</h3>
+      <div class="msub">카카오워크에서 <b>사람 목록</b>을 다시 받아 <code>org.json</code> 을 만듭니다.
+        부서 트리(상위·하위)는 공개 API 에 없어 <b>지금 파일의 구조를 그대로</b> 씁니다.</div>
+      <div id="orgBody"></div>
+      <div class="modal-actions"><span style="font-size:11px;color:var(--muted)">마스터 전용 · 서버에 저장하지 않습니다</span>
+        <div class="right"><button class="btn ghost" id="orgRun">카카오워크에서 받기</button>
+        <button class="btn ghost" id="orgDl" style="display:none">⬇ org.json 내려받기</button>
+        <button class="btn" id="orgClose">닫기</button></div></div></div>`;
+    document.body.appendChild(m);
+    m.addEventListener("click", e=>{ if(e.target===m) m.classList.remove("show"); });
+    m.querySelector("#orgClose").onclick=()=>m.classList.remove("show");
+    m.querySelector("#orgRun").onclick=runOrg;
+    m.querySelector("#orgDl").onclick=dlOrg;
+    return m;
+  }
+  function openOrg(){
+    ORGR=null; const m=ensureOrgModal(); m.classList.add("show");
+    document.getElementById("orgDl").style.display="none";
+    document.getElementById("orgBody").innerHTML =
+      `<div class="dm-empty" style="text-align:left;line-height:1.7">
+        「카카오워크에서 받기」를 누르면 전 직원 목록을 받아 새 <b>org.json</b> 을 만듭니다.<br>
+        <span style="opacity:.8">받은 파일을 <b>deploy/org.json</b> 에 덮어쓰고 배포해야 보드에 반영됩니다.</span></div>`;
+  }
+  async function runOrg(){
+    const btn=document.getElementById("orgRun"), body=document.getElementById("orgBody");
+    btn.disabled=true; const old=btn.textContent; btn.textContent="받는 중…";
+    body.innerHTML='<div class="dm-empty">카카오워크에서 받는 중…</div>';
+    let j;
+    try{ const r=await fetch("/api/org/refresh",{ method:"POST", credentials:"same-origin" }); j=await r.json(); }
+    catch(e){ j={ error:"요청 실패: "+String(e&&e.message||e) }; }
+    btn.disabled=false; btn.textContent=old;
+    if(!j || !j.ok){
+      body.innerHTML = `<div class="dm-empty" style="text-align:left;line-height:1.7">
+        <b style="color:#ff9b9b">${esc((j&&j.error)||"실패")}</b>`
+        + `${j&&j.reason==="no-key"?`<br><span style="opacity:.8">Cloudflare 환경변수에 <b>KAKAO_BOT_KEY</b> 를 넣어야 합니다.</span>`:""}`
+        + `${j&&j.reason==="kakao"?`<br><span style="opacity:.8">봇 키에 <b>사용자 목록 조회 권한</b>이 없을 수 있습니다. 카카오워크 봇 설정을 확인해 주세요.</span>`:""}`
+        + `</div>`;
+      return;
+    }
+    ORGR=j;
+    const st=j.stat||{}, li=(t,arr,color)=>!arr||!arr.length?"":
+      `<div style="margin-top:8px"><b style="font-size:11.5px;color:${color||"var(--muted)"}">${t} ${arr.length}명</b>`
+      + `<div style="font-size:11.5px;color:var(--muted);line-height:1.7;margin-top:2px">${arr.slice(0,40).map(esc).join(" · ")}${arr.length>40?" …":""}</div></div>`;
+    body.innerHTML =
+      `<div class="ms-item" style="cursor:default"><span class="ms-name">받은 인원</span>`
+      + `<span class="ms-range">${st.users}명 (이전 ${st.before}명) · 부서 ${st.depts}개</span></div>`
+      + `${st.prevAt?`<div style="font-size:11px;color:var(--muted);margin-top:4px">이전 파일 기준일 ${esc(String(st.prevAt).slice(0,10))}</div>`:""}`
+      + li("신규", st.added, "#6ee7b7") + li("빠짐", st.gone, "#ff9b9b") + li("부서 이동", st.moved)
+      + (st.newDepts && st.newDepts.length
+          ? `<div style="margin-top:10px;padding:9px 11px;border:1px solid rgba(245,158,11,.45);background:rgba(245,158,11,.1);border-radius:9px;font-size:11.5px;line-height:1.7">`
+            + `<b style="color:#fbbf24">⚠ 뼈대에 없는 부서 ${st.newDepts.length}개</b> — ${st.newDepts.map(esc).join(" · ")}<br>`
+            + `<span style="opacity:.85">사람이 사라지지 않도록 최상위 밑에 임시로 달아 두었습니다. 조직 개편이 있었다면 AirWork 관리자에서 조직도를 다시 받아 트리를 갱신해 주세요.</span></div>`
+          : "")
+      + `<div style="font-size:11px;color:var(--muted);margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);line-height:1.7">`
+      + `받은 파일을 <b>deploy/org.json</b> 에 덮어쓰고 배포해야 반영됩니다. 서버에는 저장하지 않았습니다.</div>`;
+    document.getElementById("orgDl").style.display="";
+  }
+  function dlOrg(){
+    if(!ORGR || !ORGR.json) return;
+    const blob=new Blob([JSON.stringify(ORGR.json)], { type:"application/json" });
+    const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="org.json";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
   }
 
   function ensureAccessModal(){

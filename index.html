@@ -8902,7 +8902,10 @@ function setGanttOff(v){
   /* 다시 펼칠 때 간트가 0 폭으로 그려져 있던 흔적을 지운다 — 헤드/본문 폭과 가로 스크롤 재계산 */
   if(!ganttOff) requestAnimationFrame(()=>{ renderHead(); renderBody(); });
 }
-try{ ganttOff = localStorage.getItem("ms_ganttoff")==="1"; }catch(_){}
+/* 첫 방문자는 **타임라인이 접힌 채로** 시작한다 (2026-11-23, build 2026112313 · 사용자 지시).
+   담당자 매트릭스가 816px 이라 간트까지 같이 펼치면 Task 이름 칸이 눌린다 → 첫 화면은 매트릭스 전체 폭.
+   ⚠ 키가 **없을 때만** 접는다. 한 번이라도 구분선을 더블클릭해 본 사람은 그 선택(0/1)이 그대로 유지된다. */
+try{ const _g0=localStorage.getItem("ms_ganttoff"); ganttOff = (_g0===null) ? true : (_g0==="1"); }catch(_){ ganttOff=true; }
 applyGanttOff();
 divider.addEventListener("dblclick", e=>{ e.preventDefault(); setGanttOff(!ganttOff); });
 divider.addEventListener("pointerdown", e=>{ if(ganttOff) return;   // 접힌 동안은 드래그 금지(더블클릭으로만 복귀)

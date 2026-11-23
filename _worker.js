@@ -15,7 +15,7 @@ const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 �
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026112311;
+const APP_BUILD = 2026112313;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -813,6 +813,91 @@ async function handleApi(request, env, url, ctx){
                             .map(i => ({ b:i.b, card:i.card, cn:i.cn, u:i.u, n:i.n, due:i.due }));
     return json({ ok:true, who:target, name:nm, trelloId:tid, at:scan.at,
                   boards:scan.boards, cards, items, mine: target===user.email });
+  }
+  /* ===== 회사 명부(org.json) 자동 갱신 — 마스터 전용 (2026-11-23, build 2026112312) =========
+     [stated] "회사 명부는 최신화 할려면 어떻게 해야 합니까?" → 자동화 확인 후 제작.
+     ⚠ 카카오워크 **공개 Web API 에는 부서 목록 엔드포인트가 없다**(users.list 만 있다).
+       그래서 **부서 트리는 기존 org.json 의 뼈대를 그대로 쓰고**, users.list 로 받은 사람을
+       `department`(부서 **이름 문자열**)로 다시 매단다. 실측 근거: 부서명 103개 전부 유일,
+       사용자 207명의 dept 가 전원 부서명과 정확히 일치.
+     ⚠ 뼈대에 없는 부서명이 나오면 **조직 개편 신호**다. 사람이 사라지면 안 되니 루트 밑에
+       임시 노드로 달아 주고, 응답에 그 이름들을 담아 "AirWork 에서 트리를 다시 받으라"고 알린다.
+     ⚠ 서버에 저장하지 않는다. 만든 JSON 을 그대로 돌려주면 브라우저가 파일로 내려받고,
+       사람이 deploy/org.json 에 덮어쓰고 배포한다 → 평소 비용 0, 명부는 계속 CDN 정적 파일. */
+  if(p === "/api/org/refresh" && request.method === "POST"){
+    if(!isMaster(await effectiveRole(env, user.email))) return json({ error:"마스터만 쓸 수 있습니다.", reason:"master-only" }, 403);
+    const key = env.KAKAO_BOT_KEY;
+    if(!key) return json({ error:"KAKAO_BOT_KEY 가 설정돼 있지 않습니다.", reason:"no-key" }, 400);
+
+    /* 1) users.list — limit 최대 100 + cursor.
+          ⚠ 2번째 호출부터는 **cursor 만** 보내야 한다. 다른 파라미터를 같이 보내면 실패한다. */
+    const raw=[]; let cursor="", page=0;
+    while(page++ < 30){
+      const u = cursor ? "https://api.kakaowork.com/v1/users.list?cursor=" + encodeURIComponent(cursor)
+                       : "https://api.kakaowork.com/v1/users.list?limit=100";
+      let r, j;
+      try{ r = await fetch(u, { headers:{ Authorization:"Bearer " + key } }); j = await r.json(); }
+      catch(e){ return json({ error:"카카오워크 호출 실패: " + String(e && e.message || e), reason:"fetch" }, 502); }
+      if(!r.ok || !j || j.success === false){
+        const er = (j && j.error) || {};
+        return json({ reason:"kakao", status:r.status, code:er.code||"", detail:er.message||"",
+          error:`카카오워크가 거절했습니다 — HTTP ${r.status}${er.code?" · "+er.code:""}${er.message?" · "+er.message:""}` }, 502);
+      }
+      (j.users||[]).forEach(x=>raw.push(x));
+      cursor = j.cursor || "";
+      if(!cursor) break;
+    }
+
+    /* 2) 기존 org.json(뼈대) 읽기 — 정적 파일이므로 ASSETS 로 */
+    let prev=null;
+    try{ const pr = await env.ASSETS.fetch(new Request(new URL("/org.json", url).toString()));
+         if(pr.ok) prev = await pr.json(); }catch(_){}
+    if(!prev || !Array.isArray(prev.depts) || !prev.depts.length)
+      return json({ error:"기존 deploy/org.json 을 읽지 못했습니다. 부서 트리를 가져올 뼈대가 없습니다.", reason:"no-skeleton" }, 500);
+
+    /* 3) 사람 정리 — 재직자만, 이메일은 identifications 에서 */
+    const emailOf = x => {
+      const ids = Array.isArray(x && x.identifications) ? x.identifications : [];
+      const hit = ids.find(i => i && (i.type === "email") && i.value);
+      return (hit && String(hit.value)) || "";
+    };
+    const users = raw
+      .filter(x => x && x.id && String(x.status||"activated") !== "deactivated")
+      .map(x => ({ id:String(x.id), name:String(x.name||""), email:emailOf(x),
+                   dept:String(x.department||""), position:String(x.position||""),
+                   resp:String(x.responsibility||""), avatar:String(x.avatar_url||"") }));
+
+    /* 4) 부서 이름으로 다시 매단다 */
+    const depts = prev.depts.map(d => Object.assign({}, d, { members:[] }));
+    const byName = {}; depts.forEach(d => { byName[String(d.name||"").trim()] = d; });
+    const rootId = (depts.find(d => !d.parentId) || depts[0]).id;
+    const newDepts = [];
+    users.forEach(u => {
+      let d = byName[u.dept.trim()];
+      if(!d){
+        d = { id:"new-" + (newDepts.length+1), parentId:rootId, name:u.dept || "(소속 없음)",
+              order:900 + newDepts.length, members:[], leaders:[], isNew:true };
+        byName[u.dept.trim()] = d; depts.push(d); newDepts.push(d.name);
+      }
+      d.members.push(u.id);
+    });
+    const live = new Set(users.map(u=>u.id));
+    depts.forEach(d => { d.leaders = (d.leaders||[]).filter(x => live.has(String(x))); });
+
+    /* 5) 바뀐 것 요약 */
+    const before = {}; (prev.users||[]).forEach(u => { if(u && u.id) before[String(u.id)] = u; });
+    const added = users.filter(u => !before[u.id]).map(u => u.name + (u.dept?" ("+u.dept+")":""));
+    const gone  = Object.keys(before).filter(id => !live.has(id)).map(id => (before[id].name||id));
+    const moved = users.filter(u => before[u.id] && String(before[u.id].dept||"") !== u.dept)
+                       .map(u => `${u.name}: ${before[u.id].dept||"?"} → ${u.dept}`);
+
+    const out = { source:"kakaowork", at:new Date().toISOString(),
+                  depts: depts.map(d=>({ id:d.id, parentId:d.parentId||"", name:d.name,
+                                         order:d.order||0, members:d.members, leaders:d.leaders||[] })),
+                  users };
+    return json({ ok:true, json: out,
+      stat:{ users: users.length, before: (prev.users||[]).length, depts: out.depts.length,
+             added, gone, moved, newDepts, prevAt: prev.at || "" } });
   }
   if(p === "/api/grant" && request.method === "POST"){
     const me = await effectiveRole(env, user.email);
