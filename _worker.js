@@ -15,7 +15,7 @@ const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 �
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026112304;
+const APP_BUILD = 2026112305;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -90,13 +90,14 @@ async function mineScanBoards(env, force){
           trelloFetch(env, `/boards/${b.id}/members?fields=fullName,username`).catch(()=>[]),
         ]);
       }catch(e){ out.boards.push({ key:b.key, name:b.name, error:String(e && e.message || e) }); continue; }
-      const lname={}; (lists||[]).forEach(l=>{ if(l && l.id) lname[l.id]=l.name||""; });
+      const lname={}, lpos={};
+      (lists||[]).forEach((l,i)=>{ if(l && l.id){ lname[l.id]=l.name||""; lpos[l.id]=i; } });
       (mems||[]).forEach(m=>{ if(m && m.id) out.members.push({ id:m.id, name:m.fullName||m.username||"", user:m.username||"" }); });
       const mine=[];
       (cards||[]).forEach(c=>{
         if(!c || !c.id) return;
         const ln=lname[c.idList]||"";
-        mine.push({ id:c.id, b:b.key, n:c.name||"", l:ln, m:c.idMembers||[],
+        mine.push({ id:c.id, b:b.key, n:c.name||"", l:ln, o:(lpos[c.idList]!==undefined?lpos[c.idList]:999), m:c.idMembers||[],
                     due:c.due?String(c.due).slice(0,10):"", u:c.shortUrl||"",
                     done: !!c.dueComplete || mineDone(env, ln) });
       });
@@ -804,7 +805,7 @@ async function handleApi(request, env, url, ctx){
     if(!tid) return json({ ok:true, needLink:true, who:target, name:nm, mine: target===user.email });
     const scan  = await mineScanBoards(env, url.searchParams.get("fresh")==="1");
     const cards = scan.cards.filter(c => (c.m||[]).indexOf(tid) >= 0)
-                            .map(c => ({ id:c.id, b:c.b, n:c.n, l:c.l, due:c.due, u:c.u, done:c.done }));
+                            .map(c => ({ id:c.id, b:c.b, n:c.n, l:c.l, o:c.o, due:c.due, u:c.u, done:c.done }));
     const items = scan.items.filter(i => i.m === tid)
                             .map(i => ({ b:i.b, card:i.card, cn:i.cn, u:i.u, n:i.n, due:i.due }));
     return json({ ok:true, who:target, name:nm, trelloId:tid, at:scan.at,

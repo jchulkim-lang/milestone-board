@@ -1344,6 +1344,18 @@
      align-items:center;justify-content:center;font-size:11px;font-weight:800;flex:0 0 auto;}
   .mi-pick .pn{font-weight:700;font-size:12.5px;}
   .mi-pick .un{font-size:11px;color:var(--muted);}
+  /* 보드 구분 + 리스트 묶음 (2026-11-23, build 2026112305) */
+  .mi-board{display:flex;align-items:center;gap:8px;margin:16px 0 8px;padding-bottom:6px;border-bottom:2px solid var(--line);}
+  .mi-board .bt{font-size:12px;font-weight:800;border-radius:6px;padding:2px 9px;color:#fff;}
+  .mi-board .bt.dev{background:#3b82f6;} .mi-board .bt.qa{background:#14b8a6;}
+  .mi-board .sub{font-size:11px;color:var(--muted);font-weight:700;}
+  .mi-grp{display:flex;align-items:center;gap:7px;margin:10px 0 5px;font-size:11.5px;font-weight:800;
+     color:var(--text);cursor:pointer;user-select:none;}
+  .mi-grp i{width:8px;height:8px;border-radius:50%;flex:0 0 auto;background:var(--line);}
+  .mi-grp em{font-style:normal;font-weight:700;color:var(--muted);opacity:.85;}
+  .mi-grp .ar{margin-left:auto;color:var(--muted);opacity:.7;font-weight:700;}
+  .mi-grp .od{color:#ff9b9b;font-weight:800;}
+  body.light .mi-grp .od{color:#c0392b;}
   .mi-note{font-size:11px;color:var(--muted);line-height:1.6;margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);}
   /* ⚠ 라이트에서 앰버·연빨강은 흰 카드 위에서 안 읽힌다 — theme_palette 의 전례. 짝을 꼭 둔다. */
   body.light .mi-due.od{color:#c0392b;}
@@ -7155,7 +7167,7 @@ function ufApplyScan(o, who){
    · **읽기 전용.** 트렐로도 보드 state 도 건드리지 않는다.
    · 트렐로 계정 연결은 users.trello_id 1칸. 이름으로 추천 → 본인이 1회 확인(2026-11-23 선택).
    · 매니저 이상은 상단에서 사람을 바꿔 남의 일감도 볼 수 있다(서버도 같은 기준으로 막는다). */
-let MINE=null, mineWho="", mineBusyF=false, mineFold={ later:true, nodue:true, done:true }, minePeople=null;
+let MINE=null, mineWho="", mineBusyF=false, mineFold={}, minePeople=null, mineDoneOn=false;
 const mineCanUse = () => !!(window.APP_USER && window.APP_USER.email);
 const mineIsManager = () => ["manager","admin","master"].includes(window.APP_ROLE||"");
 function mineAddDays(d,n){ const t=new Date(d+"T00:00:00"); t.setDate(t.getDate()+n); return ymd(t); }
@@ -7246,12 +7258,13 @@ function renderMine(){
   const tile=(k,v,warn)=>`<div class="mi-tile${warn?" warn":""}"><div class="k">${k}</div><div class="v">${v}</div></div>`;
   const chkRow=i=>`<div class="mi-chk" data-murl="${escapeHtml(i.u||"")}"><i></i>체크 항목 <b>${escapeHtml(i.n)}</b>`
     +`${i.due?` <span style="opacity:.8">· ${escapeHtml(mineDueTxt(i.due,today).t)}</span>`:""}</div>`;
-  const cardRow=c=>{
-    const d=mineDueTxt(c.due, today), t=taskByCard[c.id], ms=t?findMs(t.msId):null;
-    return `<div class="mi-card${d.c==="od"?" od":""}${c.done?" dn":""}" data-murl="${escapeHtml(c.u||"")}" title="${escapeHtml(c.n)}">`
+  /* withMs: QA 카드에만 마일스톤 배지를 붙인다 — Dev 는 묶음(리스트)이 곧 마일스톤이라 겹친다. */
+  const cardRow=(c, withMs)=>{
+    const d=mineDueTxt(c.due, today), t=taskByCard[c.id], ms=(withMs && t)?findMs(t.msId):null;
+    return `<div class="mi-card${d.c==="od"?" od":""}${c.done?" dn":""}" data-murl="${escapeHtml(c.u||"")}" title="${escapeHtml(c.n)}${c.l?" · "+c.l:""}">`
       +`<span class="mi-bd ${c.b}">${c.b==="qa"?"QA":"Dev"}</span>`
       +`<span class="mi-nm">${escapeHtml(c.n)}</span>`
-      +`${c.l?`<span class="mi-st">${escapeHtml(c.l)}</span>`:""}`
+      +`${c.done?`<span class="mi-st">완료</span>`:""}`
       +`${ms?`<span class="mi-msb" style="background:${ms.color||"#6366f1"}">${escapeHtml(msBadgeShort(ms.name))}</span>`:""}`
       +`<span class="mi-due ${d.c}">${escapeHtml(d.t)}</span></div>`
       + ((inCard[c.id]||[]).map(chkRow).join(""));
@@ -7268,25 +7281,77 @@ function renderMine(){
      + `<span class="who">${mineIsManager()?`<button id="mineWhoBtn">👥 사람 바꾸기</button>`:""}`
      + `트렐로 계정 <b>${escapeHtml(MINE.name||"")}</b>`
      + `${MINE.mine?` <button id="mineRelink">계정 바꾸기</button>`:` <span style="color:var(--accent)">· 다른 사람 보기</span>`}`
-     + `${MINE.at?` · ${escapeHtml(relTimeShort(MINE.at))}`:""}</span></div>`;
+     + `${MINE.at?` · ${escapeHtml(relTimeShort(MINE.at))}`:""}</span></div>`
+     + `<div class="mi-bar" style="margin:-4px 0 6px"><button id="mineDoneBtn" class="${mineDoneOn?"on":""}" `
+     + `style="${mineDoneOn?"color:#fff;background:var(--accent);border-color:var(--accent)":""}">`
+     + `${mineDoneOn?"✓ 완료 포함":"완료 포함"}</button>`
+     + `<span style="opacity:.75">완료 ${done.length}건</span></div>`;
 
   if(!cards.length && !items.length)
     h += `<div class="dm-empty">트렐로 Dev · QA 보드에서 이 계정이 들어가 있는 열린 카드가 없습니다.</div>`;
-  if(od.length)   h += sec("od","⚠","마감 지남",od.length,false)   + od.map(cardRow).join("");
-  if(soon.length) h += sec("soon","📅","오늘 · 이번 주",soon.length,false) + soon.map(cardRow).join("");
-  if(later.length)h += sec("later","🗓","그 뒤",later.length,true)  + body("later",later);
-  if(nod.length)  h += sec("nodue","🗂","마감 없음",nod.length,true) + body("nodue",nod);
+
+  /* ---- 보드 → 리스트 묶음 (2026-11-23 사용자 요청) ----
+     [stated] "Dev, QA 트렐로 구분 / Dev 안에서는 **마일스톤 카드 리스트** 기준 / QA 안에서는 **현재 생성된 카드 리스트** 기준"
+     Dev 의 리스트는 곧 마일스톤이라 마일스톤 순서로, QA 의 리스트는 작업 흐름이라 **보드에 놓인 순서(o)** 로 세운다. */
+  const show = mineDoneOn ? cards : live;
+  const msOrder={}; (state.milestones||[]).filter(m=>m&&!m.free).forEach((m,i)=>{ msOrder[m.id]=i; });
+  const dueRank=c=> !c.due ? 2 : (c.due < today ? 0 : 1);
+  const inGrp=(a,b)=> (dueRank(a)-dueRank(b)) || String(a.due||"9999").localeCompare(String(b.due||"9999")) || String(a.n).localeCompare(String(b.n),"ko");
+  [["dev","Dev"],["qa","QA"]].forEach(([bk,bn])=>{
+    const list=show.filter(c=>c.b===bk);
+    const info=(MINE.boards||[]).find(b=>b.key===bk);
+    if(!list.length && !(info&&info.error)) return;
+    const nOd=list.filter(c=>!c.done && c.due && c.due<today).length;
+    h += `<div class="mi-board"><span class="bt ${bk}">${bn}</span>`
+       + `<span class="sub">내 카드 ${list.length}건${nOd?` · <b style="color:#ff9b9b">마감 지남 ${nOd}</b>`:""}`
+       + `${info&&info.error?` · <b style="color:#ff9b9b">보드 읽기 오류</b>`:""}</span></div>`;
+    /* 리스트별로 모은다 */
+    const grp={};
+    list.forEach(c=>{ const k=c.l||"(리스트 없음)"; (grp[k]=grp[k]||{ name:k, o:c.o, cards:[] }).cards.push(c);
+      if(c.o < grp[k].o) grp[k].o=c.o; });
+    const keys=Object.keys(grp);
+    if(bk==="dev"){
+      keys.forEach(k=>{ grp[k].ms = miMsOfList(k); });
+      keys.sort((a,b)=>{
+        const ma=grp[a].ms, mb=grp[b].ms;
+        if(ma && mb) return (msOrder[ma.id]||0)-(msOrder[mb.id]||0);
+        if(ma) return -1; if(mb) return 1;             // 마일스톤 리스트를 위로, 나머지는 아래
+        return grp[a].o-grp[b].o;
+      });
+    } else keys.sort((a,b)=>grp[a].o-grp[b].o);        // QA 는 보드에 놓인 순서 그대로
+    keys.forEach(k=>{
+      const g=grp[k], id=bk+"|"+k, fold=!!mineFold[id];
+      const gOd=g.cards.filter(c=>!c.done && c.due && c.due<today).length;
+      h += `<div class="mi-grp" data-mfold="${escapeHtml(id)}">`
+         + `<i style="background:${g.ms?(g.ms.color||"#6366f1"):"var(--line)"}"></i>`
+         + `${escapeHtml(g.name)}${g.ms&&miMsKey(g.ms.name)!==miMsKey(g.name)?` <em>${escapeHtml(g.ms.name)}</em>`:""}`
+         + ` <em>${g.cards.length}건</em>${gOd?` <span class="od">⚠ ${gOd}</span>`:""}`
+         + `<span class="ar">${fold?"▸":"▾"}</span></div>`;
+      if(!fold) h += g.cards.slice().sort(inGrp).map(c=>cardRow(c, bk==="qa")).join("");
+    });
+  });
   if(orphan.length) h += sec("orph","☑","내 체크 항목 (내가 안 들어간 카드)",orphan.length,false)
      + orphan.map(i=>`<div class="mi-card" data-murl="${escapeHtml(i.u||"")}"><span class="mi-bd ${i.b}">${i.b==="qa"?"QA":"Dev"}</span>`
         +`<span class="mi-nm">${escapeHtml(i.n)}</span><span class="mi-st">${escapeHtml(i.cn)}</span>`
         +`<span class="mi-due ${mineDueTxt(i.due,today).c}">${escapeHtml(mineDueTxt(i.due,today).t)}</span></div>`).join("");
-  if(done.length) h += sec("done","✅","최근 완료",done.length,true) + body("done",done);
-
-  h += `<div class="mi-note">· 카드를 누르면 트렐로에서 열립니다. 보드 Task 와 연결된 카드에는 마일스톤 배지가 붙습니다.<br>`
+  h += `<div class="mi-note">· <b>Dev</b> 는 트렐로 리스트가 곧 마일스톤이라 마일스톤 순서로, <b>QA</b> 는 보드에 놓인 리스트 순서로 묶습니다.<br>`
+     + `· 카드를 누르면 트렐로에서 열립니다. QA 카드에 보드 Task 가 연결돼 있으면 마일스톤 배지가 붙습니다.<br>`
      + `· 「완료」는 카드가 들어 있는 <b>트렐로 리스트 이름</b>으로 판단합니다(완료·Done·Resolved 등).<br>`
      + `· 체크 항목은 <b>Dev 보드</b>만 읽습니다 — QA 보드는 카드가 많아 응답이 너무 커집니다.</div>`;
   el.innerHTML=h;
   if(ft) ft.textContent = "Dev · QA 보드 기준 · 3분마다 갱신";
+}
+/* Dev 보드는 **리스트 이름 = 마일스톤**이다(트렐로 동기화와 같은 규칙 — _worker.js 의 msIdForList).
+   "M11", "M11 (12/31)", "M11 - 납품" 을 모두 [M11] 로 본다. 못 찾으면 null(= 마일스톤 아닌 리스트). */
+const miMsKey = v => String(v||"").replace(/[\[\]()\s_·-]/g,"").toUpperCase();
+function miMsVariants(v){ const raw=String(v||"");
+  const out=[miMsKey(raw), miMsKey(raw.replace(/\([^)]*\)/g," ")), miMsKey(raw.trim().split(/\s+/)[0]||"")];
+  return out.filter((x,i)=>x && out.indexOf(x)===i); }
+function miMsOfList(listName){
+  const ks=miMsVariants(listName); if(!ks.length) return null;
+  const list=(state.milestones||[]).filter(m=>m && !m.free);
+  for(const k of ks){ const m=list.find(x=>miMsVariants(x.name).includes(k)); if(m) return m; }
+  return null;
 }
 function msBadgeShort(name){ const m=String(name||"").match(/\d+/); return m?("M"+m[0]):String(name||"").slice(0,4); }
 function relTimeShort(iso){
@@ -7339,6 +7404,7 @@ document.getElementById("mineBody").addEventListener("click", async e=>{
     document.getElementById("mineBody").innerHTML="불러오는 중…"; await mineLoad(false); renderMine(); return; }
   if(e.target.closest("#mineWhoBtn")){ mineWhoPick(); return; }
   if(e.target.closest("#mineRelink")){ mineLinkScreen(); return; }
+  if(e.target.closest("#mineDoneBtn")){ mineDoneOn=!mineDoneOn; renderMine(); return; }
   const u=e.target.closest("[data-murl]"); if(u && u.dataset.murl){ window.open(u.dataset.murl, "_blank", "noopener"); return; }
 });
 /* ===== 「⚡ 바로 갱신」 — 로컬 중계기(ufhelper) (2026-11-12, build 2026111207) ==========
