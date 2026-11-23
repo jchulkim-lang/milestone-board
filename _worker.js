@@ -15,7 +15,7 @@ const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 �
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026112309;
+const APP_BUILD = 2026112310;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -735,8 +735,9 @@ async function handleApi(request, env, url, ctx){
      편집 권한이면 누구나. 역할·요청 상태는 안 준다(그건 /api/access, 부관리자 전용). (2026-11-06) */
   if(p === "/api/members" && request.method === "GET"){
     if(!canEdit(await effectiveRole(env, user.email))) return json({ error:"forbidden" }, 403);
-    const { results } = await env.DB.prepare("SELECT email,name FROM users ORDER BY name LIMIT 500").all();
-    return json({ members: (results||[]).map(u=>({ email:u.email, name:u.name||"" })) });
+    const { results } = await env.DB.prepare("SELECT email,name,trello_id FROM users ORDER BY name LIMIT 500").all();
+    /* tl = 트렐로 계정을 연결했는지(불리언만). 「내 일감 · 사람 바꾸기」 목록에서 쓴다 — id 자체는 주지 않는다. */
+    return json({ members: (results||[]).map(u=>({ email:u.email, name:u.name||"", tl: !!(u.trello_id||"") })) });
   }
   if(p === "/api/access" && request.method === "GET"){
     const me = await effectiveRole(env, user.email);

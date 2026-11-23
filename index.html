@@ -7243,6 +7243,7 @@ async function mineLoad(fresh){
 }
 function openMine(){
   if(!mineCanUse()){ flashNote("로그인한 뒤에 쓸 수 있습니다."); return; }
+  mineWho=""; mineBdFold=false; mineLpOpen=false;   // 열 때는 늘 내 일감부터
   closeModals(); mineModal.classList.add("show");
   document.getElementById("mineBody").innerHTML="불러오는 중…";
   mineLoad(false).then(renderMine);
@@ -7278,6 +7279,7 @@ function mineLinkDraw(j, q){
     const n=document.getElementById("mineQ"); if(n){ n.focus(); n.setSelectionRange(v.length,v.length); } });
 }
 async function mineSetLink(tid){
+  mineWho="";                                  // /api/mine/link 는 **본인 것만** 바꾼다 — 보기도 내 것으로 되돌린다
   try{ await fetch("/api/mine/link",{ method:"POST", credentials:"same-origin",
         headers:{"content-type":"application/json"}, body:JSON.stringify({ trelloId:tid }) }); }catch(_){}
   document.getElementById("mineBody").innerHTML="불러오는 중…";
@@ -7288,8 +7290,23 @@ function renderMine(){
   const el=document.getElementById("mineBody"), ft=document.getElementById("mineFoot");
   if(!el) return;
   if(!MINE){ el.innerHTML='<div class="dm-empty">불러오기 실패</div>'; return; }
-  if(MINE.error){ el.innerHTML='<div class="dm-empty">'+escapeHtml(MINE.error)+'</div>'; return; }
-  if(MINE.needLink){ if(ft) ft.textContent=""; mineLinkScreen(); return; }
+  if(MINE.error){
+    el.innerHTML='<div class="dm-empty">'+escapeHtml(MINE.error)+'</div>'
+      + (mineWho?`<div style="text-align:center;margin-top:10px"><button class="btn ghost" id="mineBackBtn">← 내 일감으로</button></div>`:"");
+    return; }
+  if(MINE.needLink){
+    if(ft) ft.textContent="";
+    /* ⚠ 2026-11-23 버그: 남의 일감을 보는 중에 그 사람이 미연결이면 **내 계정 연결 화면**이 떴고,
+       거기서 고르면 내 trello_id 가 바뀌었다. 연결 화면은 **본인일 때만**. */
+    if(MINE.mine===false){
+      el.innerHTML = `<div class="mi-bar"><span>👤 <b>${escapeHtml(MINE.name||MINE.who||"")}</b> 의 일감</span>`
+        + `<span class="who"><button id="mineBackBtn">← 내 일감으로</button></span></div>`
+        + `<div class="dm-empty">이 사람은 아직 트렐로 계정을 연결하지 않았습니다.<br>`
+        + `<span style="font-size:11px;opacity:.8">본인이 「내 일감」을 한 번 열어 계정을 고르면 그때부터 보입니다.</span></div>`;
+      return;
+    }
+    mineLinkScreen(); return;
+  }
 
   const today=ymd(new Date()), wk=mineAddDays(today,7);
   const all=(MINE.cards||[]);
@@ -7354,10 +7371,12 @@ function renderMine(){
   }
 
   const bs=(MINE.boards||[]).map(b=>b.error?`${b.name} <span style="color:#ff9b9b">오류</span>`:`${b.name} ${b.cards}`).join(" · ");
-  h += `<div class="mi-bar"><span>${escapeHtml(bs)} <span style="opacity:.6">(보드 전체 카드 수)</span></span>`
+  h += `<div class="mi-bar">`
+     + `${MINE.mine===false?`<span style="color:#fff;background:var(--accent);border-radius:999px;padding:2px 9px;font-weight:800">👤 ${escapeHtml(MINE.name||MINE.who||"")} 의 일감</span>`:""}`
+     + `<span>${escapeHtml(bs)} <span style="opacity:.6">(보드 전체 카드 수)</span></span>`
      + `<span class="who">${mineIsManager()?`<button id="mineWhoBtn">👥 사람 바꾸기</button>`:""}`
      + `트렐로 계정 <b>${escapeHtml(MINE.name||"")}</b>`
-     + `${MINE.mine?` <button id="mineRelink">계정 바꾸기</button>`:` <span style="color:var(--accent)">· 다른 사람 보기</span>`}`
+     + `${MINE.mine?` <button id="mineRelink">계정 바꾸기</button>`:` <button id="mineBackBtn">← 내 일감으로</button>`}`
      + `${MINE.at?` · ${escapeHtml(relTimeShort(MINE.at))}`:""}</span></div>`
      + `<div class="mi-bar" style="margin:-4px 0 6px"><button id="mineDoneBtn" class="${mineDoneOn?"on":""}" `
      + `style="${mineDoneOn?"color:#fff;background:var(--accent);border-color:var(--accent)":""}">`
@@ -7534,12 +7553,17 @@ async function mineWhoPick(){
   }
   const el=document.getElementById("mineBody");
   el.innerHTML = `<div class="mi-sec">👥 누구의 일감을 볼까요 <em>${minePeople.length}명</em></div>`
-    + `<div class="mi-pick on" data-mwho=""><span class="av">나</span><span class="pn">내 일감</span></div>`
+    + `<div class="mi-pick${mineWho?"":" on"}" data-mwho=""><span class="av">나</span><span class="pn">내 일감</span>`
+    + `${mineWho?"":'<span style="margin-left:auto;font-size:10px;font-weight:800;color:#fff;background:var(--accent);border-radius:999px;padding:2px 8px">보는 중</span>'}</div>`
     + `<div style="max-height:420px;overflow:auto">`
     + minePeople.filter(p=>p.email!==(window.APP_USER||{}).email)
-        .map(p=>`<div class="mi-pick" data-mwho="${escapeHtml(p.email)}"><span class="av" style="background:var(--line);color:var(--muted)">${escapeHtml((p.name||p.email).slice(0,1))}</span>`
-          +`<span class="pn">${escapeHtml(p.name||p.email)}</span><span class="un">${escapeHtml(p.email)}</span></div>`).join("")
-    + `</div><div class="mi-note">트렐로 계정을 연결하지 않은 사람은 목록이 비어 있습니다.</div>`;
+        /* 트렐로 계정을 연결한 사람을 위로 — 미연결자는 열어 봐야 빈 화면이다 */
+        .sort((x,y)=> (y.tl?1:0)-(x.tl?1:0) || String(x.name||x.email).localeCompare(String(y.name||y.email),"ko"))
+        .map(p=>`<div class="mi-pick${mineWho===p.email?" on":""}" data-mwho="${escapeHtml(p.email)}"${p.tl?"":' style="opacity:.55"'}>`
+          +`<span class="av" style="background:var(--line);color:var(--muted)">${escapeHtml((p.name||p.email).slice(0,1))}</span>`
+          +`<span class="pn">${escapeHtml(p.name||p.email)}</span><span class="un">${escapeHtml(p.email)}</span>`
+          +`<span style="margin-left:auto;font-size:10px;font-weight:800;${p.tl?"color:#6ee7b7":"color:var(--muted)"}">${p.tl?"연결됨":"미연결"}</span></div>`).join("")
+    + `</div><div class="mi-note">「미연결」은 그 사람이 아직 트렐로 계정을 고르지 않은 경우입니다 — 열어도 비어 있습니다.</div>`;
 }
 /* ---------- 상단바 배지 ---------- */
 async function mineBadge(){
@@ -7569,6 +7593,9 @@ document.getElementById("mineBody").addEventListener("click", async e=>{
   const wp=e.target.closest("[data-mwho]"); if(wp){ mineWho=wp.dataset.mwho;
     document.getElementById("mineBody").innerHTML="불러오는 중…"; await mineLoad(false); renderMine(); return; }
   if(e.target.closest("#mineWhoBtn")){ mineWhoPick(); return; }
+  if(e.target.closest("#mineBackBtn")){ mineWho="";
+    document.getElementById("mineBody").innerHTML="불러오는 중…";
+    mineLoad(false).then(renderMine); return; }
   if(e.target.closest("#mineRelink")){ mineLinkScreen(); return; }
   if(e.target.closest("#mineDoneBtn")){ mineDoneOn=!mineDoneOn; renderMine(); return; }
   if(e.target.closest("#mineLpBtn")){ mineLpOpen=!mineLpOpen; renderMine(); return; }
