@@ -1319,6 +1319,22 @@
   .rm-cell{ flex:1 1 var(--rm-cw); min-width:var(--rm-cw); min-height:44px; display:flex; flex-wrap:wrap; align-content:flex-start; column-gap:5px; row-gap:10px; padding:11px 7px 7px; border-right:1px solid var(--grid); }
   .rm-cell:last-child{ border-right:0; }
   .rm-cell.drop{ background:rgba(99,102,241,.14); box-shadow:inset 0 0 0 1px var(--accent); }
+  /* === 날짜 축 보기 (2026-11-23, build 2026112301, 사용자 선택 A안) =====================
+     월 칸 하나를 1일~말일 축으로 쓴다. 칩을 날짜 위치에 **%로** 절대 배치하므로 칸 너비
+     (--rm-cw)가 바뀌어도 그대로 맞는다 — px 로 굳히지 말 것(마감 밴드와 같은 규칙).
+     겹침은 rmPackLanes() 가 **행 단위로** 줄을 나눠 푼다(칸 경계를 넘는 겹침까지). */
+  .rm-cell.rm-tl{ display:block; position:relative; padding:13px 0 8px; overflow:visible; }
+  .rm-tick{ position:absolute; top:0; bottom:0; width:1px; background:var(--mon); opacity:.55; pointer-events:none; }  /* --grid 는 라이트에서 거의 안 보인다 */
+  /* ⚠ .rm-chip{position:relative;max-width:100%} 가 이 아래에서 다시 선언된다. 한 클래스짜리
+     선택자로 쓰면 **나중에 나온 .rm-chip 이 이겨서** 칩이 날짜 위치가 아니라 앞 칩 뒤에 밀려 찍힌다
+     (2026-11-23 실제로 겪음). 그래서 일부러 구체도를 올린다 — 줄여 쓰지 말 것. */
+  .rm-cell.rm-tl > .rm-tchip{ position:absolute; white-space:nowrap; max-width:none; }
+  .rm-cell.rm-tl > .rm-tchip.nodate{ border-style:dashed; opacity:.7; }
+  .rm-cell.rm-tl > .rm-tchip.offm{ border-style:dashed; }   /* 날짜가 이 달이 아닌 항목 */
+  .rm-cell.rm-tl > .rm-add{ position:absolute; right:5px; top:5px; z-index:6; }
+  .rm-tlbtn{ font-size:10.5px; font-weight:800; padding:3px 9px; border-radius:999px; border:1px solid var(--line); background:var(--panel2); color:var(--muted); cursor:pointer; }
+  .rm-tlbtn:hover{ color:var(--text); border-color:var(--accent); }
+  .rm-tlbtn.on{ color:#fff; background:var(--accent); border-color:var(--accent); }
   /* 마일스톤 마감 밴드 (월 헤더 아래) */
   .rm-row.rm-band{ background:var(--panel); overflow:visible; }
   .rm-blabel{ font-size:10.5px; font-weight:800; color:var(--muted); align-items:center; }
@@ -5521,6 +5537,7 @@ function rmSetColW(v, rerender){
   const lb=document.getElementById("rmCwVal"); if(lb) lb.textContent=w+"px";
   const sl=document.getElementById("rmCwRange"); if(sl && Number(sl.value)!==w) sl.value=w;
   rmLayoutBandLabels();                       // 폭이 바뀌면 마감 라벨 겹침 재계산
+  rmPackLanes();                              // 날짜 축 줄도 다시 계산
   if(rerender) renderRoadmap();
   return w;
 }
@@ -5552,6 +5569,39 @@ function rmMonths(){
   need=Math.min(RM_MAX_MONTHS, need);
   rmAutoExtra=Math.max(0, need-n);
   return need===n ? base : rmMakeMonths(y,m,need);
+}
+/* === 날짜 축 (2026-11-23) =============================================
+   [stated] "월별로 일감을 넣고 있는데, 마일스톤내의 기간내에 시간대별로 표현할 수 있는 방법이 없을까?"
+   항목은 이미 date:"YYYY-MM-DD" 를 갖고 있었다 — 새 데이터 없이 **그리는 방식만** 바꾼다.
+   개인 설정이라 localStorage 에 둔다(state 에 넣으면 볼 때마다 D1 쓰기 — free_tier_budget). */
+const RM_TL_KEY="ms_rm_tl";
+function rmTl(){ try{ return localStorage.getItem(RM_TL_KEY)!=="0"; }catch(_){ return true; } }   // 기본 켬
+function rmSetTl(on){ try{ localStorage.setItem(RM_TL_KEY, on?"1":"0"); }catch(_){} renderRoadmap(); }
+function rmDaysInYm(ym){ const p=String(ym||"").split("-");
+  const n = (p.length===2) ? new Date(Number(p[0]), Number(p[1]), 0).getDate() : 0;
+  return n || 30; }
+/* 칩 겹침을 줄(lane)로 푼다. 칩 폭은 글자 길이마다 달라 **렌더 후 실측**해야 한다
+   (마감 라벨의 rmLayoutBandLabels() 와 같은 방식). 칸별이 아니라 **행 전체**로 세는 이유:
+   월말 칩이 다음 달 칸으로 삐져나가 거기 칩과 겹치는 것까지 잡아야 하기 때문.
+   ⚠ innerHTML 을 새로 그린 뒤, 그리고 칸 너비가 바뀐 뒤 반드시 호출할 것. */
+const RM_TL_LANE_H=25;
+function rmPackLanes(){
+  const grid=document.getElementById("rmGrid"); if(!grid) return;
+  grid.querySelectorAll(".rm-row[data-rmrow]").forEach(row=>{
+    const tls=[...row.querySelectorAll(".rm-cell.rm-tl")];
+    const chips=[...row.querySelectorAll(".rm-tchip")];
+    if(!tls.length){ return; }
+    if(!chips.length){ tls.forEach(c=>c.style.minHeight=""); return; }
+    if(!tls[0].clientWidth) return;              // 숨어 있는 동안에는 재지 않는다(폭 0)
+    const lanes=[];
+    chips.map(el=>{ const c=el.parentNode;
+      return { el, x: c.offsetLeft + (Number(el.dataset.l)||0)/100*c.clientWidth, w: el.offsetWidth }; })
+      .sort((a,b)=>a.x-b.x)
+      .forEach(o=>{ let i=0; while(lanes[i]!==undefined && lanes[i] > o.x-1) i++;
+        lanes[i]=o.x+o.w+13; o.el.style.top=(i*RM_TL_LANE_H)+"px"; });   // +13 = 칩 왼쪽 밖으로 나온 마일스톤 배지 자리
+    const h=Math.max(1,lanes.length)*RM_TL_LANE_H+13;
+    tls.forEach(c=>c.style.minHeight=h+"px");
+  });
 }
 const rmDateLabel = v => { if(!v) return ""; const p=String(v).split("-"); return p.length===3 ? (Number(p[1])+"/"+Number(p[2])) : v; };
 function rmFindGroup(gid){ return (state.roadmap.groups||[]).find(g=>g.id===gid); }
@@ -5738,7 +5788,9 @@ function renderRoadmap(){
   const rm=state.roadmap, ms=rmMonths(), ed=rmCanEdit();
   renderRmFilter(); renderRmMsBar();
   document.getElementById("rmSub").textContent = ed
-    ? "월별로 무엇이 발주·킥오프되는지 봅니다. 항목을 끌어 다른 달로 옮기거나, 클릭해 이름·날짜를 고칠 수 있어요."
+    ? (rmTl()
+        ? "월 칸 안에서 날짜 위치로 놓습니다 — 점선은 7일 눈금. 항목을 끌어 다른 달로 옮기거나, 클릭해 이름·날짜를 고칠 수 있어요."
+        : "월별로 무엇이 발주·킥오프되는지 봅니다. 항목을 끌어 다른 달로 옮기거나, 클릭해 이름·날짜를 고칠 수 있어요.")
     : "월별로 무엇이 발주·킥오프되는지 봅니다. (읽기 전용)";
   document.getElementById("rmNotes").innerHTML =
     (rm.notes||[]).map(t=>`<span class="rm-note">${escapeHtml(t)}</span>`).join("") +
@@ -5750,17 +5802,39 @@ function renderRoadmap(){
       return `<div class="rm-cell rm-mh">${showY?x.y+"년 ":""}${x.m}월<span class="rm-grip" data-rmgrip="1" title="드래그하여 월 칸 너비 조절 (더블클릭: 기본값)"></span></div>`; }).join("")+
     `<div class="rm-cell rm-mh dim">미정</div></div>`;
 
+  const tlOn = rmTl();
+  const chipHtml=(g,it,cls,extra,tlx)=>{
+    const m=rmMsById(it.msId);
+    const badge = m
+      ? `<span class="rm-mb" style="background:${m.color}">${escapeHtml(rmMsBadgeText(m.name))}</span>`
+      : `<span class="rm-mb none">–</span>`;
+    const tip=`${it.text}${it.date?' · '+it.date:''} · 타겟 ${m?m.name:"미지정"}`
+      + `${(cls||"").includes("offm")?" · ⚠ 날짜가 이 달이 아닙니다":""}${(cls||"").includes("nodate")?" · 날짜 미정":""}${ed?' (클릭: 편집)':''}`;
+    return `<span class="rm-chip${cls?" "+cls:""}" data-rmitem="${g.id}|${it.id}" ${ed?'draggable="true"':''}`
+      + `${extra||""} style="border-left-color:${g.color}${tlx!==undefined?";left:"+tlx+"%":""}" title="${escapeHtml(tip)}">`
+      + `${badge}${escapeHtml(it.text)}${it.date?`<b>${rmDateLabel(it.date)}</b>`:''}</span>`;
+  };
   const cell=(g,ym)=>{
     const items=(g.items||[]).filter(it=>(it.ym||"")===ym && rmPassMs(it));
-    const chips=items.map(it=>{
-      const m=rmMsById(it.msId);
-      const badge = m
-        ? `<span class="rm-mb" style="background:${m.color}">${escapeHtml(rmMsBadgeText(m.name))}</span>`
-        : `<span class="rm-mb none">–</span>`;
-      const tip=`${it.text}${it.date?' · '+it.date:''} · 타겟 ${m?m.name:"미지정"}${ed?' (클릭: 편집)':''}`;
-      return `<span class="rm-chip" data-rmitem="${g.id}|${it.id}" ${ed?'draggable="true"':''} style="border-left-color:${g.color}" title="${escapeHtml(tip)}">${badge}${escapeHtml(it.text)}${it.date?`<b>${rmDateLabel(it.date)}</b>`:''}</span>`;
-    }).join("");
-    return `<div class="rm-cell" data-rmdrop="${g.id}|${ym}">${chips}${ed?`<button class="rm-add" data-rmadd="${g.id}|${ym}" title="항목 추가">＋</button>`:""}</div>`;
+    const add = ed?`<button class="rm-add" data-rmadd="${g.id}|${ym}" title="항목 추가">＋</button>`:"";
+    /* 모아 담기(기존) — 「미정」 열은 날짜가 없으니 날짜 축에서도 항상 이쪽이다 */
+    if(!tlOn || !ym)
+      return `<div class="rm-cell" data-rmdrop="${g.id}|${ym}">${items.map(it=>chipHtml(g,it)).join("")}${add}</div>`;
+    /* 날짜 축 — 칸 하나 = 1일~말일 */
+    const nd = rmDaysInYm(ym);
+    let inner="";
+    for(let d=7; d<nd; d+=7) inner += `<div class="rm-tick" style="left:${(d/nd*100).toFixed(3)}%"></div>`;
+    items.slice().sort((a,b)=>String(a.date||"").localeCompare(String(b.date||""))).forEach(it=>{
+      const dym = it.date ? String(it.date).slice(0,7) : "";
+      const day = it.date ? Number(String(it.date).slice(8,10)) : 0;
+      /* 날짜가 이 달이면 그 날 위치, 다른 달이면 가까운 쪽 끝에 붙인다(점선으로 구분).
+         ym 과 date 는 서로 다를 수 있다 — 달만 끌어다 옮기고 날짜는 안 고친 항목. */
+      const off = dym && dym!==ym;
+      const L = !day ? 0 : off ? (dym<ym ? 0 : 99) : (day-1)/nd*100;
+      let cls = "rm-tchip" + (day ? (off?" offm":"") : " nodate");
+      inner += chipHtml(g, it, cls, ` data-l="${L.toFixed(3)}"`, L.toFixed(3));
+    });
+    return `<div class="rm-cell rm-tl" data-rmdrop="${g.id}|${ym}">${inner}${add}</div>`;
   };
   const rows=(rm.groups||[]).map(g=>
     `<div class="rm-row" data-rmrow="${g.id}"><div class="rm-label" ${ed?`draggable="true" data-rmgdrag="${g.id}"`:""}>`+
@@ -5774,19 +5848,22 @@ function renderRoadmap(){
     (ed?`<div class="rm-row"><div class="rm-label"><button class="rm-add" id="rmAddGroup">＋ 그룹</button></div></div>`:"");
 
   rmLayoutBandLabels();
+  rmPackLanes();                              // 날짜 축 줄 나누기 — 반드시 innerHTML 뒤
   const cw=rmColW();
   const cwCtl=`<span class="rm-range rm-cw" title="이 설정은 내 화면에만 적용됩니다">칸 너비`+
     `<input type="range" id="rmCwRange" min="${RM_CW_MIN}" max="${RM_CW_MAX}" step="2" value="${cw}">`+
     `<b id="rmCwVal">${cw}px</b><button id="rmCwReset" title="기본값 ${RM_CW_DEF}px 으로">초기화</button></span>`;
+  const tlCtl=`<button class="rm-tlbtn${tlOn?" on":""}" id="rmTlBtn" title="${tlOn?"월 칸 안에서 날짜 위치로 보는 중 — 누르면 모아 담기":"같은 달이면 모아서 쌓는 중 — 누르면 날짜 축"}">${tlOn?"📅 날짜 축":"▦ 모아 담기"}</button>`;
   document.getElementById("rmFoot").innerHTML = (ed
     ? `<span class="rm-range">시작 <input type="month" id="rmStart" value="${escapeHtml(rm.startYm||"2026-09")}">`+
       `표시 <select id="rmMonths">${[3,4,5,6,8,10,12,15,18,24].map(n=>`<option value="${n}" ${Number(rm.months)===n?"selected":""}>${n}개월</option>`).join("")}</select>`+
       `${rmAutoExtra?`<em class="rm-auto" title="마일스톤 마감이 잘리지 않도록 자동으로 늘렸습니다">+${rmAutoExtra}개월 자동</em>`:""}</span>`
-    : "") + cwCtl;
+    : "") + tlCtl + cwCtl;
 }
 function openRoadmap(){ if(!state.roadmap) state.roadmap=seedRoadmap();
   if(rmAutoAssignMs() && rmCanEdit()) save();
-  renderRoadmap(); roadmapModal.classList.add("show"); }
+  renderRoadmap(); roadmapModal.classList.add("show");
+  rmPackLanes(); }        /* ⚠ 숨어 있을 때는 칸 폭이 0 이라 줄 계산이 안 된다 — 보이고 나서 한 번 더 */
 
 /* --- 편집 팝오버 --- */
 let rmPopMode=null, rmPopRef=null;
@@ -5885,6 +5962,7 @@ document.getElementById("rmFoot").addEventListener("input", e=>{
 });
 document.getElementById("rmFoot").addEventListener("click", e=>{
   if(e.target.closest("#rmCwReset")) rmSetColW(RM_CW_DEF);
+  if(e.target.closest("#rmTlBtn")) rmSetTl(!rmTl());        // 보기 전환 — 개인 설정이라 읽기 전용도 가능
 });
 document.getElementById("rmFoot").addEventListener("change", e=>{
   if(e.target.closest("#rmCwRange")) return;
