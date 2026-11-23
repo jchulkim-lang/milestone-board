@@ -1299,6 +1299,57 @@
   .sp-foot .tgl{ font-size:10.5px; font-weight:800; padding:3px 10px; border-radius:999px; border:1px solid var(--line); background:var(--panel2); color:var(--muted); cursor:pointer; }
   .sp-foot .tgl.on{ color:#fff; background:var(--accent); border-color:var(--accent); }
   .sp-empty{ padding:26px; text-align:center; color:var(--muted); font-size:12px; }
+  /* === 내 일감 (2026-11-23, build 2026112304) =====================================
+     [stated] "dev, qa trello board 에 내가 join 되어 있는 티켓들을 필터링해서 보여 주고 싶어" */
+  .tb.mine{border-color:#6a4fd8;color:#c4b5fd;background:rgba(99,102,241,.14);}
+  .tb.mine b{font-size:10px;font-weight:900;color:#fff;background:#ef4444;border-radius:999px;padding:0 6px;line-height:15px;}
+  .tb.mine b.zero{background:var(--line);color:var(--muted);}
+  .mi-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:11px;}
+  .mi-tile{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px 11px;}
+  .mi-tile.warn{border-color:rgba(239,68,68,.5);background:rgba(239,68,68,.12);}
+  .mi-tile .k{font-size:11px;color:var(--muted);font-weight:700;}
+  .mi-tile .v{font-size:21px;font-weight:800;margin-top:2px;letter-spacing:-.5px;}
+  .mi-tile.warn .v{color:#ff9b9b;}
+  .mi-bar{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--muted);font-weight:700;margin:0 0 10px;flex-wrap:wrap;}
+  .mi-bar .who{margin-left:auto;display:flex;align-items:center;gap:6px;}
+  .mi-bar .who b{color:var(--text);}
+  .mi-bar select,.mi-bar button{font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:999px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);cursor:pointer;font-family:inherit;}
+  .mi-bar button:hover{color:var(--text);border-color:var(--accent);}
+  .mi-sec{font-size:12px;font-weight:800;color:var(--muted);margin:14px 0 7px;display:flex;align-items:center;gap:7px;user-select:none;}
+  .mi-sec.fold{cursor:pointer;}
+  .mi-sec em{font-style:normal;font-weight:700;opacity:.7;}
+  .mi-sec .ar{margin-left:auto;opacity:.7;}
+  .mi-card{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:9px;border:1px solid var(--line);
+     background:var(--panel2);margin-bottom:5px;cursor:pointer;font-size:12.5px;}
+  .mi-card:hover{border-color:var(--accent);}
+  .mi-card.od{border-left:3px solid #ef4444;}
+  .mi-card.dn{opacity:.55;}
+  .mi-bd{flex:0 0 auto;font-size:9.5px;font-weight:800;border-radius:5px;padding:2px 6px;color:#fff;}
+  .mi-bd.dev{background:#3b82f6;} .mi-bd.qa{background:#14b8a6;}
+  .mi-nm{font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .mi-st{flex:0 0 auto;font-size:10.5px;font-weight:700;color:var(--muted);background:var(--panel);
+     border:1px solid var(--line);border-radius:999px;padding:1px 8px;white-space:nowrap;}
+  .mi-msb{flex:0 0 auto;font-size:9.5px;font-weight:800;color:#fff;border-radius:999px;padding:1px 7px;}
+  .mi-due{margin-left:auto;flex:0 0 auto;font-size:11.5px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--muted);white-space:nowrap;}
+  .mi-due.od{color:#ff9b9b;} .mi-due.soon{color:#fbbf24;}
+  .mi-chk{margin:-2px 0 6px 32px;font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:7px;cursor:pointer;}
+  .mi-chk:hover b{color:var(--accent);}
+  .mi-chk i{width:11px;height:11px;border:1.5px solid var(--line);border-radius:3px;flex:0 0 auto;}
+  .mi-chk b{color:var(--text);font-weight:700;}
+  .mi-pick{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:9px;border:1px solid var(--line);
+     background:var(--panel2);margin-bottom:6px;cursor:pointer;}
+  .mi-pick:hover{border-color:var(--accent);}
+  .mi-pick.on{border-color:var(--accent);background:rgba(99,102,241,.14);}
+  .mi-pick .av{width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;display:flex;
+     align-items:center;justify-content:center;font-size:11px;font-weight:800;flex:0 0 auto;}
+  .mi-pick .pn{font-weight:700;font-size:12.5px;}
+  .mi-pick .un{font-size:11px;color:var(--muted);}
+  .mi-note{font-size:11px;color:var(--muted);line-height:1.6;margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);}
+  /* ⚠ 라이트에서 앰버·연빨강은 흰 카드 위에서 안 읽힌다 — theme_palette 의 전례. 짝을 꼭 둔다. */
+  body.light .mi-due.od{color:#c0392b;}
+  body.light .mi-due.soon{color:#a16207;}
+  body.light .mi-tile.warn .v{color:#c0392b;}
+  body.light .mi-tile.warn{background:rgba(239,68,68,.08);}
   .rm-notes{ display:flex; flex-wrap:wrap; gap:6px; margin:0 0 12px; }
   .rm-note{ font-size:11px; font-weight:700; color:var(--muted); background:var(--panel2); border:1px solid var(--line); border-radius:999px; padding:3px 10px; }
   .rm-scroll{ overflow:auto; max-height:70vh; border:1px solid var(--line); border-radius:11px; background:var(--bg); }
@@ -2102,6 +2153,8 @@
     <a class="tb dev" href="https://trello.com/b/NfAsSWHN" target="_blank" rel="noopener" title="트렐로 Dev 보드 (projectr)"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px" aria-hidden="true"><rect width="24" height="24" rx="4" fill="currentColor" fill-opacity=".9"/><rect x="4.5" y="4.5" width="6" height="13" rx="1.5" fill="#0e1014" fill-opacity=".85"/><rect x="13.5" y="4.5" width="6" height="8" rx="1.5" fill="#0e1014" fill-opacity=".85"/></svg><span class="lb">Dev</span></a>
     <a class="tb qa" href="https://trello.com/b/NqVTDdgX/projectr-qa" target="_blank" rel="noopener" title="트렐로 QA 보드 (PROJECT R QA)"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px" aria-hidden="true"><rect width="24" height="24" rx="4" fill="currentColor" fill-opacity=".9"/><rect x="4.5" y="4.5" width="6" height="13" rx="1.5" fill="#0e1014" fill-opacity=".85"/><rect x="13.5" y="4.5" width="6" height="8" rx="1.5" fill="#0e1014" fill-opacity=".85"/></svg><span class="lb">QA</span></a>
     <span class="tb-gap"></span>
+    <button class="tb mine" id="mineBtn" title="트렐로 Dev · QA 에서 내가 들어가 있는 카드" style="display:none">🙋<span class="lb">내 일감</span><b id="mineBadge" style="display:none"></b></button>
+    <span class="tb-gap"></span>
     <a class="tb mr" href="https://meeting-room-evz.pages.dev" target="_blank" rel="noopener" title="회의실 예약"><svg width="12" height="12" viewBox="0 0 24 24" style="vertical-align:-2px" aria-hidden="true"><rect width="24" height="24" rx="4" fill="currentColor" fill-opacity=".9"/><rect x="4.8" y="6.2" width="14.4" height="13" rx="2" fill="#0e1014" fill-opacity=".85"/><rect x="4.8" y="6.2" width="14.4" height="3.4" rx="1.6" fill="currentColor" fill-opacity=".9"/><rect x="7.2" y="3.4" width="2" height="4" rx="1" fill="currentColor" fill-opacity=".9"/><rect x="14.8" y="3.4" width="2" height="4" rx="1" fill="currentColor" fill-opacity=".9"/><path d="M8.6 14.4l2.2 2.2 4.4-4.4" stroke="currentColor" stroke-width="2.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lb">회의실</span></a>
     <span class="spacer" style="flex:1"></span>
     <span class="dfocus" id="deptFocus"></span>
@@ -2149,6 +2202,15 @@
        [stated] "아래의 하단 기능을 「메뉴」 버튼 하나로 통합 / 팝업으로 모두 보이게 / 버튼이 많아서 정신 없네"
        ⚠ 버튼을 **다시 만들지 않는다.** 기존 묶음(#footbar·#footApps·#footTools)을 통째로 이 안에 둔다 —
          핸들러·id·cloud.js 의 placeBtn(#footTools append)·applyRoleUI 의 display 제어가 전부 그대로 산다. -->
+  <div class="modal-bg" id="mineModal">
+    <div class="modal" style="width:min(820px,94vw)"><h3>내 일감 🙋</h3>
+      <div class="msub">트렐로 Dev · QA 보드에서 <b>내가 들어가 있는 카드</b>와 <b>내게 배정된 체크 항목</b>입니다. 읽기만 합니다.</div>
+      <div id="mineBody" style="max-height:66vh;overflow:auto">불러오는 중…</div>
+      <div class="modal-actions"><span style="font-size:11px;color:var(--muted)" id="mineFoot"></span>
+        <div class="right"><button class="btn ghost" id="mineReload">🔄 새로고침</button><button class="btn" data-close>닫기</button></div></div>
+    </div>
+  </div>
+
   <div class="modal-bg" id="menuModal">
     <div class="modal">
       <h3>☰ 메뉴</h3>
@@ -3095,7 +3157,7 @@ function loadView(){
     fill(msFilter,v.ms); fill(deptFilter,v.dp); fill(statusFilter,v.st);
     fill(assigneeFilter,v.ag); fill(kfFilter,v.kf); fill(labelFilter,v.lb); fill(prioFilter,v.pr);
     fill(volFilter,v.vl);
-    if(typeof v.tr==="string" && (TRACKS.includes(v.tr) || v.tr===VIEW_MEMBER)) trackFilter=v.tr;
+    if(typeof v.tr==="string" && (TRACKS.includes(v.tr) || (MEMBER_TAB_ON && v.tr===VIEW_MEMBER))) trackFilter=v.tr;
     if(typeof v.q==="string") searchQuery=v.q;
     lateOnly=!!v.lt; noteOnly=!!v.nt;
     /* 점검을 끈 뒤에도 예전에 저장된 au:true 가 남아 있을 수 있다. 그대로 복원하면
@@ -3156,7 +3218,7 @@ function applySharedView(q){
   take(kfFilter,"kf",kfOk,"킥오프");    take(labelFilter,"lb",lbOk,"라벨");
   take(prioFilter,"pr",prOk,"우선순위"); take(volFilter,"vl",vlOk,"볼륨");
   const tr=q.get("tr")||"";
-  if(tr){ if(TRACKS.includes(tr)||tr===VIEW_MEMBER) trackFilter=tr; else dropped.push("분류 「"+tr+"」"); }
+  if(tr){ if(TRACKS.includes(tr)||(MEMBER_TAB_ON&&tr===VIEW_MEMBER)) trackFilter=tr; else dropped.push("분류 「"+tr+"」"); }
   searchQuery = q.get("q")||"";
   lateOnly = q.get("lt")==="1";
   noteOnly = q.get("nt")==="1";
@@ -3306,7 +3368,7 @@ function deadlineBarHtml(){
 function renderContext(){
   const box=document.getElementById("contextBar"); if(!box) return;
   const trackTabs=TRACKS.map(tr=>`<span class="trtab ${trackFilter===tr?'on':''}" data-track="${tr}"><i class="trdot" style="background:${TRACK_COLORS[tr]||'#888'}"></i>${escapeHtml(tr)}</span>`).join("")
-    + `<span class="trtab ${isMemberView()?'on':''}" data-track="${VIEW_MEMBER}" title="마일스톤 안의 모든 일감을 담당자 기준으로 봅니다"><i class="trdot" style="background:${TRACK_COLORS[VIEW_MEMBER]}"></i>${VIEW_MEMBER}</span>`;
+    + (MEMBER_TAB_ON ? `<span class="trtab ${isMemberView()?'on':''}" data-track="${VIEW_MEMBER}" title="마일스톤 안의 모든 일감을 담당자 기준으로 봅니다"><i class="trdot" style="background:${TRACK_COLORS[VIEW_MEMBER]}"></i>${VIEW_MEMBER}</span>` : "");
   const scope=state.tasks.filter(t=> (msFilter.size===0||msFilter.has(t.milestoneId)) &&
     (t.track||"개발")===(isMemberView()?MEM_TRACK:headTrack()));
   const tot=scope.length, done=scope.filter(isDone).length, pct=tot?Math.round(done/tot*100):0;
@@ -3610,7 +3672,10 @@ function taskHeadHtml(t){
  * 새 데이터를 만들지 않는다. 부서별로 배정해 둔 담당자(t.depts[k].assignees)를 사람 기준으로 뒤집어 본다.
  * 한 항목 = (Task, 부서) 쌍. 같은 사람이 두 부서에 걸치면 부서마다 따로 나온다(사용자 선택 ㉮). */
 const VIEW_MEMBER="멤버";
-const isMemberView = () => trackFilter===VIEW_MEMBER;
+/* 2026-11-23: 「내 일감」으로 대체. [stated] "분류:멤버 는 크게 쓰이지 않고 있어, 불편하더라고"
+   코드는 되살릴 수 있게 그대로 두고 **탭만 감춘다.** 다시 켜려면 여기만 true 로. */
+const MEMBER_TAB_ON=false;
+const isMemberView = () => MEMBER_TAB_ON && trackFilter===VIEW_MEMBER;
 let memCollapsed=new Set();                     // 접힌 멤버·부서 (개인 화면, 저장 안 함)
 let memSort="count";                            // count | overlap | load | name  (뷰 상태)
 let memOvOnly=false;                            // 겹침 있는 사람만
@@ -7083,6 +7148,199 @@ function ufApplyScan(o, who){
   flashNote("폴더 "+folders+"개를 읽었습니다. 열 "+list.length+"종.");
   return folders;
 }
+/* ===== 내 일감 (2026-11-23, build 2026112304) ==========================================
+   [stated] "dev, qa trello board 에 내가 join 되어 있는 티켓들을 필터링해서 보여 주고 싶어.
+             기획 및 개발자 본인이 어떤 업무를 해야하는지 모르더라고"
+   · 서버 /api/mine — 보드 단위 스캔을 3분 캐시해 전원이 나눠 쓴다(사람이 늘어도 트렐로 호출 고정).
+   · **읽기 전용.** 트렐로도 보드 state 도 건드리지 않는다.
+   · 트렐로 계정 연결은 users.trello_id 1칸. 이름으로 추천 → 본인이 1회 확인(2026-11-23 선택).
+   · 매니저 이상은 상단에서 사람을 바꿔 남의 일감도 볼 수 있다(서버도 같은 기준으로 막는다). */
+let MINE=null, mineWho="", mineBusyF=false, mineFold={ later:true, nodue:true, done:true }, minePeople=null;
+const mineCanUse = () => !!(window.APP_USER && window.APP_USER.email);
+const mineIsManager = () => ["manager","admin","master"].includes(window.APP_ROLE||"");
+function mineAddDays(d,n){ const t=new Date(d+"T00:00:00"); t.setDate(t.getDate()+n); return ymd(t); }
+function mineDueTxt(due, today){
+  if(!due) return { t:"—", c:"" };
+  const diff=Math.round((Date.parse(due+"T00:00:00")-Date.parse(today+"T00:00:00"))/86400000);
+  const md=Number(due.slice(5,7))+"/"+Number(due.slice(8));
+  if(diff<0)  return { t:md+" · "+(-diff)+"일 지남", c:"od" };
+  if(diff===0) return { t:md+" · 오늘", c:"soon" };
+  if(diff<=7) return { t:md+" · D-"+diff, c:"soon" };
+  return { t:md+" · D-"+diff, c:"" };
+}
+async function mineLoad(fresh){
+  mineBusyF=true;
+  try{
+    const q=[]; if(mineWho) q.push("who="+encodeURIComponent(mineWho)); if(fresh) q.push("fresh=1");
+    const r=await fetch("/api/mine"+(q.length?"?"+q.join("&"):""), { credentials:"same-origin" });
+    if(!r.ok){ MINE={ error: r.status===403 ? "권한이 없습니다." : "불러오기 실패 ("+r.status+")" }; return; }
+    MINE=await r.json();
+  }catch(e){ MINE={ error:"불러오기 실패" }; }
+  finally{ mineBusyF=false; }
+}
+function openMine(){
+  if(!mineCanUse()){ flashNote("로그인한 뒤에 쓸 수 있습니다."); return; }
+  closeModals(); mineModal.classList.add("show");
+  document.getElementById("mineBody").innerHTML="불러오는 중…";
+  mineLoad(false).then(renderMine);
+}
+/* ---------- 트렐로 계정 연결 (처음 한 번) ---------- */
+async function mineLinkScreen(){
+  const el=document.getElementById("mineBody");
+  el.innerHTML="트렐로 멤버를 읽는 중…";
+  let j; try{ const r=await fetch("/api/mine/members",{credentials:"same-origin"}); j=await r.json(); }
+  catch(_){ el.innerHTML='<div class="dm-empty">트렐로 멤버를 읽지 못했습니다.</div>'; return; }
+  if(!j || !j.ok){ el.innerHTML='<div class="dm-empty">'+escapeHtml((j&&j.error)||"읽기 실패")+'</div>'; return; }
+  mineLinkDraw(j, "");
+}
+function mineLinkDraw(j, q){
+  const el=document.getElementById("mineBody");
+  const row=(m,on)=>`<div class="mi-pick${on?" on":""}" data-mlink="${escapeHtml(m.id)}">`
+    +`<span class="av">${escapeHtml((m.name||"?").slice(0,1))}</span>`
+    +`<span class="pn">${escapeHtml(m.name||m.user)}</span><span class="un">@${escapeHtml(m.user||"")}</span>`
+    +`${on?'<span style="margin-left:auto;font-size:10px;font-weight:800;color:#fff;background:var(--accent);border-radius:999px;padding:2px 8px">이게 나예요</span>':""}</div>`;
+  const qq=(q||"").trim().toLowerCase();
+  const list=(j.members||[]).filter(m=>!qq || String(m.name||"").toLowerCase().includes(qq) || String(m.user||"").toLowerCase().includes(qq));
+  let h=`<div class="msub" style="margin-bottom:10px">내 일감을 모으려면 <b>트렐로 계정</b>을 한 번 확인해야 합니다. 보드 이름 <b>${escapeHtml(j.myName||"")}</b> 으로 찾아 봤습니다.</div>`;
+  h += (j.suggest||[]).length
+    ? (j.suggest||[]).map((m,i)=>row(m,i===0)).join("")
+    : '<div class="dm-empty">이름이 같은 트렐로 계정을 못 찾았습니다. 아래에서 직접 골라 주세요.</div>';
+  h += `<div class="mi-sec" style="margin-top:14px">다른 계정이라면 골라 주세요 <em>${(j.members||[]).length}명</em></div>`
+     + `<input id="mineQ" placeholder="이름·아이디 검색" value="${escapeHtml(q||"")}" style="width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:7px 11px;font-size:12.5px;margin-bottom:8px">`
+     + `<div style="max-height:300px;overflow:auto">${list.map(m=>row(m,false)).join("")||'<div class="dm-empty">없음</div>'}</div>`
+     + `<div class="mi-note">한 번만 정하면 다음부터 바로 열립니다. 잘못 골랐으면 「계정 바꾸기」로 다시 정할 수 있습니다.</div>`;
+  el.innerHTML=h;
+  const qi=el.querySelector("#mineQ");
+  if(qi) qi.addEventListener("input", e=>{ const v=e.target.value; mineLinkDraw(j, v);
+    const n=document.getElementById("mineQ"); if(n){ n.focus(); n.setSelectionRange(v.length,v.length); } });
+}
+async function mineSetLink(tid){
+  try{ await fetch("/api/mine/link",{ method:"POST", credentials:"same-origin",
+        headers:{"content-type":"application/json"}, body:JSON.stringify({ trelloId:tid }) }); }catch(_){}
+  document.getElementById("mineBody").innerHTML="불러오는 중…";
+  await mineLoad(false); renderMine(); mineBadge();
+}
+/* ---------- 본문 ---------- */
+function renderMine(){
+  const el=document.getElementById("mineBody"), ft=document.getElementById("mineFoot");
+  if(!el) return;
+  if(!MINE){ el.innerHTML='<div class="dm-empty">불러오기 실패</div>'; return; }
+  if(MINE.error){ el.innerHTML='<div class="dm-empty">'+escapeHtml(MINE.error)+'</div>'; return; }
+  if(MINE.needLink){ if(ft) ft.textContent=""; mineLinkScreen(); return; }
+
+  const today=ymd(new Date()), wk=mineAddDays(today,7);
+  const cards=(MINE.cards||[]).slice();
+  const live=cards.filter(c=>!c.done), done=cards.filter(c=>c.done);
+  const byDue=(a,b)=>String(a.due||"9999").localeCompare(String(b.due||"9999"));
+  const od   = live.filter(c=>c.due && c.due <  today).sort(byDue);
+  const soon = live.filter(c=>c.due && c.due >= today && c.due <= wk).sort(byDue);
+  const later= live.filter(c=>c.due && c.due >  wk).sort(byDue);
+  const nod  = live.filter(c=>!c.due);
+  /* 체크 항목은 자기 카드 밑에 붙인다. 카드에 join 안 된 것은 따로 모은다. */
+  const items=(MINE.items||[]), inCard={}, orphan=[];
+  const haveCard={}; cards.forEach(c=>{ haveCard[c.id]=1; });
+  items.forEach(i=>{ if(haveCard[i.card]) (inCard[i.card]=inCard[i.card]||[]).push(i); else orphan.push(i); });
+  /* 보드 Task 와 연결된 카드면 마일스톤 배지를 붙인다 */
+  const taskByCard={}; (state.tasks||[]).forEach(t=>{ if(t && t.trelloCardId) taskByCard[t.trelloCardId]=t; });
+
+  const tile=(k,v,warn)=>`<div class="mi-tile${warn?" warn":""}"><div class="k">${k}</div><div class="v">${v}</div></div>`;
+  const chkRow=i=>`<div class="mi-chk" data-murl="${escapeHtml(i.u||"")}"><i></i>체크 항목 <b>${escapeHtml(i.n)}</b>`
+    +`${i.due?` <span style="opacity:.8">· ${escapeHtml(mineDueTxt(i.due,today).t)}</span>`:""}</div>`;
+  const cardRow=c=>{
+    const d=mineDueTxt(c.due, today), t=taskByCard[c.id], ms=t?findMs(t.msId):null;
+    return `<div class="mi-card${d.c==="od"?" od":""}${c.done?" dn":""}" data-murl="${escapeHtml(c.u||"")}" title="${escapeHtml(c.n)}">`
+      +`<span class="mi-bd ${c.b}">${c.b==="qa"?"QA":"Dev"}</span>`
+      +`<span class="mi-nm">${escapeHtml(c.n)}</span>`
+      +`${c.l?`<span class="mi-st">${escapeHtml(c.l)}</span>`:""}`
+      +`${ms?`<span class="mi-msb" style="background:${ms.color||"#6366f1"}">${escapeHtml(msBadgeShort(ms.name))}</span>`:""}`
+      +`<span class="mi-due ${d.c}">${escapeHtml(d.t)}</span></div>`
+      + ((inCard[c.id]||[]).map(chkRow).join(""));
+  };
+  const sec=(key,icon,label,n,foldable)=>`<div class="mi-sec${foldable?" fold":""}"${foldable?` data-mfold="${key}"`:""}>`
+    +`${icon} ${label} <em>${n}</em>${foldable?`<span class="ar">${mineFold[key]?"▸":"▾"}</span>`:""}</div>`;
+  const body=(key,list)=> (!list.length ? "" : (mineFold[key] ? "" : list.map(cardRow).join("")));
+
+  let h=`<div class="mi-tiles">${tile("마감 지남", od.length, od.length>0)}${tile("오늘 · 이번 주", soon.length)}`
+      + `${tile("마감 없음", nod.length)}${tile("내 체크 항목", items.length)}</div>`;
+
+  const bs=(MINE.boards||[]).map(b=>b.error?`${b.name} <span style="color:#ff9b9b">오류</span>`:`${b.name} ${b.cards}`).join(" · ");
+  h += `<div class="mi-bar"><span>${escapeHtml(bs)} <span style="opacity:.6">(보드 전체 카드 수)</span></span>`
+     + `<span class="who">${mineIsManager()?`<button id="mineWhoBtn">👥 사람 바꾸기</button>`:""}`
+     + `트렐로 계정 <b>${escapeHtml(MINE.name||"")}</b>`
+     + `${MINE.mine?` <button id="mineRelink">계정 바꾸기</button>`:` <span style="color:var(--accent)">· 다른 사람 보기</span>`}`
+     + `${MINE.at?` · ${escapeHtml(relTimeShort(MINE.at))}`:""}</span></div>`;
+
+  if(!cards.length && !items.length)
+    h += `<div class="dm-empty">트렐로 Dev · QA 보드에서 이 계정이 들어가 있는 열린 카드가 없습니다.</div>`;
+  if(od.length)   h += sec("od","⚠","마감 지남",od.length,false)   + od.map(cardRow).join("");
+  if(soon.length) h += sec("soon","📅","오늘 · 이번 주",soon.length,false) + soon.map(cardRow).join("");
+  if(later.length)h += sec("later","🗓","그 뒤",later.length,true)  + body("later",later);
+  if(nod.length)  h += sec("nodue","🗂","마감 없음",nod.length,true) + body("nodue",nod);
+  if(orphan.length) h += sec("orph","☑","내 체크 항목 (내가 안 들어간 카드)",orphan.length,false)
+     + orphan.map(i=>`<div class="mi-card" data-murl="${escapeHtml(i.u||"")}"><span class="mi-bd ${i.b}">${i.b==="qa"?"QA":"Dev"}</span>`
+        +`<span class="mi-nm">${escapeHtml(i.n)}</span><span class="mi-st">${escapeHtml(i.cn)}</span>`
+        +`<span class="mi-due ${mineDueTxt(i.due,today).c}">${escapeHtml(mineDueTxt(i.due,today).t)}</span></div>`).join("");
+  if(done.length) h += sec("done","✅","최근 완료",done.length,true) + body("done",done);
+
+  h += `<div class="mi-note">· 카드를 누르면 트렐로에서 열립니다. 보드 Task 와 연결된 카드에는 마일스톤 배지가 붙습니다.<br>`
+     + `· 「완료」는 카드가 들어 있는 <b>트렐로 리스트 이름</b>으로 판단합니다(완료·Done·Resolved 등).<br>`
+     + `· 체크 항목은 <b>Dev 보드</b>만 읽습니다 — QA 보드는 카드가 많아 응답이 너무 커집니다.</div>`;
+  el.innerHTML=h;
+  if(ft) ft.textContent = "Dev · QA 보드 기준 · 3분마다 갱신";
+}
+function msBadgeShort(name){ const m=String(name||"").match(/\d+/); return m?("M"+m[0]):String(name||"").slice(0,4); }
+function relTimeShort(iso){
+  const t=Date.parse(String(iso||"")); if(!isFinite(t)) return "";
+  const s0=Math.max(0,Math.round((Date.now()-t)/1000));
+  if(s0<60) return "방금"; if(s0<3600) return Math.floor(s0/60)+"분 전";
+  return Math.floor(s0/3600)+"시간 전";
+}
+/* ---------- 사람 바꾸기 (매니저 이상) ---------- */
+async function mineWhoPick(){
+  if(!minePeople){
+    try{ const r=await fetch("/api/members",{credentials:"same-origin"}); const j=await r.json(); minePeople=j.members||[]; }
+    catch(_){ minePeople=[]; }
+  }
+  const el=document.getElementById("mineBody");
+  el.innerHTML = `<div class="mi-sec">👥 누구의 일감을 볼까요 <em>${minePeople.length}명</em></div>`
+    + `<div class="mi-pick on" data-mwho=""><span class="av">나</span><span class="pn">내 일감</span></div>`
+    + `<div style="max-height:420px;overflow:auto">`
+    + minePeople.filter(p=>p.email!==(window.APP_USER||{}).email)
+        .map(p=>`<div class="mi-pick" data-mwho="${escapeHtml(p.email)}"><span class="av" style="background:var(--line);color:var(--muted)">${escapeHtml((p.name||p.email).slice(0,1))}</span>`
+          +`<span class="pn">${escapeHtml(p.name||p.email)}</span><span class="un">${escapeHtml(p.email)}</span></div>`).join("")
+    + `</div><div class="mi-note">트렐로 계정을 연결하지 않은 사람은 목록이 비어 있습니다.</div>`;
+}
+/* ---------- 상단바 배지 ---------- */
+async function mineBadge(){
+  const b=document.getElementById("mineBadge"); if(!b || !mineCanUse()) return;
+  try{
+    const r=await fetch("/api/mine",{credentials:"same-origin"});
+    if(!r.ok) return;
+    const j=await r.json();
+    if(j.needLink){ b.style.display=""; b.className="zero"; b.textContent="연결"; b.title="트렐로 계정을 연결해 주세요"; return; }
+    const today=ymd(new Date()), wk=mineAddDays(today,7);
+    const n=(j.cards||[]).filter(c=>!c.done && c.due && c.due<=wk).length;
+    b.style.display=""; b.className=n?"":"zero"; b.textContent=String(n);
+    b.title = n ? ("마감이 지났거나 이번 주 안인 카드 "+n+"건") : "급한 카드 없음";
+  }catch(_){}
+}
+window.mineRefreshBadge = mineBadge;
+/* ---------- 이벤트 ---------- */
+document.getElementById("mineBtn").addEventListener("click", openMine);
+document.getElementById("mineReload").addEventListener("click", async ()=>{
+  if(mineBusyF) return;
+  document.getElementById("mineBody").innerHTML="불러오는 중…";
+  await mineLoad(true); renderMine(); mineBadge();
+});
+document.getElementById("mineBody").addEventListener("click", async e=>{
+  const fd=e.target.closest("[data-mfold]"); if(fd){ const k=fd.dataset.mfold; mineFold[k]=!mineFold[k]; renderMine(); return; }
+  const lk=e.target.closest("[data-mlink]"); if(lk){ mineSetLink(lk.dataset.mlink); return; }
+  const wp=e.target.closest("[data-mwho]"); if(wp){ mineWho=wp.dataset.mwho;
+    document.getElementById("mineBody").innerHTML="불러오는 중…"; await mineLoad(false); renderMine(); return; }
+  if(e.target.closest("#mineWhoBtn")){ mineWhoPick(); return; }
+  if(e.target.closest("#mineRelink")){ mineLinkScreen(); return; }
+  const u=e.target.closest("[data-murl]"); if(u && u.dataset.murl){ window.open(u.dataset.murl, "_blank", "noopener"); return; }
+});
 /* ===== 「⚡ 바로 갱신」 — 로컬 중계기(ufhelper) (2026-11-12, build 2026111207) ==========
    SVN 이 `svn://10.10.0.253` 이라 브라우저가 직접 말을 걸 수 없다(프로토콜도 다르고 사설 IP 다).
    그래서 PC 안에서만 도는 작은 HTTP 서버(tools/ufhelper.ps1)를 두고 여기서 물어본다.

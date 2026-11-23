@@ -15,7 +15,7 @@ const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 �
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026112303;
+const APP_BUILD = 2026112304;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -33,8 +33,9 @@ async function ensureDb(env){
   if(DB_READY) return;
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS app_state (id TEXT PRIMARY KEY, data TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL, updated_by TEXT)").run();
   await env.DB.prepare("INSERT OR IGNORE INTO app_state (id,data,version,updated_at,updated_by) VALUES ('main','{\"tasks\":[],\"milestones\":[]}',0,datetime('now'),NULL)").run();
-  await env.DB.prepare("CREATE TABLE IF NOT EXISTS users (email TEXT PRIMARY KEY, name TEXT, last_seen TEXT, role TEXT DEFAULT 'viewer', requested INTEGER DEFAULT 0)").run();
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS users (email TEXT PRIMARY KEY, name TEXT, last_seen TEXT, role TEXT DEFAULT 'viewer', requested INTEGER DEFAULT 0, trello_id TEXT)").run();
   try{ await env.DB.prepare("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'viewer'").run(); }catch(_){}
+  try{ await env.DB.prepare("ALTER TABLE users ADD COLUMN trello_id TEXT").run(); }catch(_){}   // 「내 일감」 계정 연결(2026-11-23)
   try{ await env.DB.prepare("ALTER TABLE users ADD COLUMN requested INTEGER DEFAULT 0").run(); }catch(_){}
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS history (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT NOT NULL, version INTEGER, saved_by TEXT, saved_at TEXT)").run();
   /* 접속 집계(2026-11-18) — 사람·날짜 1건. users.last_seen 은 덮어쓰기라 과거 이력이 남지 않아
@@ -52,6 +53,89 @@ async function withDb(env, fn){
     DB_READY=false; await ensureDb(env); return await fn();
   }
 }
+/* ===== 내 일감 (2026-11-23) ============================================
+ * [stated] "dev, qa trello board 에 내가 join 되어 있는 티켓들을 필터링해서 보여 주고 싶어.
+ *           기획 및 개발자 본인이 어떤 업무를 해야하는지 모르더라고"
+ * 설계 원칙
+ *  - **읽기 전용.** 트렐로 카드를 건드리지 않고 app_state 에도 아무것도 저장하지 않는다.
+ *  - 사람마다 긁지 않는다. **보드 단위로 한 번 긁어 캐시**(3분)하고 전원이 그 결과를 나눠 쓴다
+ *    → 사람이 늘어도 트렐로 호출은 그대로. (free_tier_budget)
+ *  - 체크리스트는 **Dev 보드만** 긁는다. QA 보드는 카드가 많아 checkItems=all 응답이 너무 커진다.
+ *    (점검 기능도 Dev 보드만 본다 — trello_audit)
+ *  - 트렐로 계정 ↔ 보드 계정은 users.trello_id 1칸. 이름으로 추천하고 본인이 1회 확인한다. */
+const trelloQaBoardId = env => String(env.TRELLO_BOARD_QA || "NqVTDdgX").trim();
+const MINE_TTL_MS = 3*60*1000;
+/* 「끝난 것」 판정 = 리스트 이름 (2026-11-23 사용자 선택). 환경변수로 덧붙일 수 있다. */
+const MINE_DONE_WORDS = ["done","complete","completed","완료","종료","resolved","closed","deploy","배포","released"];
+function mineDone(env, listName){
+  const n=String(listName||"").toLowerCase();
+  if(!n) return false;
+  const extra=String(env.TRELLO_DONE_LISTS||"").split(",").map(x=>x.trim().toLowerCase()).filter(Boolean);
+  return MINE_DONE_WORDS.concat(extra).some(w=>n.includes(w));
+}
+let mineCache={ at:0, data:null }, mineBusy=null;
+async function mineScanBoards(env, force){
+  if(!force && mineCache.data && Date.now()-mineCache.at < MINE_TTL_MS) return mineCache.data;
+  if(mineBusy) return await mineBusy;
+  mineBusy = (async () => {
+    const boards=[{ key:"dev", name:"Dev", id:trelloBoardId(env),   chk:true  },
+                  { key:"qa",  name:"QA",  id:trelloQaBoardId(env), chk:false }];
+    const out={ at:new Date().toISOString(), boards:[], cards:[], items:[], members:[] };
+    for(const b of boards){
+      let lists, cards, mems;
+      try{
+        [lists, cards, mems] = await Promise.all([
+          trelloFetch(env, `/boards/${b.id}/lists?fields=id,name&filter=open`),
+          trelloFetch(env, `/boards/${b.id}/cards?fields=id,name,idList,idMembers,due,dueComplete,shortUrl&filter=open`),
+          trelloFetch(env, `/boards/${b.id}/members?fields=fullName,username`).catch(()=>[]),
+        ]);
+      }catch(e){ out.boards.push({ key:b.key, name:b.name, error:String(e && e.message || e) }); continue; }
+      const lname={}; (lists||[]).forEach(l=>{ if(l && l.id) lname[l.id]=l.name||""; });
+      (mems||[]).forEach(m=>{ if(m && m.id) out.members.push({ id:m.id, name:m.fullName||m.username||"", user:m.username||"" }); });
+      const mine=[];
+      (cards||[]).forEach(c=>{
+        if(!c || !c.id) return;
+        const ln=lname[c.idList]||"";
+        mine.push({ id:c.id, b:b.key, n:c.name||"", l:ln, m:c.idMembers||[],
+                    due:c.due?String(c.due).slice(0,10):"", u:c.shortUrl||"",
+                    done: !!c.dueComplete || mineDone(env, ln) });
+      });
+      let nItems=0;
+      if(b.chk){
+        let chks=[];
+        try{ chks = await trelloFetch(env, `/boards/${b.id}/checklists?fields=idCard&checkItems=all&checkItem_fields=name,state,due,idMember`); }catch(_){ chks=[]; }
+        const byCard={}; mine.forEach(c=>{ byCard[c.id]=c; });
+        (chks||[]).forEach(cl=>{
+          const c=byCard[cl && cl.idCard]; if(!c) return;
+          (cl.checkItems||[]).forEach(ci=>{
+            if(!ci || !ci.idMember || ci.state==="complete") return;
+            out.items.push({ b:b.key, card:c.id, cn:c.n, u:c.u, n:ci.name||"",
+                             due:ci.due?String(ci.due).slice(0,10):"", m:ci.idMember });
+            nItems++;
+          });
+        });
+      }
+      out.cards.push(...mine);
+      out.boards.push({ key:b.key, name:b.name, cards:mine.length, lists:(lists||[]).length, items:nItems });
+    }
+    const seen={}; out.members = out.members.filter(m=>{ if(seen[m.id]) return false; seen[m.id]=1; return true; })
+                                            .sort((a,b)=>String(a.name).localeCompare(String(b.name),"ko"));
+    mineCache={ at:Date.now(), data:out };
+    return out;
+  })();
+  try{ return await mineBusy; } finally { mineBusy=null; }
+}
+/* 이름으로 트렐로 계정 추천 — 공백·괄호를 지우고 견준다. 정확히 같으면 1순위. */
+function mineSuggest(members, myName){
+  const norm=x=>String(x||"").toLowerCase().replace(/[\s()[\]{}·.\-_]/g,"");
+  const me=norm(myName); if(!me) return [];
+  const exact=[], part=[];
+  (members||[]).forEach(m=>{ const n=norm(m.name), u=norm(m.user);
+    if(n===me || u===me) exact.push(m);
+    else if(n && (n.includes(me) || me.includes(n))) part.push(m); });
+  return exact.concat(part).slice(0, 8);
+}
+
 /* ===== 접속 집계 (2026-11-18) ==========================================
  * [stated] "최근 접속자 수를 통계 내도록해줘. 월별 누적 총 누적 / 관리자만 볼 수 있어"
  * 날짜는 **한국 시간(KST)** 으로 묶는다 — 오전 8시 출근은 UTC 로는 전날이다.
@@ -686,6 +770,45 @@ async function handleApi(request, env, url, ctx){
       people: (pp.results || []).map(u=>({ email:u.email, name:u.name||"", days:u.days, cur:u.cur,
                                            first:u.first, lastd:u.lastd, at:u.at||"", role:u.role||"viewer" })),
       recent: (rc.results || []).map(u=>({ email:u.email, name:u.name||"", at:u.last_seen })) });
+  }
+  /* 내 일감 — 트렐로 계정 목록·추천 (편집 권한 이상). 스캔 캐시를 그대로 쓴다. */
+  if(p === "/api/mine/members" && request.method === "GET"){
+    if(!trelloReady(env)) return json({ error:"trello not configured", reason:"not-configured" }, 400);
+    const scan = await mineScanBoards(env);
+    const row  = await env.DB.prepare("SELECT name, trello_id FROM users WHERE email=?").bind(user.email).first();
+    const myName = (row && row.name) || user.name || "";
+    return json({ ok:true, linked:(row && row.trello_id) || "", myName,
+                  members: scan.members, suggest: mineSuggest(scan.members, myName) });
+  }
+  /* 내 트렐로 계정 연결 — **본인 것만.** 빈 값이면 연결 해제. */
+  if(p === "/api/mine/link" && request.method === "POST"){
+    const b = await request.json().catch(()=>({}));
+    const tid = String((b && b.trelloId) || "").trim().slice(0, 64);
+    await env.DB.prepare("INSERT INTO users (email,name,trello_id) VALUES (?,?,?) ON CONFLICT(email) DO UPDATE SET trello_id=excluded.trello_id, name=excluded.name")
+      .bind(user.email, user.name||"", tid).run();
+    return json({ ok:true, linked:tid });
+  }
+  /* 내 일감 본문. ?who=<이메일> 은 **매니저 이상만** (2026-11-23 사용자 선택). */
+  if(p === "/api/mine" && request.method === "GET"){
+    if(!trelloReady(env)) return json({ error:"trello not configured", reason:"not-configured" }, 400);
+    const role = await effectiveRole(env, user.email);
+    let target = user.email;
+    const who = String(url.searchParams.get("who")||"").trim();
+    if(who && who.toLowerCase() !== String(user.email).toLowerCase()){
+      if(!isManager(role)) return json({ error:"forbidden" }, 403);
+      target = who;
+    }
+    const row = await env.DB.prepare("SELECT name, trello_id FROM users WHERE email=?").bind(target).first();
+    const tid = (row && row.trello_id) || "";
+    const nm  = (row && row.name) || "";
+    if(!tid) return json({ ok:true, needLink:true, who:target, name:nm, mine: target===user.email });
+    const scan  = await mineScanBoards(env, url.searchParams.get("fresh")==="1");
+    const cards = scan.cards.filter(c => (c.m||[]).indexOf(tid) >= 0)
+                            .map(c => ({ id:c.id, b:c.b, n:c.n, l:c.l, due:c.due, u:c.u, done:c.done }));
+    const items = scan.items.filter(i => i.m === tid)
+                            .map(i => ({ b:i.b, card:i.card, cn:i.cn, u:i.u, n:i.n, due:i.due }));
+    return json({ ok:true, who:target, name:nm, trelloId:tid, at:scan.at,
+                  boards:scan.boards, cards, items, mine: target===user.email });
   }
   if(p === "/api/grant" && request.method === "POST"){
     const me = await effectiveRole(env, user.email);
