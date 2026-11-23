@@ -3702,7 +3702,7 @@ function taskHeadHtml(t){
   const doneChip=isArt?`<span class="done-chip ${t.done?'on':''}" data-done="${t.id}" title="완료 토글">${t.done?'✓':'○'}</span>`:'';
   const links=(t.links.plan?`<a class="lk" href="${escapeHtml(t.links.plan)}" target="_blank" rel="noopener" title="기획서">📄</a>`:"")+(trelloUrlOf(t)?`<a class="lk" href="${escapeHtml(trelloUrlOf(t))}" target="_blank" rel="noopener" title="Trello 카드 열기">${TRELLO_ICON}</a>`+
     `<button type="button" class="tr-copy" data-trcopy="${t.id}" title="트렐로 카드 주소를 클립보드에 복사합니다">⧉</button>`+
-    `<button type="button" class="tr-copy tr2" data-trcopy2="${t.id}" title="일감 이름 + 빈 줄 + 트렐로 주소를 함께 복사합니다">≡</button>`:"")
+    `<button type="button" class="tr-copy tr2" data-trcopy2="${t.id}" title="일감 이름과 트렐로 주소를 함께 복사합니다 (줄바꿈 1개)">≡</button>`:"")
     + noteBadgeHtml(t);
   const aps=taskAssignees(t);
   /* 지연 칩·점검 배지는 우측 고정 칸(.th-right 140px)이 아니라 Task 이름 옆에 붙인다.
@@ -9611,7 +9611,7 @@ function copyTrelloLink(id, btn){
 function copyTrelloNameLink(id, btn){
   const t=findTask(id); const url=trelloUrlOf(t);
   if(!url){ flashNote("이 Task 에는 연결된 트렐로 카드가 없습니다."); return; }
-  const text=(t.name||"")+"\n\n"+url;
+  const text=(t.name||"")+"\n"+url;
   const done=()=>{ if(btn&&btn.isConnected){
       btn.classList.add("ok"); btn.textContent="✓";
       setTimeout(()=>{ if(btn.isConnected){ btn.classList.remove("ok"); btn.textContent="≡"; } }, 1400); }
