@@ -4850,7 +4850,8 @@ function orgHit(u, q){
       || String(u.email||"").toLowerCase().startsWith(lq);
 }
 const PK_MAX = 300;                                  /* 검색 결과 상한 — 207명이라 사실상 전부 */
-let pk={ tid:"", dep:"", node:"", q:"", sel:new Set(), exp:new Set() };
+/* mode:"" = 담당자 배정(기존, 여러 명) · "mine" = 「내 일감」 사람 고르기(한 명, 이메일로 고른다) */
+let pk={ tid:"", dep:"", node:"", q:"", sel:new Set(), exp:new Set(), mode:"" };
 const pickModal=document.getElementById("pickModal");
 function pkUserIds(deptId){ return (ORG.byId[deptId]&&ORG.byId[deptId].members||[]).filter(m=>ORG.users[m]); }
 function pkTreeHtml(){
@@ -4867,6 +4868,15 @@ function pkTreeHtml(){
   return walk("",0);
 }
 function pkRowUser(u){
+  if(pk.mode==="mine"){
+    const em=String(u.email||"");
+    const tl=!!(minePeopleTl && minePeopleTl[em.toLowerCase()]);
+    const sub=[u.dept||"", u.resp||u.position||""].filter(Boolean).join(" · ");
+    return `<div class="prow"${em?` data-pkmine="${escapeHtml(em)}"`:""}${em?"":' style="opacity:.4"'}>`+
+      `<div class="av">${escapeHtml(String(u.name||"?").slice(0,1))}</div>`+
+      `<div class="tx"><b>${escapeHtml(u.name||"")}</b><small>${escapeHtml(sub)}${em?" · "+escapeHtml(em):" · 이메일 없음"}</small></div>`+
+      `<span class="go" style="font-size:10px;font-weight:800;${tl?"color:#6ee7b7":"color:var(--muted);opacity:.7"}">${tl?"연결됨":"미연결"}</span></div>`;
+  }
   const nm=ORG.disp(u), on=pk.sel.has(nm);
   const lead=(ORG.byId[pk.node]&&(ORG.byId[pk.node].leaders||[]).indexOf(u.id)>=0);
   const sub=[u.dept||"", u.resp||u.position||""].filter(Boolean).join(" · ");
@@ -4890,7 +4900,7 @@ function pkMainHtml(){
     const hit=names.filter(n=>pk.sel.has(n)).length;
     const cls = hit===0 ? "" : (hit===names.length ? "on" : "part");
     return `<div class="prow" data-pkdept="${escapeHtml(k.id)}">`+
-      `<div class="pk-ck ${cls}" data-pkdeptck="${escapeHtml(k.id)}">${cls==="on"?'✓':''}</div>`+
+      (pk.mode==="mine" ? "" : `<div class="pk-ck ${cls}" data-pkdeptck="${escapeHtml(k.id)}">${cls==="on"?'✓':''}</div>`)+
       `<div class="av grp">👥</div><div class="tx"><b>${escapeHtml(k.name||"")}</b><small>${ids.length}명</small></div>`+
       `<span class="go">›</span></div>`;
   }).join("");
@@ -4898,7 +4908,7 @@ function pkMainHtml(){
     .sort((a,b)=>String(a.name).localeCompare(String(b.name),"ko")).map(pkRowUser).join("");
   return `<div class="pk-crumb">${crumb||"&nbsp;"}</div>`+
     `<div class="pk-dh"><h4>${escapeHtml(d.name||"")} <span>${ORG.sub(pk.node).size}</span></h4>`+
-    `<button type="button" class="btn ghost" data-pkall="1">부서 전체 선택</button></div>`+
+    (pk.mode==="mine" ? "" : `<button type="button" class="btn ghost" data-pkall="1">부서 전체 선택</button>`)+`</div>`+
     (subs+own || `<div class="pk-msg">이 부서에 인원이 없습니다.</div>`);
 }
 function renderPick(){
@@ -4916,6 +4926,16 @@ function renderPick(){
   if(src) src.textContent = `카카오워크 조직도 · ${ORG.count}명`;
   if(tree) tree.innerHTML = pkTreeHtml();
   if(main) main.innerHTML = pkMainHtml();
+  const ok=document.getElementById("pkOk"), cancel=document.getElementById("pkCancel");
+  if(pk.mode==="mine"){
+    if(ok) ok.style.display="none";
+    if(cancel) cancel.textContent="닫기";
+    if(cnt) cnt.textContent = mineWho ? "지금 보는 중: "+mineWho : "지금 보는 중: 내 일감";
+    if(sel) sel.innerHTML = `<button type="button" class="btn ghost" data-pkmine="">← 내 일감 보기</button>`;
+    return;
+  }
+  if(ok) ok.style.display="";
+  if(cancel) cancel.textContent="취소";
   if(cnt) cnt.textContent = `선택 ${pk.sel.size}명`;
   if(sel) sel.innerHTML = [...pk.sel].map(n=>
     `<span class="a">${escapeHtml(n)}<button type="button" data-pkdrop="${escapeHtml(n)}">✕</button></span>`).join("");
@@ -4924,7 +4944,7 @@ function openPick(tid, dep){
   if(!asgCanEdit()){ noticeAsgLock(); return; }
   const t=findTask(tid); if(!t||!dep) return;
   const seg=t.depts[dep];
-  pk={ tid, dep, node:"", q:"", sel:new Set((seg&&seg.assignees)||[]), exp:new Set() };
+  pk={ tid, dep, node:"", q:"", sel:new Set((seg&&seg.assignees)||[]), exp:new Set(), mode:"" };
   const q=document.getElementById("pkQ"); if(q) q.value="";
   const h=pickModal.querySelector(".pk-h b"); if(h) h.textContent = `담당자 선택 — ${dep}`;
   pickModal.classList.add("show");
@@ -4975,6 +4995,8 @@ function pkApply(){
     const t=e.target;
     if(t.closest("#pkX")||t.closest("#pkCancel")){ pickModal.classList.remove("show"); return; }
     if(t.closest("#pkOk")){ pkApply(); return; }
+    const pm=t.closest("[data-pkmine]");
+    if(pm){ pickModal.classList.remove("show"); mineGoWho(pm.dataset.pkmine||""); return; }
     const drop=t.closest("[data-pkdrop]");
     if(drop){ pk.sel.delete(drop.dataset.pkdrop); renderPick(); return; }
     if(!ORG) return;
@@ -7213,7 +7235,7 @@ function ufApplyScan(o, who){
    · **읽기 전용.** 트렐로도 보드 state 도 건드리지 않는다.
    · 트렐로 계정 연결은 users.trello_id 1칸. 이름으로 추천 → 본인이 1회 확인(2026-11-23 선택).
    · 매니저 이상은 상단에서 사람을 바꿔 남의 일감도 볼 수 있다(서버도 같은 기준으로 막는다). */
-let MINE=null, mineWho="", mineBusyF=false, mineFold={}, minePeople=null, mineDoneOn=false, mineLpOpen=false, mineBdFold=false;
+let MINE=null, mineWho="", mineBusyF=false, mineFold={}, minePeople=null, minePeopleTl=null, mineDoneOn=false, mineLpOpen=false, mineBdFold=false;
 /* Dev 리스트 가리기 — [stated] "dev는 내가 보고 싶은 list를 정할 수 있었으면 좋겠어 아예 안보고 싶을 수도 있거든"
    개인 설정이라 localStorage. state 에 넣으면 볼 때마다 D1 쓰기 + 사람마다 달라 서로 덮어쓴다. */
 const MINE_HIDE_KEY="ms_mine_devhide";
@@ -7300,7 +7322,8 @@ function renderMine(){
        거기서 고르면 내 trello_id 가 바뀌었다. 연결 화면은 **본인일 때만**. */
     if(MINE.mine===false){
       el.innerHTML = `<div class="mi-bar"><span>👤 <b>${escapeHtml(MINE.name||MINE.who||"")}</b> 의 일감</span>`
-        + `<span class="who"><button id="mineBackBtn">← 내 일감으로</button></span></div>`
+        + `<span class="who">${mineIsManager()?`<button id="mineWhoBtn">👥 사람 바꾸기</button>`:""}`
+        + `<button id="mineBackBtn">← 내 일감으로</button></span></div>`
         + `<div class="dm-empty">이 사람은 아직 트렐로 계정을 연결하지 않았습니다.<br>`
         + `<span style="font-size:11px;opacity:.8">본인이 「내 일감」을 한 번 열어 계정을 고르면 그때부터 보입니다.</span></div>`;
       return;
@@ -7545,8 +7568,40 @@ function relTimeShort(iso){
   if(s0<60) return "방금"; if(s0<3600) return Math.floor(s0/60)+"분 전";
   return Math.floor(s0/3600)+"시간 전";
 }
-/* ---------- 사람 바꾸기 (매니저 이상) ---------- */
-async function mineWhoPick(){
+/* ---------- 사람 바꾸기 (매니저 이상) ----------------------------------------------
+   [stated] "여기서 검색 기능이 없습니다. 여기서는 목록을 노출시키지말고 **회사 명부**를 보여주었으면"
+   → 보드 사용자 106명 목록 대신 **담당자 배정과 같은 조직도 팝업(#pickModal)** 을 그대로 쓴다.
+     부서 트리 + 이름·초성·부서·직책 검색이 전부 딸려 온다. 고르면 그 사람 **이메일**로 바로 전환.
+   보드에 계정이 없거나 트렐로를 연결 안 한 사람은 「미연결」로 표시하고, 골라도 안내만 뜬다. */
+async function minePeopleLoad(){
+  if(minePeople) return minePeople;
+  try{ const r=await fetch("/api/members",{credentials:"same-origin"}); const j=await r.json(); minePeople=j.members||[]; }
+  catch(_){ minePeople=[]; }
+  minePeopleTl={}; minePeople.forEach(p=>{ if(p && p.tl) minePeopleTl[String(p.email||"").toLowerCase()]=1; });
+  if(pk.mode==="mine") renderPick();
+  return minePeople;
+}
+function mineGoWho(email){
+  const me=String((window.APP_USER||{}).email||"").toLowerCase();
+  mineWho = (!email || String(email).toLowerCase()===me) ? "" : email;
+  if(!mineModal.classList.contains("show")) mineModal.classList.add("show");
+  document.getElementById("mineBody").innerHTML="불러오는 중…";
+  mineLoad(false).then(renderMine);
+}
+function mineWhoPick(){
+  pk={ tid:"", dep:"", node:"", q:"", sel:new Set(), exp:new Set(), mode:"mine" };
+  const qi=document.getElementById("pkQ"); if(qi) qi.value="";
+  const h=pickModal.querySelector(".pk-h b"); if(h) h.textContent="누구의 일감을 볼까요 — 회사 명부";
+  pickModal.classList.add("show");
+  renderPick();
+  minePeopleLoad();
+  orgLoad().then(()=>{
+    pk.node=ORG.root; pk.exp=new Set([ORG.root]);
+    (ORG.kids[ORG.root]||[]).forEach(k=>pk.exp.add(k.id));
+    renderPick(); if(qi) qi.focus();
+  }).catch(()=>renderPick());
+}
+async function mineWhoPickOld(){
   if(!minePeople){
     try{ const r=await fetch("/api/members",{credentials:"same-origin"}); const j=await r.json(); minePeople=j.members||[]; }
     catch(_){ minePeople=[]; }
