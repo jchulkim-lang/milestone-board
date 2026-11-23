@@ -1374,6 +1374,32 @@
   .mi-grp .ar{margin-left:auto;color:var(--muted);opacity:.7;font-weight:700;}
   .mi-grp .od{color:#ff9b9b;font-weight:800;}
   body.light .mi-grp .od{color:#c0392b;}
+  /* 보드 일감 경고 줄 (2026-11-23, build 2026112309) — 담당자 매트릭스에서 내가 맡은 부서 칸 */
+  .mi-tiles.n5{grid-template-columns:repeat(5,1fr);}
+  .mi-tile.bd{border-color:rgba(245,158,11,.5);background:rgba(245,158,11,.12);}
+  .mi-tile.bd .v{color:#fbbf24;}
+  body.light .mi-tile.bd .v{color:#a16207;}
+  body.light .mi-tile.bd{background:rgba(245,158,11,.1);}
+  .bdbar{border:1px solid rgba(245,158,11,.45);background:rgba(245,158,11,.10);border-radius:10px;padding:9px 12px;margin:0 0 14px;}
+  body.light .bdbar{background:rgba(245,158,11,.08);}
+  .bdbar .hd{display:flex;align-items:center;gap:9px;font-size:12.5px;font-weight:800;cursor:pointer;user-select:none;flex-wrap:wrap;}
+  .bdbar .hd .w{color:#fbbf24;}
+  body.light .bdbar .hd .w{color:#a16207;}
+  .bdbar .hd em{font-style:normal;font-weight:700;color:var(--muted);font-size:11.5px;}
+  .bdbar .hd .ar{margin-left:auto;color:var(--muted);}
+  .bdrow{display:flex;align-items:center;gap:9px;padding:7px 9px;margin-top:6px;border-radius:8px;background:var(--panel2);
+     border:1px solid var(--line);font-size:12.5px;cursor:pointer;}
+  .bdrow:hover{border-color:var(--accent);}
+  .bdrow.od{border-left:3px solid #ef4444;}
+  .bdrow.ns{border-left:3px solid #fbbf24;}
+  .bdrow .dep{flex:0 0 auto;font-size:9.5px;font-weight:800;color:#fff;border-radius:5px;padding:2px 6px;}
+  .bdrow .nm{font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .bdrow .ms{flex:0 0 auto;font-size:9.5px;font-weight:800;color:#fff;border-radius:999px;padding:1px 7px;}
+  .bdrow .st{flex:0 0 auto;font-size:10.5px;font-weight:700;color:var(--muted);background:var(--panel);
+     border:1px solid var(--line);border-radius:999px;padding:1px 8px;white-space:nowrap;}
+  .bdrow .dt{margin-left:auto;flex:0 0 auto;font-size:11.5px;font-weight:700;font-variant-numeric:tabular-nums;color:#ff9b9b;white-space:nowrap;}
+  .bdrow.ns .dt{color:#fbbf24;}
+  body.light .bdrow .dt{color:#c0392b;} body.light .bdrow.ns .dt{color:#a16207;}
   .mi-note{font-size:11px;color:var(--muted);line-height:1.6;margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);}
   /* ⚠ 라이트에서 앰버·연빨강은 흰 카드 위에서 안 읽힌다 — theme_palette 의 전례. 짝을 꼭 둔다. */
   body.light .mi-due.od{color:#c0392b;}
@@ -7187,7 +7213,7 @@ function ufApplyScan(o, who){
    · **읽기 전용.** 트렐로도 보드 state 도 건드리지 않는다.
    · 트렐로 계정 연결은 users.trello_id 1칸. 이름으로 추천 → 본인이 1회 확인(2026-11-23 선택).
    · 매니저 이상은 상단에서 사람을 바꿔 남의 일감도 볼 수 있다(서버도 같은 기준으로 막는다). */
-let MINE=null, mineWho="", mineBusyF=false, mineFold={}, minePeople=null, mineDoneOn=false, mineLpOpen=false;
+let MINE=null, mineWho="", mineBusyF=false, mineFold={}, minePeople=null, mineDoneOn=false, mineLpOpen=false, mineBdFold=false;
 /* Dev 리스트 가리기 — [stated] "dev는 내가 보고 싶은 list를 정할 수 있었으면 좋겠어 아예 안보고 싶을 수도 있거든"
    개인 설정이라 localStorage. state 에 넣으면 볼 때마다 D1 쓰기 + 사람마다 달라 서로 덮어쓴다. */
 const MINE_HIDE_KEY="ms_mine_devhide";
@@ -7304,8 +7330,28 @@ function renderMine(){
     +`${icon} ${label} <em>${n}</em>${foldable?`<span class="ar">${mineFold[key]?"▸":"▾"}</span>`:""}</div>`;
   const body=(key,list)=> (!list.length ? "" : (mineFold[key] ? "" : list.map(cardRow).join("")));
 
-  let h=`<div class="mi-tiles">${tile("마감 지남", od.length, od.length>0)}${tile("오늘 · 이번 주", soon.length)}`
-      + `${tile("그 뒤", later.length)}${tile("마감 미정", nod.length)}</div>`;
+  const bd=mineBoardRows(), bdOd=bd.filter(x=>x.k==="od"), bdNs=bd.filter(x=>x.k==="ns");
+  let h=`<div class="mi-tiles${bd.length?" n5":""}">${tile("마감 지남", od.length, od.length>0)}${tile("오늘 · 이번 주", soon.length)}`
+      + `${tile("그 뒤", later.length)}${tile("마감 미정", nod.length)}`
+      + `${bd.length?`<div class="mi-tile bd"><div class="k">보드 일정 지남</div><div class="v">${bd.length}</div></div>`:""}</div>`;
+  if(bd.length){
+    h += `<div class="bdbar"><div class="hd" data-bdfold="1"><span class="w">⚠ 보드 일감</span>`
+      + `${bdOd.length?`<b>기한 지남 ${bdOd.length}</b>`:""}`
+      + `${bdNs.length?`<em>${bdOd.length?"· ":""}일정 미정 ${bdNs.length} (진행 중 마일스톤)</em>`:""}`
+      + `<em style="margin-left:8px;opacity:.75">담당자 매트릭스에서 내가 맡은 부서 칸</em>`
+      + `<span class="ar">${mineBdFold?"▸":"▾"}</span></div>`;
+    if(!mineBdFold) h += bd.map(x=>{
+      const st=x.t.status||"", msn=x.ms?msBadgeShort(x.ms.name):"";
+      return `<div class="bdrow ${x.k}" data-bdgo="${escapeHtml(x.t.id)}" title="${escapeHtml(x.t.name||"")} · ${escapeHtml(x.d.key)}">`
+        + `<span class="dep" style="background:${x.d.color||"#64748b"}">${escapeHtml(x.d.key)}</span>`
+        + `<span class="nm">${escapeHtml(x.t.name||"")}</span>`
+        + `${msn?`<span class="ms" style="background:${x.ms.color||"#6366f1"}">${escapeHtml(msn)}</span>`:""}`
+        + `${st?`<span class="st">${escapeHtml(st)}</span>`:""}`
+        + `<span class="dt">${x.k==="od" ? escapeHtml(x.dt+" · "+x.days+"일 지남")
+             : escapeHtml("일정 미정 · "+(x.ms?msBadgeShort(x.ms.name):"")+" 진행 중")}</span></div>`;
+    }).join("");
+    h += `</div>`;
+  }
 
   const bs=(MINE.boards||[]).map(b=>b.error?`${b.name} <span style="color:#ff9b9b">오류</span>`:`${b.name} ${b.cards}`).join(" · ");
   h += `<div class="mi-bar"><span>${escapeHtml(bs)} <span style="opacity:.6">(보드 전체 카드 수)</span></span>`
@@ -7376,6 +7422,7 @@ function renderMine(){
         +`<span class="mi-due ${mineDueTxt(i.due,today).c}">${escapeHtml(mineDueTxt(i.due,today).t)}</span></div>`).join("");
   h += `<div class="mi-note">· 카드에 마감일이 없으면 <b>마일스톤 날짜</b>를 마감으로 봅니다 — Dev 는 개발 마감, QA 는 QA 마감(없으면 개발 → 빌드 전달일). 흐리게 적힌 날짜가 그렇게 끌어온 값입니다.<br>`
      + `${curMs?`· 오늘(${escapeHtml(today.slice(5))}) 기준 진행 중인 마일스톤은 <b>${escapeHtml(curMs.name)}</b> 입니다. 마일스톤을 모르는 카드는 이 날짜로 봅니다.<br>`:""}`
+     + `· 위 노란 줄은 <b>보드(담당자 매트릭스)</b> 쪽입니다 — 빨강은 내 부서 마감이 지났는데 완료 체크가 안 된 것, 노랑은 일정이 안 잡혔는데 마일스톤이 이미 시작된 것. 누르면 보드에서 그 Task 로 갑니다.<br>`
      + `· <b>Dev</b>(왼쪽) 는 트렐로 리스트가 곧 마일스톤이라 마일스톤 순서로, <b>QA</b>(오른쪽) 는 보드에 놓인 리스트 순서로 묶습니다.<br>`
      + `· Dev 의 「⚙ 리스트 고르기」 로 보고 싶은 리스트만 남길 수 있습니다. <b>내 화면에만</b> 적용되고 숫자에서도 빠집니다.<br>`
      + `· 카드를 누르면 트렐로에서 열립니다. QA 카드에 보드 Task 가 연결돼 있으면 마일스톤 배지가 붙습니다.<br>`
@@ -7383,6 +7430,35 @@ function renderMine(){
      + `· 체크 항목은 <b>Dev 보드</b>만 읽습니다 — QA 보드는 카드가 많아 응답이 너무 커집니다.</div>`;
   el.innerHTML=h;
   if(ft) ft.textContent = "Dev · QA 보드 기준 · 3분마다 갱신";
+}
+/* ===== 보드 일감 (2026-11-23, build 2026112309) ====================================
+   [stated] "마일스톤 웹뷰 자체에 등록된 task 중에 **일자가 오버된 것들**도 내 일감에 표시"
+   트렐로가 아니라 **담당자 매트릭스에서 내가 맡은 부서 칸**(t.depts[k])을 본다. 서버 호출 0 —
+   이미 브라우저에 있는 state 로 계산한다. 멤버 뷰가 쓰던 판정 함수들(isDone·hasSched·taskDeps)을 그대로 쓴다.
+   · 빨강(od) = 내 부서 마감(seg.end, 영업일 인덱스)이 오늘보다 이전인데 seg.done 이 아님
+   · 노랑(ns) = 일정 미정(hasSched false)인데 그 Task 의 마일스톤이 **이미 시작**됨 (2026-11-23 사용자 선택)
+   · 이름으로 붙인다(매트릭스 담당자 = 실명 = users.name). 트렐로 계정 연결과 무관하지만,
+     화면 자체가 연결 뒤에만 열리므로 미연결자에게는 안 보인다(사용자 선택). */
+function mineBoardRows(){
+  const nm=(MINE && MINE.name) || "";
+  const out=[]; if(!nm) return out;
+  const ti=indexOfToday(), tod=ymd(new Date());
+  (state.tasks||[]).forEach(t=>{
+    if(!t || t.mirrorOf || isDone(t)) return;
+    taskDeps(t).forEach(d=>{
+      const seg=(t.depts||{})[d.key];
+      if(!seg || !seg.on || seg.done) return;
+      if(!(seg.assignees||[]).includes(nm)) return;
+      const ms=findMs(t.msId);
+      if(hasSched(seg)){
+        if(ti>=0 && seg.end < ti) out.push({ k:"od", t, d, ms, days:ti-seg.end, dt:fmt(dateOf(seg.end)) });
+      }else if(ms && ms.start && ms.start<=tod){
+        out.push({ k:"ns", t, d, ms });
+      }
+    });
+  });
+  out.sort((a,b)=> a.k!==b.k ? (a.k==="od"?-1:1) : ((b.days||0)-(a.days||0)));
+  return out;
 }
 /* ===== 마감 기준 = 마일스톤 (2026-11-23, build 2026112308) =========================
    [stated] "현재 날짜 기준으로 (=마일스톤) 판단해서 마감 기준을 정했으면 합니다"
@@ -7496,6 +7572,9 @@ document.getElementById("mineBody").addEventListener("click", async e=>{
   if(e.target.closest("#mineRelink")){ mineLinkScreen(); return; }
   if(e.target.closest("#mineDoneBtn")){ mineDoneOn=!mineDoneOn; renderMine(); return; }
   if(e.target.closest("#mineLpBtn")){ mineLpOpen=!mineLpOpen; renderMine(); return; }
+  if(e.target.closest("[data-bdfold]")){ mineBdFold=!mineBdFold; renderMine(); return; }
+  const bg=e.target.closest("[data-bdgo]");
+  if(bg){ mtGoTo(bg.dataset.bdgo); return; }      // 보드 쪽 일감이라 트렐로가 아니라 보드로 이동
   const ml=e.target.closest("[data-mlist]");
   if(ml){ const k=ml.dataset.mlist; if(mineDevHide.has(k)) mineDevHide.delete(k); else mineDevHide.add(k);
     mineSaveHide(); renderMine(); return; }
