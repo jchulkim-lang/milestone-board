@@ -1332,6 +1332,21 @@
   .rm-cell.rm-tl > .rm-tchip.nodate{ border-style:dashed; opacity:.7; }
   .rm-cell.rm-tl > .rm-tchip.offm{ border-style:dashed; }   /* 날짜가 이 달이 아닌 항목 */
   .rm-cell.rm-tl > .rm-add{ position:absolute; right:5px; top:5px; z-index:6; }
+  /* === 지난 마일스톤 접기 (2026-11-23, build 2026112302) =========================
+     [stated] "이미 지나간 마일스톤을 접을 수 있었으면 / 접으면 현재 활성화된 것 기준으로
+               행의 높이가 유동적으로 변했으면"
+     접힌 월 열은 30px 세로 띠. 행 높이는 rmPackLanes() 가 **펼쳐진 열만** 재므로 저절로 낮아진다. */
+  .rm-cell.rm-fdw{ flex:0 0 30px; min-width:30px; max-width:30px; }   /* 폭만 — 마감 밴드 칸용 */
+  .rm-cell.rm-fd{ flex:0 0 30px; min-width:30px; max-width:30px; padding:0; display:flex;
+     align-items:center; justify-content:center; position:relative; cursor:pointer; background:var(--panel2); }
+  .rm-cell.rm-fd:hover{ background:var(--rowhead-h); }
+  .rm-mh.rm-fd{ background:var(--panel2); }
+  .rm-mh.rm-fd span{ writing-mode:vertical-rl; font-size:10px; font-weight:800; color:var(--muted); letter-spacing:-.5px; }
+  .rm-cell.rm-fd .cnt{ position:absolute; bottom:5px; font-size:9px; font-weight:800; color:var(--muted); }
+  .rm-mscard.mini{ flex:0 0 auto; align-self:center; padding:6px 11px; display:flex; align-items:center; gap:7px; opacity:.72; }
+  .rm-mscard.mini:hover{ opacity:1; }
+  .rm-mscard.mini .rm-msc-nm{ font-size:11.5px; }
+  .rm-mscard.mini em{ font-style:normal; font-size:9.5px; color:var(--muted); font-weight:800; }
   .rm-tlbtn{ font-size:10.5px; font-weight:800; padding:3px 9px; border-radius:999px; border:1px solid var(--line); background:var(--panel2); color:var(--muted); cursor:pointer; }
   .rm-tlbtn:hover{ color:var(--text); border-color:var(--accent); }
   .rm-tlbtn.on{ color:#fff; background:var(--accent); border-color:var(--accent); }
@@ -1341,9 +1356,17 @@
   .rm-blabel em{ font-style:normal; margin-left:5px; font-size:9.5px; opacity:.8; }
   .rm-blabel em.warn{ color:#fbbf24; opacity:1; }
   .rm-bcell{ position:relative; min-height:0; padding:0; display:block; overflow:visible; }
-  .rm-bar{ position:absolute; height:11px; border:1px solid; border-radius:6px; display:flex; align-items:center;
-           padding:0 5px; overflow:hidden; z-index:2; }
-  .rm-bar span{ font-size:9px; font-weight:800; color:var(--text); white-space:nowrap; }
+  /* === 일정 막대 (2026-11-23, build 2026112303, 사용자 선택 A안) ======================
+     [stated] "마일스톤 일정을 하단의 월별 캘린더와 위치를 일치시킬 수 있도록"
+     위에 따로 떠 있던 「일정」 카드 줄(#rmMsBar)을 없애고 **이 밴드 한 줄로 합쳤다.**
+     막대 = 시작일~빌드 전달일, 마감(리소스·개발·QA·종료)은 날짜 위치에 점+라벨.
+     표 안에 있으니 가로 스크롤·칸 너비·접기를 전부 같이 따라간다. */
+  .rm-bar{ position:absolute; height:15px; border:1px solid; border-radius:7px; display:flex; align-items:center;
+           gap:6px; padding:0 6px; overflow:hidden; z-index:2; }
+  .rm-bar span{ font-size:10px; font-weight:800; color:var(--text); white-space:nowrap; }
+  .rm-bar em{ font-style:normal; font-size:9px; font-weight:700; color:var(--muted); white-space:nowrap; }
+  .rm-bar em.cur{ color:#fff; background:var(--accent); border-radius:999px; padding:0 6px; font-weight:800; }
+  .rm-row.rm-band{ position:sticky; z-index:8; }   /* top 값은 머리글 높이에 맞춰 JS 가 넣는다 */
   .rm-bdot{ position:absolute; width:9px; height:9px; border-radius:50%; transform:translateX(-50%);
             box-shadow:0 0 0 2px var(--panel); z-index:4; }
   .rm-bmk{ position:absolute; transform:translateX(-50%); font-size:9px; font-weight:800; white-space:nowrap; z-index:5; pointer-events:none; }
@@ -5538,6 +5561,7 @@ function rmSetColW(v, rerender){
   const sl=document.getElementById("rmCwRange"); if(sl && Number(sl.value)!==w) sl.value=w;
   rmLayoutBandLabels();                       // 폭이 바뀌면 마감 라벨 겹침 재계산
   rmPackLanes();                              // 날짜 축 줄도 다시 계산
+  rmStickBand();
   if(rerender) renderRoadmap();
   return w;
 }
@@ -5574,7 +5598,25 @@ function rmMonths(){
    [stated] "월별로 일감을 넣고 있는데, 마일스톤내의 기간내에 시간대별로 표현할 수 있는 방법이 없을까?"
    항목은 이미 date:"YYYY-MM-DD" 를 갖고 있었다 — 새 데이터 없이 **그리는 방식만** 바꾼다.
    개인 설정이라 localStorage 에 둔다(state 에 넣으면 볼 때마다 D1 쓰기 — free_tier_budget). */
-const RM_TL_KEY="ms_rm_tl";
+const RM_TL_KEY="ms_rm_tl", RM_FOLD_KEY="ms_rm_fold";
+/* 지난 마일스톤 접기 — 「빌드 전달일(end)이 오늘보다 이전」이면 끝난 것으로 본다(2026-11-23 사용자 선택).
+   접는 범위는 **아직 안 끝난 마일스톤 중 가장 이른 시작월(cut)** 보다 앞선 월 열 전부.
+   rmUnfold 는 "이 열만 다시 펼침" — 뷰 상태라 저장하지 않는다. */
+function rmFold(){ try{ return localStorage.getItem(RM_FOLD_KEY)!=="0"; }catch(_){ return true; } }   // 기본 접음
+let rmUnfold=new Set();
+function rmSetFold(on){ try{ localStorage.setItem(RM_FOLD_KEY, on?"1":"0"); }catch(_){} rmUnfold.clear(); renderRoadmap(); }
+function rmFoldCutYm(){
+  const today=ymd(new Date());
+  const list=rmMsList().filter(m=>m && (m.start||m.end));
+  const live=list.filter(m=>!(m.end && m.end < today));
+  const base=live.map(m=>m.start||m.end).filter(Boolean).sort()[0] || today;
+  return String(base).slice(0,7);
+}
+function rmFoldSet(months){
+  if(!rmFold()) return new Set();
+  const cut=rmFoldCutYm();
+  return new Set(months.filter(x=>x.ym < cut && !rmUnfold.has(x.ym)).map(x=>x.ym));
+}
 function rmTl(){ try{ return localStorage.getItem(RM_TL_KEY)!=="0"; }catch(_){ return true; } }   // 기본 켬
 function rmSetTl(on){ try{ localStorage.setItem(RM_TL_KEY, on?"1":"0"); }catch(_){} renderRoadmap(); }
 function rmDaysInYm(ym){ const p=String(ym||"").split("-");
@@ -5585,6 +5627,14 @@ function rmDaysInYm(ym){ const p=String(ym||"").split("-");
    월말 칩이 다음 달 칸으로 삐져나가 거기 칩과 겹치는 것까지 잡아야 하기 때문.
    ⚠ innerHTML 을 새로 그린 뒤, 그리고 칸 너비가 바뀐 뒤 반드시 호출할 것. */
 const RM_TL_LANE_H=25;
+/* 마일스톤 일정 줄을 월 머리글 바로 아래에 붙인다(사용자 선택: 같이 고정).
+   머리글 높이는 글꼴·테마에 따라 달라지므로 **그린 뒤 재서** 넣는다. */
+function rmStickBand(){
+  const grid=document.getElementById("rmGrid"); if(!grid) return;
+  const head=grid.querySelector(".rm-row.rm-head"), band=grid.querySelector(".rm-row.rm-band");
+  if(!head || !band) return;
+  band.style.top = (head.offsetHeight||0) + "px";
+}
 function rmPackLanes(){
   const grid=document.getElementById("rmGrid"); if(!grid) return;
   grid.querySelectorAll(".rm-row[data-rmrow]").forEach(row=>{
@@ -5637,7 +5687,7 @@ function rmFindItem(gid,iid){ const g=rmFindGroup(gid); return g ? { g, it:(g.it
  * 월 헤더 아래에 마일스톤 기간을 막대로 깔고, 마감일을 실제 날짜 위치에 찍는다.
  * 월 칸과 같은 flex 구조를 써서 칸 폭이 변해도 자동으로 정렬된다. */
 const RM_DL=[["resource","리소스"],["dev","개발"],["qa","QA"],["end","종료"]];
-const RM_LANE_H=25, RM_MAX_LANES=3;
+const RM_LANE_H=28, RM_MAX_LANES=3;   /* 막대 15px + 위쪽 마감 라벨 13px */
 const rmDays=(y,m)=>new Date(y,m,0).getDate();
 function rmBandMilestones(months){
   if(!months.length) return [];
@@ -5650,13 +5700,15 @@ function rmBandMilestones(months){
       return (s||first) <= last && (e||last) >= first;          // 로드맵 기간과 겹치는 것만
     }).sort((a,b)=>String(a.start||"").localeCompare(String(b.start||"")));
 }
-function rmBandHtml(months){
+function rmBandHtml(months, fold){
+  fold = fold || new Set();
+  const bToday = ymd(new Date());
   const shown=rmBandMilestones(months);
   const dated=(state.milestones||[]).filter(m=>m && !m.free && (m.start||m.end));
   const outN=Math.max(0, dated.length-shown.length);          // 표시 기간 밖이라 안 보이는 것
   if(!shown.length) return dated.length
-    ? `<div class="rm-row rm-band" style="height:25px"><div class="rm-label rm-blabel">마일스톤 마감<em class="warn">표시 기간 밖 ${dated.length}개</em></div>`+
-      months.map(()=>`<div class="rm-cell rm-bcell"></div>`).join("")+`<div class="rm-cell rm-bcell"></div></div>`
+    ? `<div class="rm-row rm-band" style="height:${RM_LANE_H}px"><div class="rm-label rm-blabel">마일스톤 일정<em class="warn">표시 기간 밖 ${dated.length}개</em></div>`+
+      months.map(x=>`<div class="rm-cell rm-bcell${fold.has(x.ym)?" rm-fdw":""}"></div>`).join("")+`<div class="rm-cell rm-bcell"></div></div>`
     : "";
   const first=months[0].ym+"-01", lm=months[months.length-1];
   const last=lm.ym+"-"+String(rmDays(lm.y,lm.m)).padStart(2,"0");
@@ -5679,6 +5731,7 @@ function rmBandHtml(months){
   });
   const cell=(x,xi)=>{
     const dc=rmDays(x.y,x.m), mA=x.ym+"-01", mB=x.ym+"-"+String(dc).padStart(2,"0");
+    const fd=fold.has(x.ym);          // 접힌 칸: 막대는 이어 그리고 마감 점·라벨은 생략(30px 안에 겹친다)
     let inner="";
     shown.forEach(ms=>{
       const li=laneOf[ms.id], laneTop=li*RM_LANE_H, barTop=laneTop+13;
@@ -5691,22 +5744,27 @@ function rmBandHtml(months){
           `background:${ms.color}55;border-color:${ms.color};`+
           `${openL?"border-left:0;border-top-left-radius:0;border-bottom-left-radius:0;":""}`+
           `${openR?"border-right:0;border-top-right-radius:0;border-bottom-right-radius:0;":""}">`+
-          `${firstIdx[ms.id]===xi?`<span>${escapeHtml(ms.name)}</span>`:""}</div>`;
+          `${firstIdx[ms.id]===xi
+              ? `<span>${escapeHtml(ms.name)}</span>`
+                + `${(ms.start&&ms.end&&ms.start<=bToday&&bToday<=ms.end)?`<em class="cur">진행 중</em>`:""}`
+                + `<em>${s?rmDateLabel(s):"?"} ~ ${e?rmDateLabel(e):"미정"}</em>`
+              : ""}</div>`;
       }
+      if(fd) return;
       RM_DL.forEach(([k,label])=>{
         const v=ms[k]; if(!v || String(v).slice(0,7)!==x.ym) return;
         const mk=MARKERS.find(z=>z.k===k)||{color:"#888"};
         const p=((Number(String(v).slice(8))-0.5)/dc)*100;
         const md=Number(String(v).slice(5,7))+"/"+Number(String(v).slice(8));
         inner+=`<div class="rm-bline" style="left:${p}%;background:${mk.color}"></div>`+
-          `<div class="rm-bdot" title="${escapeHtml(ms.name)} · ${label} 마감 ${v}" style="left:${p}%;top:${barTop+1}px;background:${mk.color}"></div>`+
+          `<div class="rm-bdot" title="${escapeHtml(ms.name)} · ${label} 마감 ${v}" style="left:${p}%;top:${barTop+3}px;background:${mk.color}"></div>`+
           `<div class="rm-bmk" data-lane="${li}" style="left:${p}%;top:${laneTop}px;color:${mk.color}"><span>${label} ${md}</span></div>`;
       });
     });
-    return `<div class="rm-cell rm-bcell">${inner}</div>`;
+    return `<div class="rm-cell rm-bcell${fd?" rm-fdw":""}">${inner}</div>`;
   };
   return `<div class="rm-row rm-band" style="height:${usedLanes*RM_LANE_H+4}px">`+
-    `<div class="rm-label rm-blabel">마일스톤 마감<em title="${shown.map(m=>m.name).join(", ")}">${shown.length}개</em>`+
+    `<div class="rm-label rm-blabel">마일스톤 일정<em title="${shown.map(m=>m.name).join(", ")}">${shown.length}개</em>`+
     `${outN?`<em class="warn" title="아래 '시작'·'표시' 를 조정하면 보입니다">밖 ${outN}</em>`:""}</div>`+
     months.map(cell).join("")+`<div class="rm-cell rm-bcell"></div></div>`;
 }
@@ -5751,6 +5809,10 @@ function rmDayDiff(v){                       // 오늘 기준 남은 일수(달�
 }
 function renderRmMsBar(){
   const el=document.getElementById("rmMsBar"); if(!el) return;
+  /* 2026-11-23(build 2026112303): 「일정」 카드 줄은 **마일스톤 일정 막대로 합쳐졌다.**
+     위에 따로 떠 있으면 아래 월 칸과 위치가 맞지 않고 가로 스크롤에서 어긋난다(사용자 요청).
+     요소와 아래 코드는 되살릴 수 있게 그대로 둔다 — 지금은 그리지 않고 감춘다. */
+  el.innerHTML=""; el.style.display="none"; if(1) return;
   const list=rmMsList();
   if(!list.length){ el.innerHTML=`<span class="empty">등록된 마일스톤이 없습니다.</span>`; return; }
   const today=ymd(new Date());
@@ -5765,6 +5827,11 @@ function renderRmMsBar(){
         `<b class="rm-msc-d ${cls}">${d?escapeHtml(d.slice(5)):'–'}</b>`+
         `</span>`;
     }).join("");
+    /* 끝난 마일스톤은 이름 + 종료일만 (2026-11-23 사용자 선택). 전체 날짜는 title 로 남긴다. */
+    if(rmFold() && m.end && m.end < today)
+      return `<div class="rm-mscard mini" style="--c:${m.color}" title="${escapeHtml(m.name)} · `+
+        `${RM_MS_VALS.map(v=>`${v.label} ${m[v.k]||"미정"}`).join(" · ")}">`+
+        `<span class="rm-msc-nm">${escapeHtml(m.name)}</span><em>종료 ${escapeHtml(String(m.end).slice(5))}</em></div>`;
     return `<div class="rm-mscard ${cur?'cur':''}" style="--c:${m.color}">`+
       `<div class="rm-msc-top"><span class="rm-msc-nm">${escapeHtml(m.name)}</span>`+
       `${cur?'<span class="rm-msc-tag">진행 중</span>':''}</div>`+
@@ -5796,9 +5863,11 @@ function renderRoadmap(){
     (rm.notes||[]).map(t=>`<span class="rm-note">${escapeHtml(t)}</span>`).join("") +
     (ed?`<button class="rm-add" id="rmNoteEdit" title="표준 소요일 메모 편집">✎ 메모</button>`:"");
 
+  const fold = rmFoldSet(ms);
   let lastY=null;
   const head=`<div class="rm-row rm-head"><div class="rm-label rm-mh">항목</div>`+
     ms.map(x=>{ const showY = x.y!==lastY; lastY=x.y;
+      if(fold.has(x.ym)) return `<div class="rm-cell rm-mh rm-fd" data-rmunfold="${x.ym}" title="${x.y}년 ${x.m}월 — 눌러서 펼치기"><span>${x.m}월 ▸</span></div>`;
       return `<div class="rm-cell rm-mh">${showY?x.y+"년 ":""}${x.m}월<span class="rm-grip" data-rmgrip="1" title="드래그하여 월 칸 너비 조절 (더블클릭: 기본값)"></span></div>`; }).join("")+
     `<div class="rm-cell rm-mh dim">미정</div></div>`;
 
@@ -5816,6 +5885,9 @@ function renderRoadmap(){
   };
   const cell=(g,ym)=>{
     const items=(g.items||[]).filter(it=>(it.ym||"")===ym && rmPassMs(it));
+    /* 접힌 열 — 항목 수만 보여 주고 눌러서 그 열만 펼친다(행 높이 계산에서도 빠진다) */
+    if(fold.has(ym))
+      return `<div class="rm-cell rm-fd" data-rmunfold="${ym}" title="${ym} — 항목 ${items.length}개 · 눌러서 펼치기"><span class="cnt">${items.length||""}</span></div>`;
     const add = ed?`<button class="rm-add" data-rmadd="${g.id}|${ym}" title="항목 추가">＋</button>`:"";
     /* 모아 담기(기존) — 「미정」 열은 날짜가 없으니 날짜 축에서도 항상 이쪽이다 */
     if(!tlOn || !ym)
@@ -5844,26 +5916,29 @@ function renderRoadmap(){
     ms.map(x=>cell(g,x.ym)).join("")+cell(g,"")+`</div>`).join("");
 
   document.getElementById("rmGrid").style.setProperty("--rm-cw", rmColW()+"px");
-  document.getElementById("rmGrid").innerHTML = head + rmBandHtml(ms) + rows +
+  document.getElementById("rmGrid").innerHTML = head + rmBandHtml(ms, fold) + rows +
     (ed?`<div class="rm-row"><div class="rm-label"><button class="rm-add" id="rmAddGroup">＋ 그룹</button></div></div>`:"");
 
   rmLayoutBandLabels();
+  rmStickBand();
   rmPackLanes();                              // 날짜 축 줄 나누기 — 반드시 innerHTML 뒤
   const cw=rmColW();
   const cwCtl=`<span class="rm-range rm-cw" title="이 설정은 내 화면에만 적용됩니다">칸 너비`+
     `<input type="range" id="rmCwRange" min="${RM_CW_MIN}" max="${RM_CW_MAX}" step="2" value="${cw}">`+
     `<b id="rmCwVal">${cw}px</b><button id="rmCwReset" title="기본값 ${RM_CW_DEF}px 으로">초기화</button></span>`;
+  const fdOn=rmFold(), fdN=fold.size;
+  const fdCtl=`<button class="rm-tlbtn${fdOn?" on":""}" id="rmFoldBtn" title="${fdOn?`끝난 마일스톤 기간의 월 ${fdN}개를 접어 두었습니다 — 누르면 전부 펼침`:"끝난 마일스톤(빌드 전달일이 지난 것) 기간의 월을 접습니다"}">⏮ 지난 ${fdOn?`접음${fdN?" "+fdN:""}`:"펼침"}</button>`;
   const tlCtl=`<button class="rm-tlbtn${tlOn?" on":""}" id="rmTlBtn" title="${tlOn?"월 칸 안에서 날짜 위치로 보는 중 — 누르면 모아 담기":"같은 달이면 모아서 쌓는 중 — 누르면 날짜 축"}">${tlOn?"📅 날짜 축":"▦ 모아 담기"}</button>`;
   document.getElementById("rmFoot").innerHTML = (ed
     ? `<span class="rm-range">시작 <input type="month" id="rmStart" value="${escapeHtml(rm.startYm||"2026-09")}">`+
       `표시 <select id="rmMonths">${[3,4,5,6,8,10,12,15,18,24].map(n=>`<option value="${n}" ${Number(rm.months)===n?"selected":""}>${n}개월</option>`).join("")}</select>`+
       `${rmAutoExtra?`<em class="rm-auto" title="마일스톤 마감이 잘리지 않도록 자동으로 늘렸습니다">+${rmAutoExtra}개월 자동</em>`:""}</span>`
-    : "") + tlCtl + cwCtl;
+    : "") + fdCtl + tlCtl + cwCtl;
 }
 function openRoadmap(){ if(!state.roadmap) state.roadmap=seedRoadmap();
   if(rmAutoAssignMs() && rmCanEdit()) save();
   renderRoadmap(); roadmapModal.classList.add("show");
-  rmPackLanes(); }        /* ⚠ 숨어 있을 때는 칸 폭이 0 이라 줄 계산이 안 된다 — 보이고 나서 한 번 더 */
+  rmPackLanes(); rmStickBand(); }   /* ⚠ 숨어 있을 때는 칸 폭이 0 이라 줄 계산이 안 된다 — 보이고 나서 한 번 더 */
 
 /* --- 편집 팝오버 --- */
 let rmPopMode=null, rmPopRef=null;
@@ -5963,6 +6038,7 @@ document.getElementById("rmFoot").addEventListener("input", e=>{
 document.getElementById("rmFoot").addEventListener("click", e=>{
   if(e.target.closest("#rmCwReset")) rmSetColW(RM_CW_DEF);
   if(e.target.closest("#rmTlBtn")) rmSetTl(!rmTl());        // 보기 전환 — 개인 설정이라 읽기 전용도 가능
+  if(e.target.closest("#rmFoldBtn")) rmSetFold(!rmFold());
 });
 document.getElementById("rmFoot").addEventListener("change", e=>{
   if(e.target.closest("#rmCwRange")) return;
@@ -5974,6 +6050,8 @@ document.getElementById("rmFoot").addEventListener("change", e=>{
   const mo=e.target.closest("#rmMonths"); if(mo){ state.roadmap.months=Number(mo.value)||10; save(); renderRoadmap(); }
 });
 document.getElementById("rmGrid").addEventListener("click", e=>{
+  const uf=e.target.closest("[data-rmunfold]");
+  if(uf){ rmUnfold.add(uf.dataset.rmunfold); renderRoadmap(); return; }
   const ag=e.target.closest("#rmAddGroup"); if(ag){ openRmGroupPop(ag, null); return; }
   const ge=e.target.closest("[data-rmgedit]"); if(ge){ openRmGroupPop(ge, ge.dataset.rmgedit); return; }
   const ad=e.target.closest("[data-rmadd]"); if(ad){ const [gid,ym]=ad.dataset.rmadd.split("|"); openRmItemPop(ad, gid, null, ym); return; }
