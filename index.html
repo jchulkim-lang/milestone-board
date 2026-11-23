@@ -1332,6 +1332,9 @@
   .mi-msb{flex:0 0 auto;font-size:9.5px;font-weight:800;color:#fff;border-radius:999px;padding:1px 7px;}
   .mi-due{margin-left:auto;flex:0 0 auto;font-size:11.5px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--muted);white-space:nowrap;}
   .mi-due.od{color:#ff9b9b;} .mi-due.soon{color:#fbbf24;}
+  .mi-due.est{opacity:.72;font-weight:700;}         /* 마일스톤에서 가져온 마감 — 카드에 직접 적힌 게 아니다 */
+  .mi-grp .cur{font-size:9px;font-weight:800;color:#fff;background:var(--accent);border-radius:999px;padding:1px 6px;}
+  .mi-grp .gone{font-size:9px;font-weight:800;color:var(--muted);background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:0 6px;}
   .mi-chk{margin:-2px 0 6px 32px;font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:7px;cursor:pointer;}
   .mi-chk:hover b{color:var(--accent);}
   .mi-chk i{width:11px;height:11px;border:1.5px solid var(--line);border-radius:3px;flex:0 0 auto;}
@@ -7267,30 +7270,34 @@ function renderMine(){
   const cards=all.filter(c=>!(c.b==="dev" && mineDevHide.has(c.l||"")));   // 숨긴 Dev 리스트는 숫자에서도 뺀다
   const hiddenN=all.length-cards.length;
   const live=cards.filter(c=>!c.done), done=cards.filter(c=>c.done);
-  const byDue=(a,b)=>String(a.due||"9999").localeCompare(String(b.due||"9999"));
-  const od   = live.filter(c=>c.due && c.due <  today).sort(byDue);
-  const soon = live.filter(c=>c.due && c.due >= today && c.due <= wk).sort(byDue);
-  const later= live.filter(c=>c.due && c.due >  wk).sort(byDue);
-  const nod  = live.filter(c=>!c.due);
+  /* 보드 Task 와 연결된 카드면 마일스톤을 알 수 있다 — 유효 마감 계산에도 쓰므로 먼저 만든다 */
+  const taskByCard={}; (state.tasks||[]).forEach(t=>{ if(t && t.trelloCardId) taskByCard[t.trelloCardId]=t; });
+  const curMs=mineCurMs();
+  const effBy={}; cards.forEach(c=>{ effBy[c.id]=mineEffDue(c, taskByCard, curMs); });
+  const E=c=>(effBy[c.id]||{ d:"", est:false, src:"" });
+  const ED=c=>E(c).d;
+  const byDue=(a,b)=>String(ED(a)||"9999").localeCompare(String(ED(b)||"9999"));
+  const od   = live.filter(c=>ED(c) && ED(c) <  today).sort(byDue);
+  const soon = live.filter(c=>ED(c) && ED(c) >= today && ED(c) <= wk).sort(byDue);
+  const later= live.filter(c=>ED(c) && ED(c) >  wk).sort(byDue);
+  const nod  = live.filter(c=>!ED(c));
   /* 체크 항목은 자기 카드 밑에 붙인다. 카드에 join 안 된 것은 따로 모은다. */
   const items=(MINE.items||[]), inCard={}, orphan=[];
   const haveCard={}; cards.forEach(c=>{ haveCard[c.id]=1; });
   items.forEach(i=>{ if(haveCard[i.card]) (inCard[i.card]=inCard[i.card]||[]).push(i); else orphan.push(i); });
-  /* 보드 Task 와 연결된 카드면 마일스톤 배지를 붙인다 */
-  const taskByCard={}; (state.tasks||[]).forEach(t=>{ if(t && t.trelloCardId) taskByCard[t.trelloCardId]=t; });
-
   const tile=(k,v,warn)=>`<div class="mi-tile${warn?" warn":""}"><div class="k">${k}</div><div class="v">${v}</div></div>`;
   const chkRow=i=>`<div class="mi-chk" data-murl="${escapeHtml(i.u||"")}"><i></i>체크 항목 <b>${escapeHtml(i.n)}</b>`
     +`${i.due?` <span style="opacity:.8">· ${escapeHtml(mineDueTxt(i.due,today).t)}</span>`:""}</div>`;
   /* withMs: QA 카드에만 마일스톤 배지를 붙인다 — Dev 는 묶음(리스트)이 곧 마일스톤이라 겹친다. */
   const cardRow=(c, withMs)=>{
-    const d=mineDueTxt(c.due, today), t=taskByCard[c.id], ms=(withMs && t)?findMs(t.msId):null;
+    const e=E(c), d=mineDueTxt(e.d, today), t=taskByCard[c.id], ms=(withMs && t)?findMs(t.msId):null;
     return `<div class="mi-card${d.c==="od"?" od":""}${c.done?" dn":""}" data-murl="${escapeHtml(c.u||"")}" title="${escapeHtml(c.n)}${c.l?" · "+c.l:""}">`
       +`<span class="mi-bd ${c.b}">${c.b==="qa"?"QA":"Dev"}</span>`
       +`<span class="mi-nm">${escapeHtml(c.n)}</span>`
       +`${c.done?`<span class="mi-st">완료</span>`:""}`
       +`${ms?`<span class="mi-msb" style="background:${ms.color||"#6366f1"}">${escapeHtml(msBadgeShort(ms.name))}</span>`:""}`
-      +`<span class="mi-due ${d.c}">${escapeHtml(d.t)}</span></div>`
+      +`<span class="mi-due ${d.c}${e.est?" est":""}" title="${e.est?"카드에 마감일이 없어 "+escapeHtml(e.src)+" 마감으로 봅니다":"트렐로 카드의 마감일"}">`
+      +`${e.est&&e.d?escapeHtml(e.src)+" ":""}${escapeHtml(d.t)}</span></div>`
       + ((inCard[c.id]||[]).map(chkRow).join(""));
   };
   const sec=(key,icon,label,n,foldable)=>`<div class="mi-sec${foldable?" fold":""}"${foldable?` data-mfold="${key}"`:""}>`
@@ -7298,7 +7305,7 @@ function renderMine(){
   const body=(key,list)=> (!list.length ? "" : (mineFold[key] ? "" : list.map(cardRow).join("")));
 
   let h=`<div class="mi-tiles">${tile("마감 지남", od.length, od.length>0)}${tile("오늘 · 이번 주", soon.length)}`
-      + `${tile("마감 없음", nod.length)}${tile("내 체크 항목", items.length)}</div>`;
+      + `${tile("그 뒤", later.length)}${tile("마감 미정", nod.length)}</div>`;
 
   const bs=(MINE.boards||[]).map(b=>b.error?`${b.name} <span style="color:#ff9b9b">오류</span>`:`${b.name} ${b.cards}`).join(" · ");
   h += `<div class="mi-bar"><span>${escapeHtml(bs)} <span style="opacity:.6">(보드 전체 카드 수)</span></span>`
@@ -7319,13 +7326,13 @@ function renderMine(){
      Dev 의 리스트는 곧 마일스톤이라 마일스톤 순서로, QA 의 리스트는 작업 흐름이라 **보드에 놓인 순서(o)** 로 세운다. */
   const show = mineDoneOn ? cards : live;
   const msOrder={}; (state.milestones||[]).filter(m=>m&&!m.free).forEach((m,i)=>{ msOrder[m.id]=i; });
-  const dueRank=c=> !c.due ? 2 : (c.due < today ? 0 : 1);
-  const inGrp=(a,b)=> (dueRank(a)-dueRank(b)) || String(a.due||"9999").localeCompare(String(b.due||"9999")) || String(a.n).localeCompare(String(b.n),"ko");
+  const dueRank=c=> !ED(c) ? 2 : (ED(c) < today ? 0 : 1);
+  const inGrp=(a,b)=> (dueRank(a)-dueRank(b)) || String(ED(a)||"9999").localeCompare(String(ED(b)||"9999")) || String(a.n).localeCompare(String(b.n),"ko");
   /* 한 보드 = 한 칸. 좌 Dev · 우 QA (2026-11-23 사용자 요청) */
   const col=(bk,bn)=>{
     const list=show.filter(c=>c.b===bk);
     const info=(MINE.boards||[]).find(b=>b.key===bk);
-    const nOd=list.filter(c=>!c.done && c.due && c.due<today).length;
+    const nOd=list.filter(c=>!c.done && ED(c) && ED(c)<today).length;
     let o = `<div class="mi-board"><span class="bt ${bk}">${bn}</span>`
       + `<span class="sub">내 카드 ${list.length}건${nOd?` · <b style="color:#ff9b9b">마감 지남 ${nOd}</b>`:""}`
       + `${bk==="dev"&&hiddenN?` · <b style="opacity:.8">${hiddenN}건 숨김</b>`:""}`
@@ -7349,10 +7356,12 @@ function renderMine(){
     o += `<div class="inner">`;
     keys.forEach(k=>{
       const g=grp[k], id=bk+"|"+k, fold=!!mineFold[id];
-      const gOd=g.cards.filter(c=>!c.done && c.due && c.due<today).length;
+      const gOd=g.cards.filter(c=>!c.done && ED(c) && ED(c)<today).length;
       o += `<div class="mi-grp" data-mfold="${escapeHtml(id)}">`
         + `<i style="background:${g.ms?(g.ms.color||"#6366f1"):"var(--line)"}"></i>`
         + `${escapeHtml(g.name)}${g.ms&&miMsKey(g.ms.name)!==miMsKey(g.name)?` <em>${escapeHtml(g.ms.name)}</em>`:""}`
+        + `${g.ms&&curMs&&g.ms.id===curMs.id?` <span class="cur">진행 중</span>`:""}`
+        + `${g.ms&&g.ms.end&&g.ms.end<today?` <span class="gone">지남</span>`:""}`
         + ` <em>${g.cards.length}건</em>${gOd?` <span class="od">⚠ ${gOd}</span>`:""}`
         + `<span class="ar">${fold?"▸":"▾"}</span></div>`;
       if(!fold) o += g.cards.slice().sort(inGrp).map(c=>cardRow(c, bk==="qa")).join("");
@@ -7365,13 +7374,46 @@ function renderMine(){
      + orphan.map(i=>`<div class="mi-card" data-murl="${escapeHtml(i.u||"")}"><span class="mi-bd ${i.b}">${i.b==="qa"?"QA":"Dev"}</span>`
         +`<span class="mi-nm">${escapeHtml(i.n)}</span><span class="mi-st">${escapeHtml(i.cn)}</span>`
         +`<span class="mi-due ${mineDueTxt(i.due,today).c}">${escapeHtml(mineDueTxt(i.due,today).t)}</span></div>`).join("");
-  h += `<div class="mi-note">· <b>Dev</b>(왼쪽) 는 트렐로 리스트가 곧 마일스톤이라 마일스톤 순서로, <b>QA</b>(오른쪽) 는 보드에 놓인 리스트 순서로 묶습니다.<br>`
+  h += `<div class="mi-note">· 카드에 마감일이 없으면 <b>마일스톤 날짜</b>를 마감으로 봅니다 — Dev 는 개발 마감, QA 는 QA 마감(없으면 개발 → 빌드 전달일). 흐리게 적힌 날짜가 그렇게 끌어온 값입니다.<br>`
+     + `${curMs?`· 오늘(${escapeHtml(today.slice(5))}) 기준 진행 중인 마일스톤은 <b>${escapeHtml(curMs.name)}</b> 입니다. 마일스톤을 모르는 카드는 이 날짜로 봅니다.<br>`:""}`
+     + `· <b>Dev</b>(왼쪽) 는 트렐로 리스트가 곧 마일스톤이라 마일스톤 순서로, <b>QA</b>(오른쪽) 는 보드에 놓인 리스트 순서로 묶습니다.<br>`
      + `· Dev 의 「⚙ 리스트 고르기」 로 보고 싶은 리스트만 남길 수 있습니다. <b>내 화면에만</b> 적용되고 숫자에서도 빠집니다.<br>`
      + `· 카드를 누르면 트렐로에서 열립니다. QA 카드에 보드 Task 가 연결돼 있으면 마일스톤 배지가 붙습니다.<br>`
      + `· 「완료」는 카드가 들어 있는 <b>트렐로 리스트 이름</b>으로 판단합니다(완료·Done·Resolved 등).<br>`
      + `· 체크 항목은 <b>Dev 보드</b>만 읽습니다 — QA 보드는 카드가 많아 응답이 너무 커집니다.</div>`;
   el.innerHTML=h;
   if(ft) ft.textContent = "Dev · QA 보드 기준 · 3분마다 갱신";
+}
+/* ===== 마감 기준 = 마일스톤 (2026-11-23, build 2026112308) =========================
+   [stated] "현재 날짜 기준으로 (=마일스톤) 판단해서 마감 기준을 정했으면 합니다"
+   트렐로 카드에는 마감일이 거의 없다(실측 159/170 이 빈칸). 그래서 **카드가 속한 마일스톤의
+   날짜를 그 카드의 마감으로** 삼고 오늘 기준으로 지남·임박을 가른다.
+   · 쓰는 날짜: Dev = 개발 마감(dev) → 없으면 빌드 전달일(end) / QA = QA 마감(qa) → dev → end  (사용자 선택)
+   · 마일스톤을 모르는 카드는 **오늘이 속한 마일스톤**으로 본다(사용자 선택).
+   · 카드에 진짜 마감일이 있으면 **그게 우선**이다. 마일스톤에서 끌어온 값은 흐리게(.est) 표시한다. */
+function mineCurMs(){
+  const t=ymd(new Date());
+  const list=(state.milestones||[]).filter(m=>m && !m.free);
+  const now=list.filter(m=>m.start && m.end && m.start<=t && t<=m.end)
+                .sort((a,b)=>String(a.end).localeCompare(String(b.end)));
+  if(now.length) return now[0];                      // 겹치면 가장 먼저 끝나는 것
+  const next=list.filter(m=>m.start && m.start>t).sort((a,b)=>String(a.start).localeCompare(String(b.start)));
+  return next[0] || null;
+}
+function mineMsOfCard(c, taskByCard){
+  if(c.b==="dev"){ const m=miMsOfList(c.l||""); if(m) return m; }
+  const t=taskByCard[c.id]; if(t){ const m=findMs(t.msId); if(m) return m; }
+  return null;
+}
+function mineEffDue(c, taskByCard, curMs){
+  if(c.due) return { d:c.due, est:false, src:"" };
+  const ms = mineMsOfCard(c, taskByCard) || curMs;
+  if(!ms) return { d:"", est:false, src:"" };
+  const pick = c.b==="qa" ? [["QA",ms.qa],["개발",ms.dev],["종료",ms.end]]
+                          : [["개발",ms.dev],["종료",ms.end]];
+  const hit = pick.find(x=>x[1]);
+  if(!hit) return { d:"", est:false, src:"" };
+  return { d:hit[1], est:true, src:`${msBadgeShort(ms.name)} ${hit[0]}` };
 }
 /* Dev 보드는 **리스트 이름 = 마일스톤**이다(트렐로 동기화와 같은 규칙 — _worker.js 의 msIdForList).
    "M11", "M11 (12/31)", "M11 - 납품" 을 모두 [M11] 로 본다. 못 찾으면 null(= 마일스톤 아닌 리스트). */
