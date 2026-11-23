@@ -1344,13 +1344,28 @@
      align-items:center;justify-content:center;font-size:11px;font-weight:800;flex:0 0 auto;}
   .mi-pick .pn{font-weight:700;font-size:12.5px;}
   .mi-pick .un{font-size:11px;color:var(--muted);}
+  /* 좌 Dev · 우 QA 2단 (2026-11-23, build 2026112306) — [stated] "영역을 넓게 쓰고, 좌측에는 dev 우측에는 qa" */
+  .mi-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(430px,1fr));gap:18px;align-items:start;}
+  .mi-col{min-width:0;}
+  .mi-col .inner{max-height:58vh;overflow:auto;padding-right:4px;}
+  .mi-lp{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px 11px;margin:0 0 8px;}
+  .mi-lp .row{display:flex;align-items:center;gap:7px;padding:3px 0;font-size:12px;cursor:pointer;}
+  .mi-lp .row i{width:13px;height:13px;border:1.5px solid var(--line);border-radius:4px;flex:0 0 auto;
+     display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;color:#fff;}
+  .mi-lp .row.on i{background:var(--accent);border-color:var(--accent);}
+  .mi-lp .row em{font-style:normal;margin-left:auto;color:var(--muted);font-weight:700;font-size:11px;}
+  .mi-lp .act{display:flex;gap:6px;margin-top:7px;padding-top:7px;border-top:1px solid var(--line);}
+  .mi-lp .act button{font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:999px;border:1px solid var(--line);
+     background:var(--panel);color:var(--muted);cursor:pointer;}
+  .mi-lp .act button:hover{color:var(--text);border-color:var(--accent);}
   /* 보드 구분 + 리스트 묶음 (2026-11-23, build 2026112305) */
   .mi-board{display:flex;align-items:center;gap:8px;margin:16px 0 8px;padding-bottom:6px;border-bottom:2px solid var(--line);}
   .mi-board .bt{font-size:12px;font-weight:800;border-radius:6px;padding:2px 9px;color:#fff;}
   .mi-board .bt.dev{background:#3b82f6;} .mi-board .bt.qa{background:#14b8a6;}
   .mi-board .sub{font-size:11px;color:var(--muted);font-weight:700;}
-  .mi-grp{display:flex;align-items:center;gap:7px;margin:10px 0 5px;font-size:11.5px;font-weight:800;
-     color:var(--text);cursor:pointer;user-select:none;}
+  .mi-grp{display:flex;align-items:center;gap:7px;margin:0 0 5px;padding:9px 0 4px;font-size:11.5px;font-weight:800;
+     color:var(--text);cursor:pointer;user-select:none;
+     position:sticky;top:0;z-index:2;background:var(--panel);}   /* 묶음이 길어 머리글을 붙여 둔다 */
   .mi-grp i{width:8px;height:8px;border-radius:50%;flex:0 0 auto;background:var(--line);}
   .mi-grp em{font-style:normal;font-weight:700;color:var(--muted);opacity:.85;}
   .mi-grp .ar{margin-left:auto;color:var(--muted);opacity:.7;font-weight:700;}
@@ -2215,9 +2230,9 @@
        ⚠ 버튼을 **다시 만들지 않는다.** 기존 묶음(#footbar·#footApps·#footTools)을 통째로 이 안에 둔다 —
          핸들러·id·cloud.js 의 placeBtn(#footTools append)·applyRoleUI 의 display 제어가 전부 그대로 산다. -->
   <div class="modal-bg" id="mineModal">
-    <div class="modal" style="width:min(820px,94vw)"><h3>내 일감 🙋</h3>
+    <div class="modal" style="width:min(1500px,96vw)"><h3>내 일감 🙋</h3>
       <div class="msub">트렐로 Dev · QA 보드에서 <b>내가 들어가 있는 카드</b>와 <b>내게 배정된 체크 항목</b>입니다. 읽기만 합니다.</div>
-      <div id="mineBody" style="max-height:66vh;overflow:auto">불러오는 중…</div>
+      <div id="mineBody" style="max-height:72vh;overflow:auto">불러오는 중…</div>
       <div class="modal-actions"><span style="font-size:11px;color:var(--muted)" id="mineFoot"></span>
         <div class="right"><button class="btn ghost" id="mineReload">🔄 새로고침</button><button class="btn" data-close>닫기</button></div></div>
     </div>
@@ -4443,9 +4458,11 @@ function cancelPendingDept(){
   editing.justOn=false;
   if(sg && sg.on && sg.sched===false){ sg.on=false; save(); render(); }
 }
-function closeModals(){ cancelPendingDept(); closeRmPop(); closeSpPop(); [noteModal,taskModal,auditModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,lbMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal,askModal,ufModal,ncxModal,menuModal].forEach(m=>m.classList.remove("show")); }
+/* ⚠ 아래 목록은 **하드코딩**이다. 새 모달을 만들면 여기(와 바로 아래 바깥 클릭 목록)에
+   반드시 넣을 것 — 안 넣으면 「닫기」(data-close)가 눌려도 안 닫힌다(2026-11-23 mineModal 로 겪음). */
+function closeModals(){ cancelPendingDept(); closeRmPop(); closeSpPop(); [noteModal,taskModal,auditModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,lbMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal,askModal,ufModal,ncxModal,menuModal,mineModal].forEach(m=>m.classList.remove("show")); }
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=closeModals);
-[noteModal,taskModal,auditModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,lbMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal,askModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
+[noteModal,taskModal,auditModal,holModal,planModal,roadmapModal,trelloModal,deptModal,linkModal,schedModal,msModal,deptMgrModal,catMgrModal,lbMgrModal,titleModal,dashModal,historyModal,notifyModal,noticePopup,noticeEditModal,askModal,mineModal].forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) closeModals(); }));
 
 /* ===== 종류 관리 (아트·전투 등 종류 방식 분류) ===== */
 let catMgrTrack="아트", catEditKey=null;
@@ -7167,7 +7184,12 @@ function ufApplyScan(o, who){
    · **읽기 전용.** 트렐로도 보드 state 도 건드리지 않는다.
    · 트렐로 계정 연결은 users.trello_id 1칸. 이름으로 추천 → 본인이 1회 확인(2026-11-23 선택).
    · 매니저 이상은 상단에서 사람을 바꿔 남의 일감도 볼 수 있다(서버도 같은 기준으로 막는다). */
-let MINE=null, mineWho="", mineBusyF=false, mineFold={}, minePeople=null, mineDoneOn=false;
+let MINE=null, mineWho="", mineBusyF=false, mineFold={}, minePeople=null, mineDoneOn=false, mineLpOpen=false;
+/* Dev 리스트 가리기 — [stated] "dev는 내가 보고 싶은 list를 정할 수 있었으면 좋겠어 아예 안보고 싶을 수도 있거든"
+   개인 설정이라 localStorage. state 에 넣으면 볼 때마다 D1 쓰기 + 사람마다 달라 서로 덮어쓴다. */
+const MINE_HIDE_KEY="ms_mine_devhide";
+let mineDevHide=new Set((()=>{ try{ return JSON.parse(localStorage.getItem(MINE_HIDE_KEY)||"[]")||[]; }catch(_){ return []; } })());
+function mineSaveHide(){ try{ localStorage.setItem(MINE_HIDE_KEY, JSON.stringify([...mineDevHide])); }catch(_){} }
 const mineCanUse = () => !!(window.APP_USER && window.APP_USER.email);
 const mineIsManager = () => ["manager","admin","master"].includes(window.APP_ROLE||"");
 function mineAddDays(d,n){ const t=new Date(d+"T00:00:00"); t.setDate(t.getDate()+n); return ymd(t); }
@@ -7241,7 +7263,9 @@ function renderMine(){
   if(MINE.needLink){ if(ft) ft.textContent=""; mineLinkScreen(); return; }
 
   const today=ymd(new Date()), wk=mineAddDays(today,7);
-  const cards=(MINE.cards||[]).slice();
+  const all=(MINE.cards||[]);
+  const cards=all.filter(c=>!(c.b==="dev" && mineDevHide.has(c.l||"")));   // 숨긴 Dev 리스트는 숫자에서도 뺀다
+  const hiddenN=all.length-cards.length;
   const live=cards.filter(c=>!c.done), done=cards.filter(c=>c.done);
   const byDue=(a,b)=>String(a.due||"9999").localeCompare(String(b.due||"9999"));
   const od   = live.filter(c=>c.due && c.due <  today).sort(byDue);
@@ -7297,44 +7321,52 @@ function renderMine(){
   const msOrder={}; (state.milestones||[]).filter(m=>m&&!m.free).forEach((m,i)=>{ msOrder[m.id]=i; });
   const dueRank=c=> !c.due ? 2 : (c.due < today ? 0 : 1);
   const inGrp=(a,b)=> (dueRank(a)-dueRank(b)) || String(a.due||"9999").localeCompare(String(b.due||"9999")) || String(a.n).localeCompare(String(b.n),"ko");
-  [["dev","Dev"],["qa","QA"]].forEach(([bk,bn])=>{
+  /* 한 보드 = 한 칸. 좌 Dev · 우 QA (2026-11-23 사용자 요청) */
+  const col=(bk,bn)=>{
     const list=show.filter(c=>c.b===bk);
     const info=(MINE.boards||[]).find(b=>b.key===bk);
-    if(!list.length && !(info&&info.error)) return;
     const nOd=list.filter(c=>!c.done && c.due && c.due<today).length;
-    h += `<div class="mi-board"><span class="bt ${bk}">${bn}</span>`
-       + `<span class="sub">내 카드 ${list.length}건${nOd?` · <b style="color:#ff9b9b">마감 지남 ${nOd}</b>`:""}`
-       + `${info&&info.error?` · <b style="color:#ff9b9b">보드 읽기 오류</b>`:""}</span></div>`;
-    /* 리스트별로 모은다 */
+    let o = `<div class="mi-board"><span class="bt ${bk}">${bn}</span>`
+      + `<span class="sub">내 카드 ${list.length}건${nOd?` · <b style="color:#ff9b9b">마감 지남 ${nOd}</b>`:""}`
+      + `${bk==="dev"&&hiddenN?` · <b style="opacity:.8">${hiddenN}건 숨김</b>`:""}`
+      + `${info&&info.error?` · <b style="color:#ff9b9b">보드 읽기 오류</b>`:""}</span>`
+      + `${bk==="dev"?`<button id="mineLpBtn" style="margin-left:auto">⚙ 리스트 고르기${mineDevHide.size?` (${mineDevHide.size} 숨김)`:""}</button>`:""}`
+      + `</div>`;
+    if(bk==="dev" && mineLpOpen) o += mineListPanel();
+    if(!list.length){ o += `<div class="dm-empty">보이는 카드가 없습니다.</div>`; return o; }
     const grp={};
-    list.forEach(c=>{ const k=c.l||"(리스트 없음)"; (grp[k]=grp[k]||{ name:k, o:c.o, cards:[] }).cards.push(c);
-      if(c.o < grp[k].o) grp[k].o=c.o; });
+    list.forEach(c=>{ const k=c.l||"(리스트 없음)";
+      (grp[k]=grp[k]||{ name:k, o:(c.o===undefined?999:c.o), cards:[] }).cards.push(c);
+      if(c.o!==undefined && c.o<grp[k].o) grp[k].o=c.o; });
     const keys=Object.keys(grp);
     if(bk==="dev"){
       keys.forEach(k=>{ grp[k].ms = miMsOfList(k); });
-      keys.sort((a,b)=>{
-        const ma=grp[a].ms, mb=grp[b].ms;
+      keys.sort((a,b)=>{ const ma=grp[a].ms, mb=grp[b].ms;
         if(ma && mb) return (msOrder[ma.id]||0)-(msOrder[mb.id]||0);
-        if(ma) return -1; if(mb) return 1;             // 마일스톤 리스트를 위로, 나머지는 아래
-        return grp[a].o-grp[b].o;
-      });
-    } else keys.sort((a,b)=>grp[a].o-grp[b].o);        // QA 는 보드에 놓인 순서 그대로
+        if(ma) return -1; if(mb) return 1;
+        return grp[a].o-grp[b].o; });
+    } else keys.sort((a,b)=>grp[a].o-grp[b].o);
+    o += `<div class="inner">`;
     keys.forEach(k=>{
       const g=grp[k], id=bk+"|"+k, fold=!!mineFold[id];
       const gOd=g.cards.filter(c=>!c.done && c.due && c.due<today).length;
-      h += `<div class="mi-grp" data-mfold="${escapeHtml(id)}">`
-         + `<i style="background:${g.ms?(g.ms.color||"#6366f1"):"var(--line)"}"></i>`
-         + `${escapeHtml(g.name)}${g.ms&&miMsKey(g.ms.name)!==miMsKey(g.name)?` <em>${escapeHtml(g.ms.name)}</em>`:""}`
-         + ` <em>${g.cards.length}건</em>${gOd?` <span class="od">⚠ ${gOd}</span>`:""}`
-         + `<span class="ar">${fold?"▸":"▾"}</span></div>`;
-      if(!fold) h += g.cards.slice().sort(inGrp).map(c=>cardRow(c, bk==="qa")).join("");
+      o += `<div class="mi-grp" data-mfold="${escapeHtml(id)}">`
+        + `<i style="background:${g.ms?(g.ms.color||"#6366f1"):"var(--line)"}"></i>`
+        + `${escapeHtml(g.name)}${g.ms&&miMsKey(g.ms.name)!==miMsKey(g.name)?` <em>${escapeHtml(g.ms.name)}</em>`:""}`
+        + ` <em>${g.cards.length}건</em>${gOd?` <span class="od">⚠ ${gOd}</span>`:""}`
+        + `<span class="ar">${fold?"▸":"▾"}</span></div>`;
+      if(!fold) o += g.cards.slice().sort(inGrp).map(c=>cardRow(c, bk==="qa")).join("");
     });
-  });
+    return o + `</div>`;
+  };
+  h += `<div class="mi-cols"><div class="mi-col">${col("dev","Dev")}</div><div class="mi-col">${col("qa","QA")}</div></div>`;
+
   if(orphan.length) h += sec("orph","☑","내 체크 항목 (내가 안 들어간 카드)",orphan.length,false)
      + orphan.map(i=>`<div class="mi-card" data-murl="${escapeHtml(i.u||"")}"><span class="mi-bd ${i.b}">${i.b==="qa"?"QA":"Dev"}</span>`
         +`<span class="mi-nm">${escapeHtml(i.n)}</span><span class="mi-st">${escapeHtml(i.cn)}</span>`
         +`<span class="mi-due ${mineDueTxt(i.due,today).c}">${escapeHtml(mineDueTxt(i.due,today).t)}</span></div>`).join("");
-  h += `<div class="mi-note">· <b>Dev</b> 는 트렐로 리스트가 곧 마일스톤이라 마일스톤 순서로, <b>QA</b> 는 보드에 놓인 리스트 순서로 묶습니다.<br>`
+  h += `<div class="mi-note">· <b>Dev</b>(왼쪽) 는 트렐로 리스트가 곧 마일스톤이라 마일스톤 순서로, <b>QA</b>(오른쪽) 는 보드에 놓인 리스트 순서로 묶습니다.<br>`
+     + `· Dev 의 「⚙ 리스트 고르기」 로 보고 싶은 리스트만 남길 수 있습니다. <b>내 화면에만</b> 적용되고 숫자에서도 빠집니다.<br>`
      + `· 카드를 누르면 트렐로에서 열립니다. QA 카드에 보드 Task 가 연결돼 있으면 마일스톤 배지가 붙습니다.<br>`
      + `· 「완료」는 카드가 들어 있는 <b>트렐로 리스트 이름</b>으로 판단합니다(완료·Done·Resolved 등).<br>`
      + `· 체크 항목은 <b>Dev 보드</b>만 읽습니다 — QA 보드는 카드가 많아 응답이 너무 커집니다.</div>`;
@@ -7352,6 +7384,22 @@ function miMsOfList(listName){
   const list=(state.milestones||[]).filter(m=>m && !m.free);
   for(const k of ks){ const m=list.find(x=>miMsVariants(x.name).includes(k)); if(m) return m; }
   return null;
+}
+/* Dev 리스트 체크 목록. 보이는 카드가 아니라 **원본 전체**에서 리스트를 뽑아야
+   이미 숨긴 리스트도 다시 켤 수 있다. */
+function mineListPanel(){
+  const cnt={};
+  (MINE.cards||[]).forEach(c=>{ if(c.b!=="dev") return; const k=c.l||"(리스트 없음)"; cnt[k]=(cnt[k]||0)+1; });
+  const keys=Object.keys(cnt).sort((a,b)=>{
+    const ma=miMsOfList(a), mb=miMsOfList(b);
+    if(ma&&!mb) return -1; if(mb&&!ma) return 1;
+    return a.localeCompare(b,"ko"); });
+  if(!keys.length) return "";
+  return `<div class="mi-lp">`
+    + keys.map(k=>`<div class="row${mineDevHide.has(k)?"":" on"}" data-mlist="${escapeHtml(k)}">`
+        + `<i>${mineDevHide.has(k)?"":"✓"}</i>${escapeHtml(k)}<em>${cnt[k]}건</em></div>`).join("")
+    + `<div class="act"><button data-mlall="1">전체 보기</button><button data-mlall="0">전체 숨기기</button>`
+    + `<span style="margin-left:auto;font-size:10.5px;color:var(--muted);font-weight:700;align-self:center">내 화면에만 적용됩니다</span></div></div>`;
 }
 function msBadgeShort(name){ const m=String(name||"").match(/\d+/); return m?("M"+m[0]):String(name||"").slice(0,4); }
 function relTimeShort(iso){
@@ -7405,6 +7453,14 @@ document.getElementById("mineBody").addEventListener("click", async e=>{
   if(e.target.closest("#mineWhoBtn")){ mineWhoPick(); return; }
   if(e.target.closest("#mineRelink")){ mineLinkScreen(); return; }
   if(e.target.closest("#mineDoneBtn")){ mineDoneOn=!mineDoneOn; renderMine(); return; }
+  if(e.target.closest("#mineLpBtn")){ mineLpOpen=!mineLpOpen; renderMine(); return; }
+  const ml=e.target.closest("[data-mlist]");
+  if(ml){ const k=ml.dataset.mlist; if(mineDevHide.has(k)) mineDevHide.delete(k); else mineDevHide.add(k);
+    mineSaveHide(); renderMine(); return; }
+  const ma=e.target.closest("[data-mlall]");
+  if(ma){ mineDevHide.clear();
+    if(ma.dataset.mlall==="0") (MINE.cards||[]).forEach(c=>{ if(c.b==="dev") mineDevHide.add(c.l||"(리스트 없음)"); });
+    mineSaveHide(); renderMine(); return; }
   const u=e.target.closest("[data-murl]"); if(u && u.dataset.murl){ window.open(u.dataset.murl, "_blank", "noopener"); return; }
 });
 /* ===== 「⚡ 바로 갱신」 — 로컬 중계기(ufhelper) (2026-11-12, build 2026111207) ==========

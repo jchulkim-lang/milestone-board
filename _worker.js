@@ -15,7 +15,7 @@ const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 �
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026112305;
+const APP_BUILD = 2026112307;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -85,13 +85,15 @@ async function mineScanBoards(env, force){
       let lists, cards, mems;
       try{
         [lists, cards, mems] = await Promise.all([
-          trelloFetch(env, `/boards/${b.id}/lists?fields=id,name&filter=open`),
+          /* ⚠ 리스트는 **filter=all**. open 만 받으면 보관된 리스트에 남아 있는 열린 카드가
+             이름을 못 찾아 「(리스트 없음)」 으로 뭉친다(2026-11-23 실제로 16건). */
+          trelloFetch(env, `/boards/${b.id}/lists?fields=id,name,closed&filter=all`),
           trelloFetch(env, `/boards/${b.id}/cards?fields=id,name,idList,idMembers,due,dueComplete,shortUrl&filter=open`),
           trelloFetch(env, `/boards/${b.id}/members?fields=fullName,username`).catch(()=>[]),
         ]);
       }catch(e){ out.boards.push({ key:b.key, name:b.name, error:String(e && e.message || e) }); continue; }
       const lname={}, lpos={};
-      (lists||[]).forEach((l,i)=>{ if(l && l.id){ lname[l.id]=l.name||""; lpos[l.id]=i; } });
+      (lists||[]).forEach((l,i)=>{ if(l && l.id){ lname[l.id]=(l.name||"")+(l.closed?" (보관됨)":""); lpos[l.id]=i; } });
       (mems||[]).forEach(m=>{ if(m && m.id) out.members.push({ id:m.id, name:m.fullName||m.username||"", user:m.username||"" }); });
       const mine=[];
       (cards||[]).forEach(c=>{
