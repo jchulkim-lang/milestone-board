@@ -2862,7 +2862,8 @@ let dayFilter="";                       // "" = 끔, 아니면 YYYY-MM-DD
 const dayCanUse = () => !window.APP_ROLE || window.APP_ROLE==="master";
 const segEndYmd = seg => (seg && (seg.ed || (N ? ymd(dateOf(seg.end)) : ""))) || "";
 function dayHitDepts(t, d){ const day=d||dayFilter; if(!day || !t || !t.depts) return [];
-  return DAY_DEPTS.filter(k=>{ const g=t.depts[k]; return !!(g && g.on && hasSched(g) && segEndYmd(g)===day); }); }
+  /* 완료 체크(✓, seg.done)된 칸은 센다 쳐도 데일리에 띄울 이유가 없다 — 2026-11-25 사용자 지시 */
+  return DAY_DEPTS.filter(k=>{ const g=t.depts[k]; return !!(g && g.on && !g.done && hasSched(g) && segEndYmd(g)===day); }); }
 function setDayFilter(v){
   dayFilter = v || "";
   /* 기획·조립은 「개발」 분류의 부서다. 아트 탭에서 켜면 0건이 떠 고장처럼 보인다. */
@@ -3205,7 +3206,7 @@ function passFilter(t){
     if(!m && ids.some(id=>labelFilter.has(id))) m=true;
     if(!m) return false;
   }
-  if(dayFilter && !dayHitDepts(t).length) return false;      // 📅 날짜별 — 기획·조립 마감일이 그날인 것만
+  if(dayFilter && (isDone(t) || !dayHitDepts(t).length)) return false;   // 📅 날짜별 — 기획·조립 마감일이 그날 + 완료 아닌 것만
   if(lateOnly && !isLate(t)) return false;
   if(noteOnly && !noteCount(t)) return false;
   if(AUDIT_ON && auditOnly && !auCount(t.id)) return false;   // 점검이 꺼져 있으면 이 필터는 없는 셈 친다
