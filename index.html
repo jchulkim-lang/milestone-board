@@ -396,6 +396,12 @@
   /* 킥오프 선택 팝업 */
   .kf-pop{position:fixed;z-index:60;display:none;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:5px;box-shadow:0 16px 40px rgba(0,0,0,.5);min-width:186px;}
   .kf-pop.show{display:block;}
+  /* 트렐로에서 보관(archive)된 카드에 연결된 Task — 지우지 않고 회색으로 남긴다 (2026-11-25) */
+  .task.arch > .task-head{opacity:.45;}
+  .task.arch > .task-head:hover{opacity:.72;}
+  .arch-chip{flex:0 0 auto;margin-left:5px;padding:1px 6px;border-radius:6px;font-size:10.5px;font-weight:800;
+     white-space:nowrap;color:#cbd2e0;background:rgba(148,163,184,.18);border:1px solid rgba(148,163,184,.45);}
+  body.light .arch-chip{color:#475569;background:rgba(100,116,139,.12);border-color:rgba(100,116,139,.35);}
   /* 📅 날짜별 보기 팝업 (2026-11-25) */
   .day-pop{min-width:262px;}
   .dp-row{display:flex;align-items:center;gap:4px;padding:1px 6px 6px;}
@@ -3753,6 +3759,8 @@ function taskHeadHtml(t){
      왼쪽(부서 칩) 위로 쏟아진다 — 2026-09-16 사용자 제보. 자세한 계산은 task_row_layout 메모. */
   const _L=taskLateDays(t);
   const lateChip=_L?`<span class="late-chip" title="부서 일정 종료일이 ${_L}영업일 지났는데 아직 완료가 아닙니다">지연 ${_L}일</span>`:"";
+  /* 트렐로에서 보관된 카드 — 값은 그대로 두고 표시만 한다. 보관을 풀면 서버가 이 표시를 지운다. */
+  const archChip=t.trelloClosed?`<span class="arch-chip" title="트렐로에서 보관(archive)된 카드입니다. 트렐로에서 보관을 풀면 표시가 사라지고 값은 그대로 돌아옵니다.">🗄 보관됨</span>`:"";
   /* 킥오프는 개발 분류에서만 '열'로 뺀다. 아트·전투·네러티브는 담당자 매트릭스 자체가 없어
      (부서 14개) 맞춰 줄 머리글이 없다 → 그쪽은 기존 23px 아이콘을 우측 칸에 그대로 둔다. */
   const _dev=(t.track||"개발")==="개발";
@@ -3761,7 +3769,7 @@ function taskHeadHtml(t){
   return `<div class="task-head" data-toggleopen="${t.id}">
       <span class="drag-handle ${canReorder()?'':'off'}" data-drag="${t.id}" title="${canReorder()?'드래그하여 이동':'정렬이 「'+sortLabel()+'」라서 순서를 바꿀 수 없습니다 — 「↕ 정렬」(수동)으로 바꿔 주세요'}">⠿</span>
       <span class="caret">▶</span>
-      <span class="task-info"><select class="prio-sel p${t.priority||0}" data-prio="${t.id}" title="우선순위 선택 (없음 · S · 1~4)">${['','S','1','2','3','4'].map(v=>`<option value="${v}" ${String(t.priority||'')===v?'selected':''}>${v||'–'}</option>`).join('')}</select><span class="vol-wrap" title="볼륨 스케일 — ${volName(volKey(t))} (${volStarText(volKey(t))}) · 기본은 소">${volStarHtml(volKey(t))}<select class="vol-sel" data-vol="${t.id}">${VOLS.map(v=>`<option value="${v.k}" ${volKey(t)===v.k?'selected':''}>${volStarText(v.k)} ${v.n}</option>`).join('')}</select></span><span class="ms-tag"><i class="bd" style="background:${ms.color}"></i>${escapeHtml(ms.name)}</span>${labelChipsHtml(t)}<span class="task-name">${escapeHtml(t.name)}</span>${t.mirrorOf?'<span class="mirror-badge" title="아트에서 미러된 Task (아트 수정 시 갱신)">🔗 아트</span>':''}${lateChip}${auBadgeHtml(t)}${t.trelloCardId?`<a class="trello-badge" href="${escapeHtml(trelloUrlOf(t))}" target="_blank" rel="noopener" title="트렐로 카드 열기${t.trelloList?' · 리스트 '+escapeHtml(t.trelloList):''}\n이름은 트렐로가 기준입니다. 보드에서 지워도 트렐로 카드는 남습니다.">${TRELLO_ICON} 동기화</a>`:''}${links}${(t.track||"개발")==="개발"?"":asg}</span>
+      <span class="task-info"><select class="prio-sel p${t.priority||0}" data-prio="${t.id}" title="우선순위 선택 (없음 · S · 1~4)">${['','S','1','2','3','4'].map(v=>`<option value="${v}" ${String(t.priority||'')===v?'selected':''}>${v||'–'}</option>`).join('')}</select><span class="vol-wrap" title="볼륨 스케일 — ${volName(volKey(t))} (${volStarText(volKey(t))}) · 기본은 소">${volStarHtml(volKey(t))}<select class="vol-sel" data-vol="${t.id}">${VOLS.map(v=>`<option value="${v.k}" ${volKey(t)===v.k?'selected':''}>${volStarText(v.k)} ${v.n}</option>`).join('')}</select></span><span class="ms-tag"><i class="bd" style="background:${ms.color}"></i>${escapeHtml(ms.name)}</span>${labelChipsHtml(t)}<span class="task-name">${escapeHtml(t.name)}</span>${t.mirrorOf?'<span class="mirror-badge" title="아트에서 미러된 Task (아트 수정 시 갱신)">🔗 아트</span>':''}${lateChip}${archChip}${auBadgeHtml(t)}${t.trelloCardId?`<a class="trello-badge" href="${escapeHtml(trelloUrlOf(t))}" target="_blank" rel="noopener" title="트렐로 카드 열기${t.trelloList?' · 리스트 '+escapeHtml(t.trelloList):''}\n이름은 트렐로가 기준입니다. 보드에서 지워도 트렐로 카드는 남습니다.">${TRELLO_ICON} 동기화</a>`:''}${links}${(t.track||"개발")==="개발"?"":asg}</span>
       ${(_slot||!_dev)?"":`<span class="kf-col ${kf.cls}" data-kf="${t.id}" title="킥오프: ${escapeHtml(t.kickoff)} — ${escapeHtml(kf.desc||"")} (클릭하여 변경)">${escapeHtml(t.kickoff)}</span>`}
       ${_slot?"":(_dev?deptChipsInline(t):`<span class="dept-grid">${deptGridHtml(t)}</span>`)}
       <span class="th-right">${_dev?"":`<span class="kf-chip" data-kf="${t.id}" style="border-color:${kf.color};box-shadow:0 0 0 2px ${kf.color}30" title="킥오프: ${t.kickoff} — 클릭하여 선택">${kf.icon}</span>`}
@@ -4028,7 +4036,7 @@ function renderLeft(){
         const trSyncBtn=t.trelloCardId?`<button class="meta-btn" data-trsync="${t.id}" title="이 Task를 트렐로 카드 기준으로 다시 맞춥니다">🔄 동기화</button>`:"";
         const trOpts=TRACKS.map(tr=>`<option value="${tr}" ${tr===t.track?'selected':''}>${tr}</option>`).join("");
         const meta=`<div class="meta-rows"><div class="meta-row"><button class="meta-btn" data-openpicker="${t.id}">＋ 부서</button><button class="meta-btn" data-openedit="${t.id}">✏️ 편집</button><button class="meta-btn" data-dup="${t.id}" title="이 Task 복제">⧉ 복제</button><button class="meta-btn" data-copylink="${t.id}" title="이 Task 링크 복사(전달용)">🔗 링크</button><button class="meta-btn" data-note="${t.id}" title="이 Task 의 메모를 보고 남깁니다">📝 메모${noteCount(t)?" ("+noteCount(t)+")":""}</button>${planBtn}${trelloBtn}${trSyncBtn}<select class="meta-sel" data-settrack="${t.id}" title="분류">${trOpts}</select><select class="meta-sel" data-setms="${t.id}" title="마일스톤">${msOpts}</select></div></div>`;
-        html+=`<div class="task ${isOpen(t.id)?'open':''} ${isLate(t)?'late':''} ${t.kickoff==='Skip'?'skip':''} ${isCatTrack(t.track)&&t.done?'tdone':''} ${t.id===selectedId?'selected':''}" data-task="${t.id}" draggable="${canReorder()?'true':'false'}">${taskHeadHtml(t)}${inner}${meta}</div>`;
+        html+=`<div class="task ${isOpen(t.id)?'open':''} ${t.trelloClosed?'arch':''} ${isLate(t)?'late':''} ${t.kickoff==='Skip'?'skip':''} ${isCatTrack(t.track)&&t.done?'tdone':''} ${t.id===selectedId?'selected':''}" data-task="${t.id}" draggable="${canReorder()?'true':'false'}">${taskHeadHtml(t)}${inner}${meta}</div>`;
       });
     }
   });
@@ -5741,6 +5749,7 @@ function trShowDetail(su){
         (su.ambiguous||[]).map(a=>`${a.name}${a.list?" ("+a.list+")":""}`))+
     grp("","기존 Task 에 연결", su.linkedNames||[])+
     grp("","새로 추가", su.addedNames||[])+
+    grp("","보관·삭제된 카드 → 「🗄 보관됨」 표시 (지우지 않음)", su.closedNames||[])+
     grp("","사라진 카드 → 정리", su.removedNames||[]);
 }
 async function trCall(path, method, btn){
@@ -5751,7 +5760,9 @@ async function trCall(path, method, btn){
     if(!r.ok || j.error){ trSetMsg("실패: "+(j.error||r.status), "tr-no"); }
     else if(j.summary){ const su=j.summary;
       const head = su.dry ? "미리보기 (아직 저장하지 않았습니다)" : "가져오기 완료";
-      trSetMsg(`${head} — 연결 ${su.linked} · 새로 추가 ${su.added} · 이름갱신 ${su.renamed} · 정리 ${su.removed}`
+      trSetMsg(`${head} — 연결 ${su.linked} · 새로 추가 ${su.added} · 이름갱신 ${su.renamed}`
+        + (su.closedMarked?` · 🗄 보관 표시 ${su.closedMarked}`:"")
+        + (su.reopened?` · 보관 해제 ${su.reopened}`:"")
         + ((su.ambiguous&&su.ambiguous.length)?` · ⚠ 이름 중복 ${su.ambiguous.length}건 건너뜀`:"")
         + (su.skippedRemoval?` · ⚠ 사라진 카드 ${su.skippedRemoval}건은 너무 많아 자동 삭제하지 않았습니다`:"")
         + (su.lists&&su.lists.length?`  (리스트: ${su.lists.join(", ")})`:""),

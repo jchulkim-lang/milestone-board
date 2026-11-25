@@ -15,7 +15,7 @@ const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 히스토리 스냅샷 최소 �
  * 형식: YYYYMMDDNN (날짜 8자리 + 그날의 배포 순번 2자리). 자릿수를 줄이면 대소 비교가 깨지니
  *       앞으로도 반드시 10자리로 쓸 것. 예: 2026-08-19 세 번째 배포 → 2026081903
  * 기능이 추가/변경될 때마다 올린다. */
-const APP_BUILD = 2026112502;
+const APP_BUILD = 2026112503;
 function clientVersion(request){ const v = parseInt(request.headers.get("X-App-Version") || "0", 10); return isNaN(v) ? 0 : v; }
 
 function b64urlFromBytes(buf){ let s = btoa(String.fromCharCode(...new Uint8Array(buf))); return s.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
@@ -585,12 +585,20 @@ async function applyTrelloAction(env, act){
   }
   if(type === "updateCard"){
     const old = d.old || {};
-    if(old.closed === false && card.closed === true){        // 보관(archive) → 삭제로 취급
+    /* 보관(archive) → **Task 를 지우지 않는다** (2026-11-25, build 2026112503)
+       사용자 제보: "담당자들이 실수로 아카이브했다가 바로 되돌리는데, 그때 웹뷰 값이 전부 날아간다."
+       예전엔 여기서 splice 로 지웠고, 보관을 풀면 attachOrCreate 가 **빈 Task 를 새로 만들었다**
+       → 부서·담당자·일정·우선순위·볼륨·라벨·메모·킥오프가 전부 초기화. 이제 표시만 남긴다. */
+    if(old.closed === false && card.closed === true){
       return (await mutateState(env, "trello", st => {
-        const i = findIdx(st); if(i < 0) return false; st.tasks.splice(i,1); return true; })).changed;
+        const i = findIdx(st); if(i < 0) return false;
+        if(st.tasks[i].trelloClosed) return false;
+        st.tasks[i].trelloClosed = true; return true; })).changed;
     }
-    if(old.closed === true && card.closed === false){        // 보관 해제 → 대상 리스트면 되살림
+    if(old.closed === true && card.closed === false){        // 보관 해제 → 표시만 지우면 값이 그대로 돌아온다
       return (await mutateState(env, "trello", st => {
+        const i = findIdx(st);
+        if(i >= 0){ if(!st.tasks[i].trelloClosed) return false; delete st.tasks[i].trelloClosed; return true; }
         const ln = listName || (d.list && d.list.name) || "";
         if(!msIdForList(st, ln)) return false;
         const r = attachOrCreate(st, card, ln);
@@ -652,6 +660,7 @@ async function trelloImportAll(env, who, opts){
       const listName = byId[c.idList];
       const i = st.tasks.findIndex(t => t && t.trelloCardId === c.id);
       if(i >= 0){                                            // 이미 연결됨 → 이름·링크만 맞춘다
+        if(st.tasks[i].trelloClosed){ delete st.tasks[i].trelloClosed; summary.reopened=(summary.reopened||0)+1; changed = true; }
         if(fillCardLink(st.tasks[i], c)) changed = true;
         if(st.tasks[i].name !== nm){ st.tasks[i].name = nm; summary.renamed++; changed = true; }
         return;
@@ -667,15 +676,17 @@ async function trelloImportAll(env, who, opts){
       if(r === "added"){ summary.added++; if(summary.addedNames.length < 50) summary.addedNames.push(nm); changed = true; }
     });
 
-    // 보드에서 사라진(삭제·보관) 카드에 연결된 Task 정리
+    /* 보드에서 사라진(삭제·보관) 카드에 연결된 Task — **지우지 않고 「보관됨」 표시만** 한다.
+       (2026-11-25) 가져오기는 열린 카드만 받으므로 보관된 카드가 전부 여기로 떨어진다.
+       예전엔 10건까지 자동 삭제했는데, 그 길로 실수 보관 한 건에 값이 통째로 날아갔다.
+       진짜로 뺄 Task 는 보드에서 직접 지운다(카드는 그대로 — trelloIgnored 로 다시 안 들어온다). */
     const openIds = new Set((cards||[]).map(c => c.id));      // 보드의 열린 카드 전체(대상 밖 리스트 포함)
-    const dead = st.tasks.filter(t => t && t.trelloCardId && !openIds.has(t.trelloCardId));
-    if(dead.length > TRELLO_MAX_AUTO_DELETE){ summary.skippedRemoval = dead.length; }
-    else if(dead.length){
-      const kill = new Set(dead.map(t => t.id));
-      summary.removedNames = dead.slice(0,50).map(t => t.name);
-      st.tasks = st.tasks.filter(t => !kill.has(t.id));
-      summary.removed = dead.length; changed = true;
+    const dead = st.tasks.filter(t => t && t.trelloCardId && !openIds.has(t.trelloCardId) && !t.trelloClosed);
+    if(dead.length){
+      dead.forEach(t => { t.trelloClosed = true; });
+      summary.closedMarked = dead.length;
+      summary.closedNames = dead.slice(0,50).map(t => t.name);
+      changed = true;
     }
     return dry ? false : changed;                            // 미리보기면 저장하지 않는다
   });
