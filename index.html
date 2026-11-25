@@ -396,6 +396,22 @@
   /* 킥오프 선택 팝업 */
   .kf-pop{position:fixed;z-index:60;display:none;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:5px;box-shadow:0 16px 40px rgba(0,0,0,.5);min-width:186px;}
   .kf-pop.show{display:block;}
+  /* 📅 날짜별 보기 팝업 (2026-11-25) */
+  .day-pop{min-width:262px;}
+  .dp-row{display:flex;align-items:center;gap:4px;padding:1px 6px 6px;}
+  .dp-row2{display:flex;gap:4px;padding:0 6px 4px;}
+  .dp-nav,.dp-btn{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:7px;
+     font-family:inherit;font-size:11.5px;font-weight:800;padding:5px 8px;cursor:pointer;line-height:1;}
+  .dp-nav:hover,.dp-btn:hover{border-color:var(--accent);}
+  .dp-btn.wide{flex:1 1 auto;}
+  .dp-btn.off{color:#ff9b9b;}
+  #dayInput{flex:1 1 auto;min-width:0;background:var(--panel2);border:1px solid var(--line);color:var(--text);
+     border-radius:7px;padding:4px 6px;font-family:inherit;font-size:12px;font-weight:700;}
+  .dp-sum{font-size:11.5px;color:var(--muted);padding:0 9px 7px;line-height:1.6;}
+  .dp-sum b{color:var(--text);}
+  .dp-warn{color:#fbbf24;}
+  body.light .dp-btn.off{color:#b91c1c;}
+  body.light .dp-warn{color:#a16207;}
   .kf-pop .kf-hd{font-size:10px;font-weight:800;color:var(--muted);padding:4px 9px 6px;letter-spacing:.2px;}
   .kf-pop .kf-opt{display:flex;align-items:center;gap:9px;width:100%;padding:7px 9px;border:0;border-radius:8px;background:transparent;color:var(--text);font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left;}
   .kf-pop .kf-opt:hover{background:var(--panel2);}
@@ -2835,6 +2851,29 @@ function noticeSortLock(){
   flashNote(`정렬이 「${sortLabel()}」라서 순서를 바꿀 수 없습니다 — 상단 정렬 버튼을 눌러 「↕ 정렬」(수동)로 바꾸면 위·아래로 옮길 수 있습니다.`);
 }
 let searchQuery="";   // 필터 텍스트 검색(제목·담당자)
+/* ===== 📅 날짜별 보기 — 마스터 전용 (2026-11-25, build 2026112501) =========================
+   사용자 요청: "버튼을 터치하면 날짜를 입력하고, 그 날짜에 매칭된 일감만 노출 — 데일리 일감 관리".
+   확정 규칙(사용자 선택): **기획·조립 부서 세그먼트의 종료일(=마감)이 그 날짜와 같으면** 노출.
+   둘 중 하나만 걸려도 보여 준다(OR). 종료일은 저장값 `seg.ed`(YYYY-MM-DD) 를 그대로 본다 — [[dept-schedule]].
+   ⚠ 뷰 상태다. localStorage 에도 공유 링크에도 **넣지 않는다** — 어제 날짜가 남은 채 다음 날 열면
+     "일감이 전부 사라졌다"가 된다([[silent-failures]] 계열). 새로고침하면 그냥 풀린다. */
+const DAY_DEPTS=["기획","조립"];
+let dayFilter="";                       // "" = 끔, 아니면 YYYY-MM-DD
+const dayCanUse = () => !window.APP_ROLE || window.APP_ROLE==="master";
+const segEndYmd = seg => (seg && (seg.ed || (N ? ymd(dateOf(seg.end)) : ""))) || "";
+function dayHitDepts(t, d){ const day=d||dayFilter; if(!day || !t || !t.depts) return [];
+  return DAY_DEPTS.filter(k=>{ const g=t.depts[k]; return !!(g && g.on && hasSched(g) && segEndYmd(g)===day); }); }
+function setDayFilter(v){
+  dayFilter = v || "";
+  /* 기획·조립은 「개발」 분류의 부서다. 아트 탭에서 켜면 0건이 떠 고장처럼 보인다. */
+  if(dayFilter && headTrack()!=="개발") trackFilter="개발";
+  render();
+}
+function dayShift(n){
+  const dt = dayFilter ? parseYmd(dayFilter) : stripTime(new Date());
+  do{ dt.setDate(dt.getDate()+n); }while(dt.getDay()===0 || dt.getDay()===6);   // 주말 건너뛰기
+  setDayFilter(ymd(dt));
+}
 let groupCollapsed=new Set();   // 접힌 상태 그룹(개인)
 /* Task 펼침 상태 — 개인 브라우저에만 저장(공유 안 됨). 기본은 모두 접힘 */
 let openTasks=new Set();
@@ -3166,6 +3205,7 @@ function passFilter(t){
     if(!m && ids.some(id=>labelFilter.has(id))) m=true;
     if(!m) return false;
   }
+  if(dayFilter && !dayHitDepts(t).length) return false;      // 📅 날짜별 — 기획·조립 마감일이 그날인 것만
   if(lateOnly && !isLate(t)) return false;
   if(noteOnly && !noteCount(t)) return false;
   if(AUDIT_ON && auditOnly && !auCount(t.id)) return false;   // 점검이 꺼져 있으면 이 필터는 없는 셈 친다
@@ -3376,7 +3416,7 @@ function noticeRestoredView(){
 }
 function clearAllFilters(){
   deptFilter.clear(); statusFilter.clear(); msFilter.clear(); assigneeFilter.clear();
-  kfFilter.clear(); labelFilter.clear(); prioFilter.clear(); volFilter.clear(); searchQuery=""; lateOnly=false; noteOnly=false; auditOnly=false;
+  kfFilter.clear(); labelFilter.clear(); prioFilter.clear(); volFilter.clear(); searchQuery=""; lateOnly=false; noteOnly=false; auditOnly=false; dayFilter="";
   setFocusDept("__all"); render();
 }
 function render(){ normalizeFocusDept(); renderTitle(); renderDeptFocus(); renderContext(); renderPipeline(); renderLegend(); renderFilter(); renderHead(); renderLeft(); renderBody(); refreshRoadmapIfOpen(); saveView(); if(slotActive()) renderSlot(); paintAskBtn(); refreshAskIfOpen(); }
@@ -3508,7 +3548,7 @@ function renderFilter(){
       const n=state.tasks.filter(t=>taskLabelIds(t).includes(l.id)).length;
       return `<span class="fchip ${on?'on':''}" style="${on?'background:'+l.color:''}" data-flb="${escapeHtml(l.id)}"><span class="dot" style="background:${on?'#fff':l.color}"></span>${escapeHtml(l.name)} <b>${n}</b></span>`; }).join("")
     + `<span class="fchip ${labelFilter.has("__none")?'on':''}" data-flb="__none"><span class="dot" style="background:var(--line)"></span>라벨 없음 <b>${state.tasks.filter(t=>!taskLabelIds(t).length).length}</b></span>`;
-  const cnt=deptFilter.size+statusFilter.size+assigneeFilter.size+kfFilter.size+labelFilter.size+prioFilter.size+volFilter.size+(lateOnly?1:0)+(noteOnly?1:0)+(auditOnly?1:0)+(searchQuery.trim()?1:0);
+  const cnt=deptFilter.size+statusFilter.size+assigneeFilter.size+kfFilter.size+labelFilter.size+prioFilter.size+volFilter.size+(lateOnly?1:0)+(noteOnly?1:0)+(auditOnly?1:0)+(searchQuery.trim()?1:0)+(dayFilter?1:0);
   const allA=assigneeFilter.size===0;
   const aSec=`<div class="fsec"><span class="lh-label">담당자</span>
        <div class="fchips"><span class="fchip all ${allA?'on':''}" data-fa="__all">${allA?'✓ ':''}전체</span><span class="fchip ${assigneeFilter.has('__unassigned')?'on':''}" data-fa="__unassigned">${assigneeFilter.has('__unassigned')?'✓ ':''}미정</span></div>
@@ -3532,6 +3572,7 @@ function renderFilter(){
        <button class="filter-btn" id="toggleAllBtn" style="margin-left:auto" title="모두 펼침/접기 (개인 화면)">${_allOpen?'⊖ 모두 접기':'⊕ 모두 펼치기'}</button>
        <button class="filter-btn ${sortMode!=='manual'?'active':''}" id="sortBtn" title="정렬 (클릭: 수동 → 이름↑ → 이름↓ → 우선순위)${sortMode!=='manual'?' — 수동이 아니면 Task 순서를 드래그로 바꿀 수 없습니다':''}">${sortLabel()}</button>
        <button class="filter-btn ${cnt?'active':''}" id="filterBtn">필터${cnt?' ('+cnt+')':''} ▾</button>
+       ${dayCanUse()?`<button class="filter-btn ${dayFilter?'active':''}" id="dayBtn" title="기획·조립 부서의 마감일이 그날인 일감만 봅니다 — 데일리 일감 관리 (마스터 전용)">📅 ${dayFilter?escapeHtml(dayBtnLabel()):'날짜별'}</button>`:''}
        <button class="filter-btn" id="shareViewBtn" title="지금 보고 있는 조건(마일스톤 · 분류 · 필터 · 부서 포커스 · 정렬)을 링크로 복사합니다. 받는 사람도 로그인이 필요합니다.">🔗 링크</button>
      </div>
      <div class="lh-row dept-head-row">${ headTrack()==="개발"
@@ -3551,6 +3592,7 @@ function renderFilter(){
        <div class="fsec"><span class="lh-label">킥오프</span><div class="fchips"><span class="fchip all ${kfFilter.size===0?'on':''}" data-fkf="__all">전체</span>${kfchips}</div></div>`}
        ${aSec}
      </div>`;
+  renderDayPop();        // 팝업이 열려 있으면 건수만 다시 쓴다(닫혀 있으면 아무것도 안 한다)
 }
 
 /* 간트 행 오른쪽 끝에 붙는 마일스톤 마감 라벨 (2026-10-01).
@@ -4079,6 +4121,87 @@ function openMsPop(anchor){
 function closeMsPop(){ const p=document.getElementById("msPop"); if(p) p.classList.remove("show"); }
 document.addEventListener("click", e=>{ if(!e.target.closest("#msPop") && !e.target.closest("#ctxMs")) closeMsPop(); });
 document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeMsPop(); });
+
+/* ===== 📅 날짜별 팝업 =======================================================================
+   ⚠ <input type="date"> 가 들어 있어서 **innerHTML 을 다시 쓰면 입력 중인 연도가 날아간다**
+     (2026-10-26 "2027 입력이 안 된다" 사고와 같은 함정). 그래서 틀은 한 번만 만들고,
+     renderDayPop() 은 **요약 줄과 값만** 갱신한다. 값도 입력칸에 포커스가 있으면 건드리지 않는다. */
+function dayVisible(){ return state.tasks.filter(passFilter); }
+function dayBtnLabel(){ if(!dayFilter) return "날짜별";
+  const d=parseYmd(dayFilter); return fmt(d)+" ("+dayVisible().length+")"; }
+function dayPopEl(){
+  let p=document.getElementById("dayPop");
+  if(p) return p;
+  p=document.createElement("div"); p.id="dayPop"; p.className="kf-pop day-pop"; document.body.appendChild(p);
+  p.innerHTML =
+    `<div class="kf-hd">날짜별 — 기획·조립 <b>마감일</b>이 그날인 일감만</div>`+
+    `<div class="dp-row"><button type="button" class="dp-nav" data-dayshift="-1" title="하루 전(주말 건너뜀)">◀</button>`+
+    `<input type="date" id="dayInput"><button type="button" class="dp-nav" data-dayshift="1" title="하루 뒤(주말 건너뜀)">▶</button>`+
+    `<button type="button" class="dp-btn" id="dayToday">오늘</button></div>`+
+    `<div class="dp-sum" id="daySum"></div>`+
+    `<div class="dp-row2"><button type="button" class="dp-btn wide" id="dayCopy" title="그날 목록을 클립보드로 — 카카오워크에 그대로 붙여넣으세요">📋 목록 복사</button>`+
+    `<button type="button" class="dp-btn off" id="dayClear">✕ 해제</button></div>`;
+  p.addEventListener("click", ev=>{
+    const sh=ev.target.closest("[data-dayshift]");
+    if(sh){ ev.stopPropagation(); dayShift(Number(sh.dataset.dayshift)); return; }
+    if(ev.target.closest("#dayToday")){ ev.stopPropagation(); setDayFilter(ymd(stripTime(new Date()))); return; }
+    if(ev.target.closest("#dayClear")){ ev.stopPropagation(); setDayFilter(""); closeDayPop(); return; }
+    if(ev.target.closest("#dayCopy")){ ev.stopPropagation(); copyDayList(); return; }
+  });
+  p.querySelector("#dayInput").addEventListener("change", ev=>{
+    const v=ev.target.value;
+    if(v && !yearReady(v)) return;      // 연도를 한 글자씩 칠 때마다 다시 그리지 않는다
+    setDayFilter(v);
+  });
+  return p;
+}
+function renderDayPop(){
+  const p=document.getElementById("dayPop"); if(!p || !p.classList.contains("show")) return;
+  const inp=p.querySelector("#dayInput");
+  if(inp && document.activeElement!==inp) inp.value=dayFilter;
+  const sum=p.querySelector("#daySum"); if(!sum) return;
+  if(!dayFilter){ sum.innerHTML="날짜를 넣으면 그날 마감인 기획·조립 일감만 남습니다."; return; }
+  const vis=dayVisible();
+  const n=k=>vis.filter(t=>dayHitDepts(t).includes(k)).length;
+  const d=parseYmd(dayFilter);
+  sum.innerHTML=`<b>${fmt(d)}(${DOW[d.getDay()]})</b> 마감 · 기획 <b>${n("기획")}</b> · 조립 <b>${n("조립")}</b> · 합 <b>${vis.length}</b>건`
+    + (vis.length?"":`<br><span class="dp-warn">그날 마감인 일감이 없습니다.</span>`);
+}
+function openDayPop(anchor){
+  const p=dayPopEl();
+  if(p.classList.contains("show")){ closeDayPop(); return; }
+  if(!dayFilter) dayFilter=ymd(stripTime(new Date()));     // 처음 열면 오늘부터
+  p.classList.add("show"); render();                        // 버튼 글자·목록·요약을 한 번에 맞춘다
+  /* ⚠ render() 가 leftHead 를 통째로 다시 그려서 **넘겨받은 anchor 노드는 이미 문서에서 빠졌다.**
+     그걸로 위치를 재면 0,0 이 나와 팝업이 화면 좌상단에 붙는다(실측). 다시 찾아서 잰다. */
+  const a=document.getElementById("dayBtn")||anchor;
+  const r=a.getBoundingClientRect(), pw=p.offsetWidth, ph=p.offsetHeight;
+  let left=Math.min(r.left, window.innerWidth-pw-8); if(left<8) left=8;
+  let top=r.bottom+6; if(top+ph>window.innerHeight-8) top=Math.max(8, r.top-ph-6);
+  p.style.left=left+"px"; p.style.top=top+"px";
+}
+function closeDayPop(){ const p=document.getElementById("dayPop"); if(p) p.classList.remove("show"); }
+document.addEventListener("click", e=>{ if(!e.target.closest("#dayPop") && !e.target.closest("#dayBtn")) closeDayPop(); });
+/* 그날 목록을 사람이 읽는 텍스트로 — 부서별로 묶고, 카드 주소가 있으면 한 줄 아래에 붙인다 */
+function copyDayList(){
+  if(!dayFilter){ flashNote("먼저 날짜를 넣어 주세요."); return; }
+  const vis=dayVisible(), d=parseYmd(dayFilter);
+  const head=`📅 ${dayFilter}(${DOW[d.getDay()]}) 마감 · ${vis.length}건`;
+  if(!vis.length){ flashNote("그날 마감인 일감이 없습니다."); return; }
+  const blocks=DAY_DEPTS.map(k=>{
+    const rows=vis.filter(t=>dayHitDepts(t).includes(k));
+    if(!rows.length) return "";
+    return `[${k}] ${rows.length}건\n` + rows.map(t=>{
+      const g=t.depts[k]||{}, who=(g.assignees||[]).join(", ");
+      const url=trelloUrlOf(t);
+      return `· ${t.name||""}${who?" — "+who:""}` + (url?`\n  ${url}`:"");
+    }).join("\n");
+  }).filter(Boolean).join("\n\n");
+  const text=head+"\n\n"+blocks;
+  const done=()=>flashNote(`그날 목록 ${vis.length}건을 복사했습니다.`);
+  if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done).catch(()=>fallbackCopyText(text,done));
+  else fallbackCopyText(text,done);
+}
 window.addEventListener("resize", closeMsPop);
 
 /* ===== 우선순위 다중 선택 팝업 (2026-11-03) ==================================
@@ -4259,6 +4382,8 @@ leftHead.addEventListener("click", e=>{
   if(e.target.closest("#addTaskBtn")){ openTaskModal(); return; }
   if(e.target.closest("#filterBtn")){ filterOpen=!filterOpen; renderFilter(); return; }
   if(e.target.closest("#sortBtn")){ sortMode=sortMode==="manual"?"name-asc":sortMode==="name-asc"?"name-desc":sortMode==="name-desc"?"prio":"manual"; if(!_viewShared){ try{localStorage.setItem("ms_sortmode",sortMode);}catch(_){} }  render(); return; }
+  const dyb=e.target.closest("#dayBtn");
+  if(dyb){ e.stopPropagation(); openDayPop(dyb); return; }
   if(e.target.closest("#shareViewBtn")){ copyViewLink(); return; }
   if(e.target.closest("#toggleAllBtn") && isMemberView()){
     const ms=[]; memberGroups().forEach(g=>g.members.forEach(m=>ms.push(m)));
